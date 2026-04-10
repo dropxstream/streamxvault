@@ -94,6 +94,44 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ========== DEBUG: Test database persistence ==========
+app.get('/api/debug/db', async (req, res) => {
+  const results = { mode: storage.mode, steps: [] };
+
+  // Step 1: Check local database
+  try {
+    const local = loadVideos();
+    results.steps.push({ step: 'local_load', success: true, count: local.length });
+  } catch (e) {
+    results.steps.push({ step: 'local_load', success: false, error: e.message });
+  }
+
+  // Step 2: Try saving to R2
+  if (storage.mode === 'r2') {
+    try {
+      const videos = loadVideos();
+      const jsonData = JSON.stringify(videos, null, 2);
+      await storage.upload(DB_KEY, Buffer.from(jsonData), 'application/json');
+      results.steps.push({ step: 'r2_save', success: true, bytes: jsonData.length });
+    } catch (e) {
+      results.steps.push({ step: 'r2_save', success: false, error: e.message });
+    }
+
+    // Step 3: Try loading from R2
+    try {
+      const { GetObjectCommand } = require('@aws-sdk/client-s3');
+      const command = new GetObjectCommand({ Bucket: storage.bucketName, Key: DB_KEY });
+      const response = await storage.client.send(command);
+      const body = await response.Body.transformToString();
+      const videos = JSON.parse(body);
+      results.steps.push({ step: 'r2_load', success: true, count: videos.length });
+    } catch (e) {
+      results.steps.push({ step: 'r2_load', success: false, error: e.message });
+    }
+  }
+
+  res.json(results);
+});
 // Multer config for file uploads (memory storage for flexibility)
 const upload = multer({
   storage: multer.memoryStorage(),
