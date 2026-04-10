@@ -20,8 +20,9 @@ const JWT_SECRET = process.env.SESSION_SECRET || 'streamxvault-secret';
 // Initialize storage
 const storage = createStorage();
 
-// Data file path
+// Data file path (local cache)
 const DATA_FILE = path.join(__dirname, 'data', 'videos.json');
+const DB_KEY = '_database/videos.json'; // Key in R2 for persistent storage
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -29,6 +30,61 @@ if (!fs.existsSync(path.join(__dirname, 'data'))) {
 }
 if (!fs.existsSync(DATA_FILE)) {
   fs.writeFileSync(DATA_FILE, '[]');
+}
+
+// ==================== Helper Functions ====================
+
+// Load database from R2 on startup (if available)
+async function initDatabase() {
+  if (storage.mode === 'r2') {
+    try {
+      console.log('📂 Loading video database from R2...');
+      const { GetObjectCommand } = require('@aws-sdk/client-s3');
+      const command = new GetObjectCommand({
+        Bucket: storage.bucketName,
+        Key: DB_KEY,
+      });
+      const response = await storage.client.send(command);
+      const body = await response.Body.transformToString();
+      fs.writeFileSync(DATA_FILE, body);
+      const videos = JSON.parse(body);
+      console.log(`✅ Loaded ${videos.length} videos from R2 database`);
+    } catch (err) {
+      if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+        console.log('📝 No existing database in R2, starting fresh');
+      } else {
+        console.error('⚠️ Failed to load database from R2:', err.message);
+      }
+    }
+  }
+}
+
+function loadVideos() {
+  try {
+    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function saveVideos(videos) {
+  // Save locally
+  fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
+
+  // Also save to R2 for persistence across deploys
+  if (storage.mode === 'r2') {
+    const { PutObjectCommand } = require('@aws-sdk/client-s3');
+    const command = new PutObjectCommand({
+      Bucket: storage.bucketName,
+      Key: DB_KEY,
+      Body: JSON.stringify(videos, null, 2),
+      ContentType: 'application/json',
+    });
+    storage.client.send(command).catch(err => {
+      console.error('⚠️ Failed to save database to R2:', err.message);
+    });
+  }
 }
 
 // Middleware
@@ -489,9 +545,12 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`
+// Start server (load database from R2 first)
+async function startServer() {
+  await initDatabase();
+
+  app.listen(PORT, () => {
+    console.log(`
   ╔═══════════════════════════════════════════╗
   ║     🎬 StreamXvault is running!           ║
   ║                                           ║
@@ -500,5 +559,8 @@ app.listen(PORT, () => {
   ║                                           ║
   ║     Storage: ${(process.env.STORAGE_MODE || 'local').toUpperCase().padEnd(28)}║
   ╚═══════════════════════════════════════════╝
-  `);
-});
+    `);
+  });
+}
+
+startServer();
