@@ -1,6 +1,7 @@
 /**
  * StreamXvault — Express Server
  * Main application server with API routes
+ * Database persisted to R2 — survives all redeployments
  */
 
 require('dotenv').config();
