@@ -180,6 +180,8 @@ app.get('/api/videos/:id', (req, res) => {
 app.post('/api/upload/presign', requireAdmin, async (req, res) => {
   try {
     const { filename, contentType, fileType } = req.body;
+    console.log(`📤 Presign request: filename=${filename}, type=${contentType}, fileType=${fileType}`);
+
     const id = uuidv4();
     const ext = path.extname(filename);
 
@@ -192,11 +194,14 @@ app.post('/api/upload/presign', requireAdmin, async (req, res) => {
 
     // Check if storage supports presigned URLs
     if (storage.mode !== 'r2') {
+      console.log('📁 Local storage mode - falling back to server upload');
       return res.json({ direct: false, message: 'Using server upload for local storage' });
     }
 
+    console.log(`🔑 Generating presigned URL for key: ${key}`);
     const presignedUrl = await storage.getPresignedUploadUrl(key, contentType);
     const publicUrl = storage.getUrl(key);
+    console.log(`✅ Presigned URL generated successfully for ${key}`);
 
     res.json({
       direct: true,
@@ -206,8 +211,9 @@ app.post('/api/upload/presign', requireAdmin, async (req, res) => {
       id
     });
   } catch (err) {
-    console.error('Presign error:', err);
-    res.status(500).json({ error: 'Failed to generate upload URL' });
+    console.error('❌ Presign error:', err.message);
+    console.error('❌ Full error:', err);
+    res.status(500).json({ error: 'Failed to generate upload URL: ' + err.message });
   }
 });
 
