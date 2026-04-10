@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamXvault — Watch What Matters</title>
+  <meta name="description" content="StreamXvault is your premium streaming platform. Watch curated video content uploaded by creators.">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar" id="navbar">
+    <a href="/" class="nav-brand" id="nav-brand">
+      <div class="brand-icon">▶</div>
+      StreamXvault
+    </a>
+    <div class="nav-center">
+      <div class="nav-search">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off">
+      </div>
+    </div>
+    <div class="nav-right">
+      <a href="/" class="nav-link active" id="nav-home">Home</a>
+      <a href="/admin" class="btn btn-secondary btn-sm" id="nav-admin">🔐 Admin</a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Hero Section -->
+    <section class="hero" id="hero-section">
+      <div class="hero-video-bg" id="hero-bg"></div>
+      <div class="hero-bg"></div>
+      <div class="hero-content animate-slide-up">
+        <div class="hero-badge" id="hero-badge">🔴 Latest Upload</div>
+        <h1 id="hero-title">Welcome to StreamXvault</h1>
+        <p id="hero-desc">Your premium streaming platform. Watch curated video content shared by the admin — always fresh, always exciting.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-lg" id="hero-play-btn" style="display:none;">▶ Watch Now</button>
+          <button class="btn btn-secondary btn-lg" id="hero-browse-btn" onclick="document.getElementById('all-videos').scrollIntoView({behavior:'smooth'})">Browse All</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="container">
+      <!-- Recently Added -->
+      <section class="section" id="recent-section" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title"><span class="icon">⚡</span> Recently Added</h2>
+        </div>
+        <div class="video-carousel" id="recent-carousel"></div>
+      </section>
+
+      <!-- All Videos -->
+      <section class="section" id="all-videos">
+        <div class="section-header">
+          <h2 class="section-title"><span class="icon">🎬</span> All Videos</h2>
+          <span class="section-action" id="video-count"></span>
+        </div>
+
+        <!-- Loading State -->
+        <div id="videos-loading" class="video-grid">
+          <!-- Skeleton cards injected by JS -->
+        </div>
+
+        <!-- Videos Grid -->
+        <div class="video-grid" id="videos-grid" style="display: none;"></div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="empty-state" style="display: none;">
+          <div class="empty-icon">🎬</div>
+          <h3>No Videos Yet</h3>
+          <p>Content will appear here once the admin uploads videos.</p>
+        </div>
+
+        <!-- No Search Results -->
+        <div class="empty-state" id="no-results" style="display: none;">
+          <div class="empty-icon">🔍</div>
+          <h3>No Results Found</h3>
+          <p>Try a different search term.</p>
+          <button class="btn btn-primary" onclick="clearSearch()">Clear Search</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <span class="footer-brand">StreamXvault</span>
+          <span class="footer-text">© 2026 StreamXvault. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
