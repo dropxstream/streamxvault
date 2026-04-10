@@ -249,64 +249,150 @@ function updateFileLabel(type) {
   }
 }
 
-// ==================== Direct R2 Upload ====================
+// ==================== Smart Upload (auto-detects small vs large) ====================
+
+const CHUNK_SIZE = 100 * 1024 * 1024; // 100MB per chunk
 
 async function uploadFileDirectly(file, fileType, progressCallback) {
-  // Step 1: Get presigned URL from our server
+  const contentType = file.type || 'application/octet-stream';
+
+  // Use multipart for files > 100MB
+  if (file.size > CHUNK_SIZE) {
+    return await multipartUpload(file, fileType, contentType, progressCallback);
+  }
+
+  // Small file: use simple presigned URL
+  return await simplePresignedUpload(file, fileType, contentType, progressCallback);
+}
+
+// ==================== Simple Upload (files < 100MB) ====================
+
+async function simplePresignedUpload(file, fileType, contentType, progressCallback) {
   const presignRes = await fetch('/api/upload/presign', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders()
-    },
-    body: JSON.stringify({
-      filename: file.name,
-      contentType: file.type || 'application/octet-stream',
-      fileType
-    })
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ filename: file.name, contentType, fileType })
   });
 
-  if (presignRes.status === 401) {
-    clearToken();
-    location.reload();
-    throw new Error('Session expired. Please login again.');
-  }
+  if (presignRes.status === 401) { clearToken(); location.reload(); throw new Error('Session expired.'); }
 
   const presignData = await presignRes.json();
+  if (!presignData.direct) return null;
 
-  // If server says use legacy upload (local storage)
-  if (!presignData.direct) {
-    return null; // fallback to legacy upload
-  }
-
-  // Step 2: Upload file directly to R2 using presigned URL
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-
     xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && progressCallback) {
-        progressCallback(Math.round((e.loaded / e.total) * 100));
-      }
+      if (e.lengthComputable && progressCallback) progressCallback(Math.round((e.loaded / e.total) * 100));
     });
-
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve({
-          publicUrl: presignData.publicUrl,
-          key: presignData.key,
-          id: presignData.id
-        });
+        resolve({ publicUrl: presignData.publicUrl, key: presignData.key, id: presignData.id });
       } else {
         reject(new Error(`Upload failed with status ${xhr.status}`));
       }
     };
-
     xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out'));
-
     xhr.open('PUT', presignData.uploadUrl);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.setRequestHeader('Content-Type', contentType);
     xhr.send(file);
+  });
+}
+
+// ==================== Multipart Upload (files > 100MB) ====================
+
+async function multipartUpload(file, fileType, contentType, progressCallback) {
+  // Step 1: Create multipart upload
+  const createRes = await fetch('/api/upload/multipart/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ filename: file.name, contentType, fileType })
+  });
+
+  if (createRes.status === 401) { clearToken(); location.reload(); throw new Error('Session expired.'); }
+  const createData = await createRes.json();
+  if (!createData.direct) return null;
+
+  const { uploadId, key, id, publicUrl } = createData;
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  const completedParts = [];
+  let totalUploaded = 0;
+
+  console.log(`📦 Multipart upload: ${totalChunks} chunks of ${(CHUNK_SIZE / 1024 / 1024)}MB`);
+
+  try {
+    // Step 2: Upload each chunk
+    for (let i = 0; i < totalChunks; i++) {
+      const partNumber = i + 1;
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+
+      // Get presigned URL for this part
+      const partRes = await fetch('/api/upload/multipart/presign-part', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ key, uploadId, partNumber })
+      });
+      const partData = await partRes.json();
+
+      // Upload the chunk directly to R2
+      const etag = await uploadChunk(partData.url, chunk, (chunkProgress) => {
+        const chunkBytes = (chunkProgress / 100) * (end - start);
+        const overall = Math.round(((totalUploaded + chunkBytes) / file.size) * 100);
+        if (progressCallback) progressCallback(overall);
+      });
+
+      totalUploaded += (end - start);
+      completedParts.push({ partNumber, etag });
+
+      console.log(`✅ Part ${partNumber}/${totalChunks} uploaded`);
+    }
+
+    // Step 3: Complete the multipart upload
+    const completeRes = await fetch('/api/upload/multipart/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ key, uploadId, parts: completedParts })
+    });
+
+    if (!completeRes.ok) {
+      throw new Error('Failed to complete multipart upload');
+    }
+
+    if (progressCallback) progressCallback(100);
+    return { publicUrl, key, id };
+
+  } catch (err) {
+    // Abort the multipart upload on failure
+    console.error('❌ Multipart upload failed, aborting...', err);
+    try {
+      await fetch('/api/upload/multipart/abort', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ key, uploadId })
+      });
+    } catch {}
+    throw err;
+  }
+}
+
+function uploadChunk(url, chunk, progressCallback) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && progressCallback) progressCallback(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const etag = xhr.getResponseHeader('ETag');
+        resolve(etag);
+      } else {
+        reject(new Error(`Chunk upload failed: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+    xhr.open('PUT', url);
+    xhr.send(chunk);
   });
 }
 

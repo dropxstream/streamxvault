@@ -217,6 +217,83 @@ app.post('/api/upload/presign', requireAdmin, async (req, res) => {
   }
 });
 
+// ==================== Multipart Upload (for large files) ====================
+
+// Step 1: Create multipart upload
+app.post('/api/upload/multipart/create', requireAdmin, async (req, res) => {
+  try {
+    const { filename, contentType, fileType } = req.body;
+    const id = uuidv4();
+    const ext = path.extname(filename);
+
+    let key;
+    if (fileType === 'thumbnail') {
+      key = `thumb_${id}${ext}`;
+    } else {
+      key = `${id}${ext}`;
+    }
+
+    if (storage.mode !== 'r2') {
+      return res.json({ direct: false });
+    }
+
+    console.log(`📦 Creating multipart upload for: ${key}`);
+    const uploadId = await storage.createMultipartUpload(key, contentType);
+    console.log(`✅ Multipart upload created: ${uploadId}`);
+
+    res.json({
+      direct: true,
+      uploadId,
+      key,
+      id,
+      publicUrl: storage.getUrl(key)
+    });
+  } catch (err) {
+    console.error('❌ Multipart create error:', err.message);
+    res.status(500).json({ error: 'Failed to create multipart upload: ' + err.message });
+  }
+});
+
+// Step 2: Get presigned URL for each part
+app.post('/api/upload/multipart/presign-part', requireAdmin, async (req, res) => {
+  try {
+    const { key, uploadId, partNumber } = req.body;
+
+    const url = await storage.getPresignedPartUrl(key, uploadId, partNumber);
+    res.json({ url, partNumber });
+  } catch (err) {
+    console.error('❌ Part presign error:', err.message);
+    res.status(500).json({ error: 'Failed to presign part: ' + err.message });
+  }
+});
+
+// Step 3: Complete multipart upload
+app.post('/api/upload/multipart/complete', requireAdmin, async (req, res) => {
+  try {
+    const { key, uploadId, parts } = req.body;
+
+    console.log(`✅ Completing multipart upload: ${key} (${parts.length} parts)`);
+    const publicUrl = await storage.completeMultipartUpload(key, uploadId, parts);
+    console.log(`🎉 Multipart upload complete: ${key}`);
+
+    res.json({ success: true, publicUrl });
+  } catch (err) {
+    console.error('❌ Multipart complete error:', err.message);
+    res.status(500).json({ error: 'Failed to complete multipart upload: ' + err.message });
+  }
+});
+
+// Abort multipart upload (cleanup on failure)
+app.post('/api/upload/multipart/abort', requireAdmin, async (req, res) => {
+  try {
+    const { key, uploadId } = req.body;
+    await storage.abortMultipartUpload(key, uploadId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to abort upload' });
+  }
+});
+
 // Register video after direct upload completes
 app.post('/api/upload/complete', requireAdmin, (req, res) => {
   try {

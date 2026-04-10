@@ -1,11 +1,21 @@
 /**
  * Storage Abstraction Layer for StreamXvault
  * Supports local filesystem and Cloudflare R2 storage
+ * Includes multipart upload for large files
  */
 
 const fs = require('fs');
 const path = require('path');
-const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 class LocalStorage {
@@ -35,9 +45,13 @@ class LocalStorage {
   }
 
   async getPresignedUploadUrl(filename, contentType) {
-    // Local storage doesn't support presigned URLs
     return null;
   }
+
+  async createMultipartUpload(filename, contentType) { return null; }
+  async getPresignedPartUrl(filename, uploadId, partNumber) { return null; }
+  async completeMultipartUpload(filename, uploadId, parts) { return null; }
+  async abortMultipartUpload(filename, uploadId) { return null; }
 }
 
 class R2Storage {
@@ -87,6 +101,54 @@ class R2Storage {
     const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
     return url;
   }
+
+  // ==================== Multipart Upload ====================
+
+  async createMultipartUpload(filename, contentType) {
+    const command = new CreateMultipartUploadCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+      ContentType: contentType,
+    });
+    const response = await this.client.send(command);
+    return response.UploadId;
+  }
+
+  async getPresignedPartUrl(filename, uploadId, partNumber) {
+    const command = new UploadPartCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+    });
+    const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
+    return url;
+  }
+
+  async completeMultipartUpload(filename, uploadId, parts) {
+    const command = new CompleteMultipartUploadCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+      UploadId: uploadId,
+      MultipartUpload: {
+        Parts: parts.map(p => ({
+          ETag: p.etag,
+          PartNumber: p.partNumber,
+        })),
+      },
+    });
+    await this.client.send(command);
+    return this.getUrl(filename);
+  }
+
+  async abortMultipartUpload(filename, uploadId) {
+    const command = new AbortMultipartUploadCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+      UploadId: uploadId,
+    });
+    await this.client.send(command);
+  }
 }
 
 function createStorage() {
@@ -109,4 +171,3 @@ function createStorage() {
 }
 
 module.exports = { createStorage };
-
