@@ -47,16 +47,20 @@ async function initDatabase() {
       });
       const response = await storage.client.send(command);
       const body = await response.Body.transformToString();
-      fs.writeFileSync(DATA_FILE, body);
       const videos = JSON.parse(body);
-      console.log(`✅ Loaded ${videos.length} videos from R2 database`);
+      fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
+      console.log('✅ SUCCESS: Loaded ' + videos.length + ' videos from R2 database');
     } catch (err) {
-      if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      const code = err.name || err.Code || '';
+      const httpCode = err.$metadata ? err.$metadata.httpStatusCode : 0;
+      if (code === 'NoSuchKey' || httpCode === 404) {
         console.log('📝 No existing database in R2, starting fresh');
       } else {
-        console.error('⚠️ Failed to load database from R2:', err.message);
+        console.error('⚠️ Failed to load from R2:', code, err.message);
       }
     }
+  } else {
+    console.log('📁 Local storage mode - using local database');
   }
 }
 
@@ -70,21 +74,15 @@ function loadVideos() {
 }
 
 function saveVideos(videos) {
-  // Save locally
+  // Save locally first
   fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
 
-  // Also save to R2 for persistence across deploys
+  // Also save to R2 using storage.upload method
   if (storage.mode === 'r2') {
-    const { PutObjectCommand } = require('@aws-sdk/client-s3');
-    const command = new PutObjectCommand({
-      Bucket: storage.bucketName,
-      Key: DB_KEY,
-      Body: JSON.stringify(videos, null, 2),
-      ContentType: 'application/json',
-    });
-    storage.client.send(command).catch(err => {
-      console.error('⚠️ Failed to save database to R2:', err.message);
-    });
+    const jsonData = JSON.stringify(videos, null, 2);
+    storage.upload(DB_KEY, Buffer.from(jsonData), 'application/json')
+      .then(() => console.log('💾 Database backed up to R2 (' + videos.length + ' videos)'))
+      .catch(err => console.error('❌ R2 DB backup failed:', err.message));
   }
 }
 
