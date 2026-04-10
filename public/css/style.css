@@ -1261,6 +1261,13 @@ input, textarea, select {
 .video-grid .video-card:nth-child(8) { animation-delay: 0.4s; }
 
 /* ==================== Responsive ==================== */
+
+/* Prevent horizontal overflow on all devices */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 @media (max-width: 1024px) {
   .admin-layout {
     grid-template-columns: 1fr;
@@ -1284,45 +1291,151 @@ input, textarea, select {
     padding: 0.5rem 0.75rem;
     font-size: 0.85rem;
   }
+
+  .video-carousel .video-card {
+    min-width: 260px;
+    max-width: 260px;
+  }
 }
 
 @media (max-width: 768px) {
   .navbar {
-    padding: 0 1rem;
+    padding: 0 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .nav-brand {
+    font-size: 1.15rem;
+    gap: 0.5rem;
+  }
+
+  .nav-brand .brand-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 0.9rem;
   }
 
   .nav-center {
     display: none;
   }
 
+  .nav-right {
+    gap: 0.5rem;
+  }
+
+  .nav-link {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .btn-sm {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+  }
+
   .hero {
-    height: 60vh;
-    min-height: 400px;
+    height: auto;
+    min-height: 350px;
+    max-height: 500px;
+    padding-bottom: 2.5rem;
+  }
+
+  .hero-content {
+    padding: 0 1rem;
+    max-width: 100%;
+  }
+
+  .hero-badge {
+    font-size: 0.65rem;
+    padding: 0.3rem 0.75rem;
   }
 
   .hero h1 {
-    font-size: 2rem;
+    font-size: 1.75rem;
+    line-height: 1.15;
+    word-break: break-word;
   }
 
   .hero p {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+    max-width: 100%;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.7rem 1.2rem;
   }
 
   .container {
-    padding: 0 1rem;
+    padding: 0 0.75rem;
+  }
+
+  .section {
+    padding: 2rem 0;
+  }
+
+  .section-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .section-title {
+    font-size: 1.15rem;
   }
 
   .video-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .video-card .card-info {
+    padding: 0.65rem;
+  }
+
+  .video-card .card-title {
+    font-size: 0.85rem;
+  }
+
+  .video-card .card-meta {
+    font-size: 0.7rem;
+    gap: 0.5rem;
+  }
+
+  .video-carousel .video-card {
+    min-width: 200px;
+    max-width: 200px;
   }
 
   .player-container {
-    padding: 1rem;
+    padding: 0.75rem;
+  }
+
+  .video-player-wrapper {
+    border-radius: var(--radius-sm);
+    margin-bottom: 1rem;
   }
 
   .video-info h1 {
-    font-size: 1.3rem;
+    font-size: 1.15rem;
+    word-break: break-word;
+  }
+
+  .video-meta {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .video-description {
+    padding: 0.85rem;
+    font-size: 0.85rem;
   }
 
   .admin-video-item {
@@ -1332,43 +1445,213 @@ input, textarea, select {
 
   .admin-video-item .item-thumb {
     width: 100%;
+    min-width: unset;
+  }
+
+  .admin-video-item .item-info {
+    width: 100%;
+  }
+
+  .admin-video-item .item-title {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .admin-video-item .item-meta {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .admin-video-item .item-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .admin-main {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .stat-card .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .upload-area {
+    padding: 1.5rem 1rem;
+  }
+
+  .upload-area .upload-icon {
+    font-size: 2rem;
+  }
+
+  .upload-area h3 {
+    font-size: 0.9rem;
+  }
+
+  .upload-area p {
+    font-size: 0.75rem;
+  }
+
+  .footer {
+    margin-top: 2rem;
+    padding: 2rem 0;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .footer-brand {
+    font-size: 0.95rem;
+  }
+
+  .footer-text {
+    font-size: 0.75rem;
+  }
+
+  /* Toast on mobile */
+  .toast-container {
+    right: 0.5rem;
+    left: 0.5rem;
+  }
+
+  .toast {
+    min-width: unset;
+    max-width: 100%;
+    font-size: 0.8rem;
+    padding: 0.65rem 0.85rem;
+  }
+
+  /* Modal on mobile */
+  .modal-overlay {
+    padding: 1rem;
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 85vh;
+  }
+
+  .modal-header {
+    padding: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+
+  .modal-footer {
+    padding: 1rem;
+  }
+
+  .login-card {
+    padding: 1.75rem;
+    margin: 0 0.5rem;
+  }
+
+  .login-card .login-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.4rem;
+  }
+
+  .login-card h2 {
+    font-size: 1.25rem;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.85rem;
+  }
+
+  .btn-lg {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  /* Quick actions responsive */
+  .admin-tab div[style*="display: flex"] {
+    flex-direction: column !important;
+  }
+
+  .admin-tab div[style*="display: flex"] .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .navbar {
+    padding: 0 0.5rem;
+  }
+
+  .nav-brand {
+    font-size: 1rem;
+  }
+
+  .nav-brand .brand-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+  }
+
+  .hero h1 {
+    font-size: 1.4rem;
+  }
+
+  .hero p {
+    font-size: 0.8rem;
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .section-title {
+    font-size: 1rem;
   }
 
   .stats-grid {
     grid-template-columns: 1fr;
   }
 
-  .footer-content {
-    flex-direction: column;
-    gap: 0.75rem;
-    text-align: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .hero h1 {
-    font-size: 1.6rem;
-  }
-
-  .hero-actions {
-    flex-direction: column;
-  }
-
-  .hero-actions .btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .video-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .section-title {
-    font-size: 1.2rem;
-  }
-
   .login-card {
-    padding: 2rem;
+    padding: 1.5rem;
+  }
+
+  .sidebar-nav {
+    gap: 0.25rem;
+  }
+
+  .sidebar-link {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.78rem;
+  }
+
+  .play-overlay .play-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 1.1rem;
   }
 }
 
@@ -1406,3 +1689,14 @@ input, textarea, select {
   justify-content: center;
   padding: 4rem;
 }
+
+/* ==================== Global Overflow Safety ==================== */
+* {
+  word-break: break-word;
+}
+
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
