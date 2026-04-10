@@ -6,10 +6,12 @@
 const fs = require('fs');
 const path = require('path');
 const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 class LocalStorage {
   constructor(uploadDir) {
     this.uploadDir = uploadDir;
+    this.mode = 'local';
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -31,12 +33,18 @@ class LocalStorage {
   getUrl(filename) {
     return `/uploads/${filename}`;
   }
+
+  async getPresignedUploadUrl(filename, contentType) {
+    // Local storage doesn't support presigned URLs
+    return null;
+  }
 }
 
 class R2Storage {
   constructor(config) {
     this.bucketName = config.bucketName;
     this.publicUrl = config.publicUrl;
+    this.mode = 'r2';
     this.client = new S3Client({
       region: 'auto',
       endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
@@ -69,6 +77,16 @@ class R2Storage {
   getUrl(filename) {
     return `${this.publicUrl}/${filename}`;
   }
+
+  async getPresignedUploadUrl(filename, contentType) {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: filename,
+      ContentType: contentType,
+    });
+    const url = await getSignedUrl(this.client, command, { expiresIn: 3600 });
+    return url;
+  }
 }
 
 function createStorage() {
@@ -91,3 +109,4 @@ function createStorage() {
 }
 
 module.exports = { createStorage };
+

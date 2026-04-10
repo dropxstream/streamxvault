@@ -1,6 +1,25 @@
 /**
  * StreamXvault — Admin Panel Logic
+ * Uses JWT tokens for persistent auth & direct R2 uploads
  */
+
+// ==================== Token Management ====================
+function getToken() {
+  return localStorage.getItem('streamxvault_token');
+}
+
+function setToken(token) {
+  localStorage.setItem('streamxvault_token', token);
+}
+
+function clearToken() {
+  localStorage.removeItem('streamxvault_token');
+}
+
+function authHeaders() {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
 
 // ==================== Toast Notifications ====================
 function showToast(message, type = 'info') {
@@ -49,14 +68,23 @@ function getTimeAgo(dateStr) {
 
 // ==================== Auth ====================
 async function checkAuth() {
+  const token = getToken();
+  if (!token) return;
+
   try {
-    const res = await fetch('/api/auth/status');
+    const res = await fetch('/api/auth/status', {
+      headers: authHeaders()
+    });
     const data = await res.json();
     if (data.isAdmin) {
       showDashboard();
       loadDashboard();
+    } else {
+      clearToken();
     }
-  } catch {}
+  } catch {
+    clearToken();
+  }
 }
 
 // Login
@@ -74,7 +102,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
     const data = await res.json();
 
-    if (res.ok) {
+    if (res.ok && data.token) {
+      setToken(data.token);
       showToast('Welcome, Admin! 🎉', 'success');
       showDashboard();
       loadDashboard();
@@ -90,13 +119,17 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
 async function logout() {
   try {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    showToast('Logged out', 'info');
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('admin-dashboard').style.display = 'none';
-    document.getElementById('logout-btn').style.display = 'none';
-    document.getElementById('admin-password').value = '';
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: authHeaders()
+    });
   } catch {}
+  clearToken();
+  showToast('Logged out', 'info');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('admin-dashboard').style.display = 'none';
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('admin-password').value = '';
 }
 
 function showDashboard() {
@@ -133,7 +166,8 @@ async function loadDashboard() {
 
 async function loadStats() {
   try {
-    const res = await fetch('/api/stats');
+    const res = await fetch('/api/stats', { headers: authHeaders() });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
     const stats = await res.json();
 
     document.getElementById('stat-total').textContent = stats.totalVideos;
@@ -215,6 +249,97 @@ function updateFileLabel(type) {
   }
 }
 
+// ==================== Direct R2 Upload ====================
+
+async function uploadFileDirectly(file, fileType, progressCallback) {
+  // Step 1: Get presigned URL from our server
+  const presignRes = await fetch('/api/upload/presign', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders()
+    },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
+      fileType
+    })
+  });
+
+  if (presignRes.status === 401) {
+    clearToken();
+    location.reload();
+    throw new Error('Session expired. Please login again.');
+  }
+
+  const presignData = await presignRes.json();
+
+  // If server says use legacy upload (local storage)
+  if (!presignData.direct) {
+    return null; // fallback to legacy upload
+  }
+
+  // Step 2: Upload file directly to R2 using presigned URL
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && progressCallback) {
+        progressCallback(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({
+          publicUrl: presignData.publicUrl,
+          key: presignData.key,
+          id: presignData.id
+        });
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out'));
+
+    xhr.open('PUT', presignData.uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.send(file);
+  });
+}
+
+async function legacyUpload(formData, progressCallback) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && progressCallback) {
+        progressCallback(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        try {
+          reject(new Error(JSON.parse(xhr.responseText).error));
+        } catch {
+          reject(new Error('Upload failed'));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error'));
+
+    xhr.open('POST', '/api/videos/upload');
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
+
 // Upload form submission
 document.getElementById('upload-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -231,15 +356,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  const formData = new FormData();
-  formData.append('video', videoFile);
-  formData.append('title', title);
-  formData.append('description', document.getElementById('video-desc').value.trim());
-
+  const description = document.getElementById('video-desc').value.trim();
   const thumbFile = thumbFileInput.files[0];
-  if (thumbFile) {
-    formData.append('thumbnail', thumbFile);
-  }
 
   // Show progress
   const progressEl = document.getElementById('upload-progress');
@@ -252,35 +370,61 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   submitBtn.textContent = '⏳ Uploading...';
 
   try {
-    const xhr = new XMLHttpRequest();
+    // Try direct R2 upload first
+    const videoResult = await uploadFileDirectly(videoFile, 'video', (pct) => {
+      progressBar.style.width = pct + '%';
+      progressText.textContent = `Uploading video... ${pct}%`;
+    });
 
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100);
+    if (videoResult) {
+      // Direct upload succeeded! Now upload thumbnail if provided
+      let thumbResult = null;
+      if (thumbFile) {
+        progressText.textContent = 'Uploading thumbnail...';
+        thumbResult = await uploadFileDirectly(thumbFile, 'thumbnail', (pct) => {
+          progressText.textContent = `Uploading thumbnail... ${pct}%`;
+        });
+      }
+
+      // Register the video in our database
+      progressText.textContent = 'Finalizing...';
+      const completeRes = await fetch('/api/upload/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders()
+        },
+        body: JSON.stringify({
+          videoId: videoResult.id,
+          title,
+          description,
+          videoUrl: videoResult.publicUrl,
+          videoFilename: videoResult.key,
+          thumbnailUrl: thumbResult ? thumbResult.publicUrl : null,
+          thumbnailFilename: thumbResult ? thumbResult.key : null
+        })
+      });
+
+      if (!completeRes.ok) {
+        throw new Error('Failed to register video');
+      }
+
+      showToast(`"${title}" uploaded successfully! 🎬`, 'success');
+    } else {
+      // Fallback to legacy upload (local storage)
+      const formData = new FormData();
+      formData.append('video', videoFile);
+      formData.append('title', title);
+      formData.append('description', description);
+      if (thumbFile) formData.append('thumbnail', thumbFile);
+
+      await legacyUpload(formData, (pct) => {
         progressBar.style.width = pct + '%';
         progressText.textContent = `Uploading... ${pct}%`;
-      }
-    });
+      });
 
-    const response = await new Promise((resolve, reject) => {
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText));
-        } else {
-          try {
-            reject(new Error(JSON.parse(xhr.responseText).error));
-          } catch {
-            reject(new Error('Upload failed'));
-          }
-        }
-      };
-      xhr.onerror = () => reject(new Error('Network error'));
-
-      xhr.open('POST', '/api/videos/upload');
-      xhr.send(formData);
-    });
-
-    showToast(`"${title}" uploaded successfully! 🎬`, 'success');
+      showToast(`"${title}" uploaded successfully! 🎬`, 'success');
+    }
 
     // Reset form
     document.getElementById('upload-form').reset();
@@ -309,7 +453,8 @@ async function loadAdminVideos() {
   const emptyEl = document.getElementById('admin-empty');
 
   try {
-    const res = await fetch('/api/admin/videos');
+    const res = await fetch('/api/admin/videos', { headers: authHeaders() });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
     adminVideos = await res.json();
 
     if (adminVideos.length === 0) {
@@ -385,8 +530,11 @@ async function saveEdit() {
   try {
     const res = await fetch(`/api/videos/${videoId}`, {
       method: 'PUT',
+      headers: authHeaders(),
       body: formData
     });
+
+    if (res.status === 401) { clearToken(); location.reload(); return; }
 
     if (res.ok) {
       showToast('Video updated successfully!', 'success');
@@ -424,8 +572,11 @@ async function confirmDelete() {
 
   try {
     const res = await fetch(`/api/videos/${deleteVideoId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: authHeaders()
     });
+
+    if (res.status === 401) { clearToken(); location.reload(); return; }
 
     if (res.ok) {
       showToast('Video deleted', 'success');

@@ -6,15 +6,16 @@
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
-const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { createStorage } = require('./storage');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const JWT_SECRET = process.env.SESSION_SECRET || 'streamxvault-secret';
 
 // Initialize storage
 const storage = createStorage();
@@ -33,12 +34,6 @@ if (!fs.existsSync(DATA_FILE)) {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'streamxvault-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
-}));
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -86,11 +81,21 @@ function saveVideos(videos) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
 }
 
+// JWT-based auth middleware (survives server restarts)
 function requireAdmin(req, res, next) {
-  if (req.session && req.session.isAdmin) {
-    next();
-  } else {
-    res.status(401).json({ error: 'Unauthorized. Admin login required.' });
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized. Admin login required.' });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.isAdmin) {
+      next();
+    } else {
+      res.status(401).json({ error: 'Unauthorized. Admin login required.' });
+    }
+  } catch {
+    res.status(401).json({ error: 'Session expired. Please login again.' });
   }
 }
 
@@ -99,20 +104,30 @@ function requireAdmin(req, res, next) {
 app.post('/api/auth/login', (req, res) => {
   const { password } = req.body;
   if (password === ADMIN_PASSWORD) {
-    req.session.isAdmin = true;
-    res.json({ success: true, message: 'Logged in as admin' });
+    // Create a JWT token that lasts 7 days
+    const token = jwt.sign({ isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ success: true, message: 'Logged in as admin', token });
   } else {
     res.status(401).json({ error: 'Invalid password' });
   }
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  req.session.destroy();
+  // Client-side will delete the token
   res.json({ success: true, message: 'Logged out' });
 });
 
 app.get('/api/auth/status', (req, res) => {
-  res.json({ isAdmin: !!(req.session && req.session.isAdmin) });
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.json({ isAdmin: false });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ isAdmin: !!decoded.isAdmin });
+  } catch {
+    res.json({ isAdmin: false });
+  }
 });
 
 // ==================== Video Routes ====================
@@ -159,7 +174,74 @@ app.get('/api/videos/:id', (req, res) => {
   res.json(video);
 });
 
-// Upload video
+// ==================== Presigned Upload (Direct to R2) ====================
+
+// Get presigned URL for direct browser -> R2 upload
+app.post('/api/upload/presign', requireAdmin, async (req, res) => {
+  try {
+    const { filename, contentType, fileType } = req.body;
+    const id = uuidv4();
+    const ext = path.extname(filename);
+
+    let key;
+    if (fileType === 'thumbnail') {
+      key = `thumb_${id}${ext}`;
+    } else {
+      key = `${id}${ext}`;
+    }
+
+    // Check if storage supports presigned URLs
+    if (storage.mode !== 'r2') {
+      return res.json({ direct: false, message: 'Using server upload for local storage' });
+    }
+
+    const presignedUrl = await storage.getPresignedUploadUrl(key, contentType);
+    const publicUrl = storage.getUrl(key);
+
+    res.json({
+      direct: true,
+      uploadUrl: presignedUrl,
+      publicUrl,
+      key,
+      id
+    });
+  } catch (err) {
+    console.error('Presign error:', err);
+    res.status(500).json({ error: 'Failed to generate upload URL' });
+  }
+});
+
+// Register video after direct upload completes
+app.post('/api/upload/complete', requireAdmin, (req, res) => {
+  try {
+    const { videoId, title, description, videoUrl, videoFilename, thumbnailUrl, thumbnailFilename } = req.body;
+
+    const videoData = {
+      id: videoId,
+      title: title || 'Untitled Video',
+      description: description || '',
+      videoUrl,
+      thumbnailUrl: thumbnailUrl || null,
+      duration: null,
+      views: 0,
+      published: true,
+      uploadedAt: new Date().toISOString(),
+      videoFilename,
+      thumbnailFilename: thumbnailFilename || null
+    };
+
+    const videos = loadVideos();
+    videos.push(videoData);
+    saveVideos(videos);
+
+    res.json({ success: true, video: videoData });
+  } catch (err) {
+    console.error('Complete error:', err);
+    res.status(500).json({ error: 'Failed to register video' });
+  }
+});
+
+// Legacy upload (fallback for local storage)
 app.post('/api/videos/upload', requireAdmin, upload.fields([
   { name: 'video', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 }
