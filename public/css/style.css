@@ -362,6 +362,7 @@ input, textarea, select {
   z-index: 2;
   max-width: 650px;
   padding: 0 2rem;
+  margin-top: 2rem;
 }
 
 .hero-badge {
@@ -385,11 +386,16 @@ input, textarea, select {
 }
 
 .hero h1 {
-  font-size: 3.2rem;
+  font-size: clamp(2rem, 4vw, 2.8rem);
   font-weight: 900;
-  line-height: 1.1;
+  line-height: 1.2;
   margin-bottom: 1rem;
   letter-spacing: -1px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero p {
@@ -398,6 +404,11 @@ input, textarea, select {
   line-height: 1.6;
   margin-bottom: 2rem;
   max-width: 500px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-actions {
