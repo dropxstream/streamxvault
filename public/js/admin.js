@@ -550,55 +550,80 @@ async function loadAdminVideos() {
     const res = await fetch('/api/admin/videos', { headers: authHeaders() });
     if (res.status === 401) { clearToken(); location.reload(); return; }
     adminVideos = await res.json();
-
-    if (adminVideos.length === 0) {
-      listEl.innerHTML = '';
-      emptyEl.style.display = 'block';
-      return;
+    
+    // Automatically render all videos initially
+    if (typeof filterAdminVideos === 'function') {
+      filterAdminVideos('');
     }
-
-    emptyEl.style.display = 'none';
-    listEl.innerHTML = '';
-
-    adminVideos.forEach(video => {
-      const item = document.createElement('div');
-      item.className = 'admin-video-item';
-
-      const thumbnailContent = video.thumbnailUrl
-        ? `<img src="${video.thumbnailUrl}" alt="${video.title}">`
-        : `<div class="thumb-placeholder" style="font-size: 1.5rem;">🎬</div>`;
-
-      const statusBadge = video.published !== false
-        ? '<span class="badge badge-success">Published</span>'
-        : '<span class="badge badge-warning">Draft</span>';
-
-      const genreBadge = video.genre 
-        ? `<span class="badge" style="background:var(--accent-purple);color:white;">🏷️ ${escapeHtml(video.genre)}</span>`
-        : '';
-
-      item.innerHTML = `
-        <div class="item-thumb">${thumbnailContent}</div>
-        <div class="item-info">
-          <div class="item-title">${escapeHtml(video.title)}</div>
-          <div class="item-meta">
-            ${statusBadge}
-            ${genreBadge}
-            <span>👁️ ${formatViews(video.views || 0)} views</span>
-            <span>🕐 ${getTimeAgo(video.uploadedAt)}</span>
-          </div>
-        </div>
-        <div class="item-actions">
-          <button class="btn btn-secondary btn-sm" onclick="openEditModal('${video.id}')">✏️ Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${video.id}')">🗑️</button>
-        </div>
-      `;
-
-      listEl.appendChild(item);
-    });
-
   } catch (err) {
     console.error('Failed to load videos:', err);
     showToast('Failed to load videos', 'error');
+  }
+}
+
+function renderAdminVideoList(videosToRender) {
+  const listEl = document.getElementById('admin-video-list');
+  const emptyEl = document.getElementById('admin-empty');
+
+  if (videosToRender.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = '';
+
+  videosToRender.forEach(video => {
+    const item = document.createElement('div');
+    item.className = 'admin-video-item';
+
+    const thumbnailContent = video.thumbnailUrl
+      ? `<img src="${video.thumbnailUrl}" alt="${video.title}">`
+      : `<div class="thumb-placeholder" style="font-size: 1.5rem;">🎬</div>`;
+
+    const statusBadge = video.published !== false
+      ? '<span class="badge badge-success">Published</span>'
+      : '<span class="badge badge-warning">Draft</span>';
+
+    const genreBadge = video.genre 
+      ? `<span class="badge" style="background:var(--accent-purple);color:white;">🏷️ ${escapeHtml(video.genre)}</span>`
+      : '';
+
+    item.innerHTML = `
+      <div class="item-thumb">${thumbnailContent}</div>
+      <div class="item-info">
+        <div class="item-title">${escapeHtml(video.title)}</div>
+        <div class="item-meta">
+          ${statusBadge}
+          ${genreBadge}
+          <span>👁️ ${formatViews(video.views || 0)} views</span>
+          <span>🕐 ${getTimeAgo(video.uploadedAt)}</span>
+        </div>
+      </div>
+      <div class="item-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openEditModal('${video.id}')">✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${video.id}')">🗑️</button>
+      </div>
+    `;
+
+    listEl.appendChild(item);
+  });
+}
+
+function filterAdminVideos(genre) {
+  // Update button active states
+  const buttons = document.querySelectorAll('#admin-genre-filters .btn');
+  buttons.forEach(btn => btn.className = 'btn btn-secondary');
+  const activeBtn = document.getElementById('admin-filter-' + (genre || 'All'));
+  if (activeBtn) activeBtn.className = 'btn btn-primary';
+
+  if (!genre) {
+    renderAdminVideoList(adminVideos);
+  } else {
+    const g = genre.toLowerCase();
+    const filtered = adminVideos.filter(v => v.genre && v.genre.toLowerCase() === g);
+    renderAdminVideoList(filtered);
   }
 }
 

@@ -155,6 +155,15 @@
         <!-- Manage Tab -->
         <div class="admin-tab" id="tab-manage" style="display: none;">
           <h2 style="margin-bottom: 1.5rem; font-weight: 700;">📁 Manage Videos</h2>
+          
+          <div class="genre-filters" id="admin-genre-filters" style="display: flex; gap: 0.5rem; overflow-x: auto; width: 100%; padding-bottom: 1.5rem;">
+            <button class="btn btn-primary" onclick="filterAdminVideos('')" id="admin-filter-All">All Genres</button>
+            <button class="btn btn-secondary" onclick="filterAdminVideos('Trueanal')" id="admin-filter-Trueanal">Trueanal</button>
+            <button class="btn btn-secondary" onclick="filterAdminVideos('Analonly')" id="admin-filter-Analonly">Analonly</button>
+            <button class="btn btn-secondary" onclick="filterAdminVideos('Nympho')" id="admin-filter-Nympho">Nympho</button>
+            <button class="btn btn-secondary" onclick="filterAdminVideos('Analvids')" id="admin-filter-Analvids">Analvids</button>
+          </div>
+
           <div class="admin-video-list" id="admin-video-list">
             <!-- Populated by JS -->
           </div>
