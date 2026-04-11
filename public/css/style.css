@@ -37,7 +37,7 @@
   --warning: #f59e0b;
 
   /* Spacing */
-  --nav-height: 72px;
+  --nav-height: 120px;
   --container-width: 1400px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -155,8 +155,8 @@ input, textarea, select {
 }
 
 .nav-brand .brand-logo {
-  width: 36px;
-  height: 36px;
+  width: 108px;
+  height: 108px;
   object-fit: contain;
   border-radius: 0;
   filter: drop-shadow(0 0 4px rgba(124, 58, 237, 0.4));
