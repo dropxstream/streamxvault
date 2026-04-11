@@ -572,12 +572,17 @@ async function loadAdminVideos() {
         ? '<span class="badge badge-success">Published</span>'
         : '<span class="badge badge-warning">Draft</span>';
 
+      const genreBadge = video.genre 
+        ? `<span class="badge" style="background:var(--accent-purple);color:white;">🏷️ ${escapeHtml(video.genre)}</span>`
+        : '';
+
       item.innerHTML = `
         <div class="item-thumb">${thumbnailContent}</div>
         <div class="item-info">
           <div class="item-title">${escapeHtml(video.title)}</div>
           <div class="item-meta">
             ${statusBadge}
+            ${genreBadge}
             <span>👁️ ${formatViews(video.views || 0)} views</span>
             <span>🕐 ${getTimeAgo(video.uploadedAt)}</span>
           </div>

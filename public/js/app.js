@@ -107,8 +107,10 @@ function getTimeAgo(dateStr) {
 
 // ==================== Load Videos ====================
 let allVideos = [];
+let currentSearch = '';
+let currentGenre = '';
 
-async function loadVideos(searchQuery = '') {
+async function loadVideos() {
   const loadingEl = document.getElementById('videos-loading');
   const gridEl = document.getElementById('videos-grid');
   const emptyEl = document.getElementById('empty-state');
@@ -124,9 +126,11 @@ async function loadVideos(searchQuery = '') {
   renderSkeletons(loadingEl);
 
   try {
-    const url = searchQuery
-      ? `/api/videos?search=${encodeURIComponent(searchQuery)}`
-      : '/api/videos';
+    const params = new URLSearchParams();
+    if (currentSearch) params.append('search', currentSearch);
+    if (currentGenre) params.append('genre', currentGenre);
+    
+    const url = '/api/videos' + (params.toString() ? '?' + params.toString() : '');
 
     const res = await fetch(url);
     const videos = await res.json();
@@ -136,7 +140,7 @@ async function loadVideos(searchQuery = '') {
     loadingEl.style.display = 'none';
 
     if (videos.length === 0) {
-      if (searchQuery) {
+      if (currentSearch || currentGenre) {
         noResultsEl.style.display = 'block';
       } else {
         emptyEl.style.display = 'block';
@@ -151,7 +155,7 @@ async function loadVideos(searchQuery = '') {
     updateHero(videos[0]);
 
     // Render recent carousel (first 8 videos)
-    if (!searchQuery && videos.length > 1) {
+    if (!currentSearch && !currentGenre && videos.length > 1) {
       recentSection.style.display = 'block';
       const carousel = document.getElementById('recent-carousel');
       carousel.innerHTML = '';
@@ -218,18 +222,37 @@ function updateHeroDefault() {
   if(heroGenreBadge) heroGenreBadge.style.display = 'none';
 }
 
-// ==================== Search ====================
+// ==================== Search & Filter ====================
 let searchTimeout;
 
 document.getElementById('search-input').addEventListener('input', (e) => {
   clearTimeout(searchTimeout);
-  const query = e.target.value.trim();
+  currentSearch = e.target.value.trim();
   searchTimeout = setTimeout(() => {
-    loadVideos(query);
+    loadVideos();
   }, 400);
 });
 
+// Prevent form submission if input is inside a form accidentally
+document.getElementById('search-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+  }
+});
+
+function filterByGenre(genre) {
+  currentGenre = genre;
+  
+  // Update button active states
+  const buttons = document.querySelectorAll('.genre-filters .btn');
+  buttons.forEach(btn => btn.className = 'btn btn-secondary');
+  document.getElementById('filter-' + (genre || 'All')).className = 'btn btn-primary';
+  
+  loadVideos();
+}
+
 function clearSearch() {
+  currentSearch = '';
   document.getElementById('search-input').value = '';
   loadVideos();
 }

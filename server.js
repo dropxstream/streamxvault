@@ -190,10 +190,16 @@ app.get('/api/auth/status', (req, res) => {
 // Get all videos
 app.get('/api/videos', (req, res) => {
   const videos = loadVideos();
-  const { search } = req.query;
+  const { search, genre } = req.query;
 
   let filtered = videos.filter(v => v.published !== false);
 
+  // Apply genre filter first
+  if (genre) {
+    filtered = filtered.filter(v => v.genre === genre);
+  }
+
+  // Then apply search filter
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(v =>

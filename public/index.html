@@ -57,9 +57,20 @@
 
       <!-- All Videos -->
       <section class="section" id="all-videos">
-        <div class="section-header">
-          <h2 class="section-title"><span class="icon">🎬</span> All Videos</h2>
-          <span class="section-action" id="video-count"></span>
+        <div class="section-header" style="flex-direction: column; align-items: flex-start; gap: 1rem;">
+          <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+            <h2 class="section-title"><span class="icon">🎬</span> All Videos</h2>
+            <span class="section-action" id="video-count"></span>
+          </div>
+          
+          <!-- Genre Filters -->
+          <div class="genre-filters" id="genre-filters" style="display: flex; gap: 0.5rem; overflow-x: auto; width: 100%; padding-bottom: 0.5rem;">
+            <button class="btn btn-primary" onclick="filterByGenre('')" id="filter-All">All Genres</button>
+            <button class="btn btn-secondary" onclick="filterByGenre('Trueanal')" id="filter-Trueanal">Trueanal</button>
+            <button class="btn btn-secondary" onclick="filterByGenre('Analonly')" id="filter-Analonly">Analonly</button>
+            <button class="btn btn-secondary" onclick="filterByGenre('Nympho')" id="filter-Nympho">Nympho</button>
+            <button class="btn btn-secondary" onclick="filterByGenre('Analvids')" id="filter-Analvids">Analvids</button>
+          </div>
         </div>
 
         <!-- Loading State -->
