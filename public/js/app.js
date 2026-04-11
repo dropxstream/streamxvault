@@ -166,6 +166,37 @@ async function loadVideos() {
       recentSection.style.display = 'none';
     }
 
+    // Render Recommended Carousel (Local Algorithm)
+    const recommendedSection = document.getElementById('recommended-section');
+    if (recommendedSection) {
+      let profile = null;
+      try {
+        const saved = localStorage.getItem('sxv_profile');
+        if (saved) profile = JSON.parse(saved);
+      } catch (e) {}
+
+      if (!currentSearch && !currentGenre && profile && profile.genres && Object.keys(profile.genres).length > 0) {
+        // Find top genre by identifying the one with the highest count
+        const topGenre = Object.keys(profile.genres).reduce((a, b) => profile.genres[a] > profile.genres[b] ? a : b);
+        
+        // Find videos matching top genre (excluding the latest one shown in hero to avoid duplication)
+        const recommendedVideos = videos.filter(v => v.genre === topGenre && v.id !== videos[0].id);
+        
+        if (recommendedVideos.length > 0) {
+          recommendedSection.style.display = 'block';
+          const recCarousel = document.getElementById('recommended-carousel');
+          recCarousel.innerHTML = '';
+          recommendedVideos.slice(0, 8).forEach(v => {
+            recCarousel.appendChild(createVideoCard(v));
+          });
+        } else {
+          recommendedSection.style.display = 'none';
+        }
+      } else {
+        recommendedSection.style.display = 'none';
+      }
+    }
+
     // Render all videos grid
     gridEl.innerHTML = '';
     gridEl.style.display = 'grid';

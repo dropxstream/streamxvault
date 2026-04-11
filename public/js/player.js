@@ -77,6 +77,7 @@ function createVideoCard(video) {
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
         <span>👁️ ${views}</span>
         <span>🕐 ${timeAgo}</span>
@@ -114,6 +115,34 @@ async function loadVideo() {
     document.getElementById('video-views').textContent = `👁️ ${formatViews(video.views || 0)} views`;
     document.getElementById('video-date').textContent = `📅 ${formatDate(video.uploadedAt)}`;
     document.getElementById('video-description').textContent = video.description || 'No description provided.';
+
+    // ====== SEO: Inject JSON-LD ======
+    const ldJson = document.createElement('script');
+    ldJson.type = 'application/ld+json';
+    ldJson.textContent = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      "name": video.title,
+      "description": video.description || "Video on StreamXvault",
+      "thumbnailUrl": [video.thumbnailUrl || "https://streamxvault.online/images/logo.png"],
+      "uploadDate": new Date(video.uploadedAt).toISOString(),
+      "contentUrl": video.videoUrl
+    });
+    document.head.appendChild(ldJson);
+    // =================================
+    
+    // ====== RECOMMENDATION ENGINE: Update Profile ======
+    if (video.genre) {
+      let profile = { genres: {} };
+      try {
+        const saved = localStorage.getItem('sxv_profile');
+        if (saved) profile = JSON.parse(saved);
+      } catch (e) {}
+      
+      profile.genres[video.genre] = (profile.genres[video.genre] || 0) + 1;
+      localStorage.setItem('sxv_profile', JSON.stringify(profile));
+    }
+    // ===================================================
 
     // Load related videos
     const allRes = await fetch('/api/videos');

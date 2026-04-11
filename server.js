@@ -154,6 +154,42 @@ function requireAdmin(req, res, next) {
   }
 }
 
+// ==================== SEO Routes ====================
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Sitemap: https://streamxvault.online/sitemap.xml`);
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const videos = loadVideos();
+  const publishedVideos = videos.filter(v => v.published !== false);
+  
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://streamxvault.online/</loc>
+    <priority>1.0</priority>
+    <changefreq>daily</changefreq>
+  </url>`;
+  
+  for (const video of publishedVideos) {
+    xml += `
+  <url>
+    <loc>https://streamxvault.online/watch?v=${video.id}</loc>
+    <lastmod>${new Date(video.uploadedAt).toISOString()}</lastmod>
+    <priority>0.8</priority>
+  </url>`;
+  }
+  
+  xml += '\n</urlset>';
+  
+  res.type('application/xml');
+  res.send(xml);
+});
+
 // ==================== Auth Routes ====================
 
 app.post('/api/auth/login', (req, res) => {

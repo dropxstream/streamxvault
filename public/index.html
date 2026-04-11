@@ -3,8 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StreamXvault — Watch What Matters</title>
-  <meta name="description" content="StreamXvault is your premium streaming platform. Watch curated video content uploaded by creators.">
+  <title>StreamXvault</title>
+  <meta name="description" content="StreamXvault - The ultimate streaming vault. Watch curated premium video content instantly.">
+  <meta name="keywords" content="StreamXvault, streaming, videos, vault, stream x vault, streamxvault online">
+  <meta name="robots" content="index, follow">
+  
+  <meta property="og:title" content="StreamXvault">
+  <meta property="og:description" content="Watch premium curated video content instantly.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://streamxvault.online/">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
 </head>
@@ -53,6 +60,15 @@
           <h2 class="section-title"><span class="icon">⚡</span> Recently Added</h2>
         </div>
         <div class="video-carousel" id="recent-carousel"></div>
+      </section>
+
+      <!-- Recommended for You (Algorithm) -->
+      <section class="section" id="recommended-section" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title"><span class="icon">🌟</span> Recommended for You</h2>
+          <span class="section-action" style="font-size: 0.85rem; color: var(--text-muted);">Based on your watch history</span>
+        </div>
+        <div class="video-carousel" id="recommended-carousel"></div>
       </section>
 
       <!-- All Videos -->
