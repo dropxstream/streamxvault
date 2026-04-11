@@ -385,6 +385,10 @@ function uploadChunk(url, chunk, progressCallback) {
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         const etag = xhr.getResponseHeader('ETag');
+        if (!etag) {
+          reject(new Error('Cloudflare CORS Error: ETag header is missing. Please add "ETag" to your R2 bucket CORS ExposeHeaders configuration!'));
+          return;
+        }
         resolve(etag);
       } else {
         reject(new Error(`Chunk upload failed: ${xhr.status}`));

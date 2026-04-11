@@ -73,16 +73,19 @@ function loadVideos() {
   }
 }
 
-function saveVideos(videos) {
+async function saveVideos(videos) {
   // Save locally first
   fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
 
   // Also save to R2 using storage.upload method
   if (storage.mode === 'r2') {
-    const jsonData = JSON.stringify(videos, null, 2);
-    storage.upload(DB_KEY, Buffer.from(jsonData), 'application/json')
-      .then(() => console.log('💾 Database backed up to R2 (' + videos.length + ' videos)'))
-      .catch(err => console.error('❌ R2 DB backup failed:', err.message));
+    try {
+      const jsonData = JSON.stringify(videos, null, 2);
+      await storage.upload(DB_KEY, Buffer.from(jsonData), 'application/json');
+      console.log('💾 Database backed up to R2 (' + videos.length + ' videos)');
+    } catch (err) {
+      console.error('❌ R2 DB backup failed:', err.message);
+    }
   }
 }
 
@@ -132,9 +135,7 @@ function loadVideos() {
   }
 }
 
-function saveVideos(videos) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
-}
+
 
 // JWT-based auth middleware (survives server restarts)
 function requireAdmin(req, res, next) {
@@ -258,7 +259,7 @@ app.get('/api/admin/videos', requireAdmin, (req, res) => {
 });
 
 // Get single video
-app.get('/api/videos/:id', (req, res) => {
+app.get('/api/videos/:id', async (req, res) => {
   const videos = loadVideos();
   const video = videos.find(v => v.id === req.params.id);
   if (!video) {
@@ -267,7 +268,7 @@ app.get('/api/videos/:id', (req, res) => {
 
   // Increment view count
   video.views = (video.views || 0) + 1;
-  saveVideos(videos);
+  await saveVideos(videos);
 
   res.json(video);
 });
@@ -393,7 +394,7 @@ app.post('/api/upload/multipart/abort', requireAdmin, async (req, res) => {
 });
 
 // Register video after direct upload completes
-app.post('/api/upload/complete', requireAdmin, (req, res) => {
+app.post('/api/upload/complete', requireAdmin, async (req, res) => {
   try {
     const { videoId, title, genre, description, videoUrl, videoFilename, thumbnailUrl, thumbnailFilename } = req.body;
 
@@ -414,7 +415,7 @@ app.post('/api/upload/complete', requireAdmin, (req, res) => {
 
     const videos = loadVideos();
     videos.push(videoData);
-    saveVideos(videos);
+    await saveVideos(videos);
 
     res.json({ success: true, video: videoData });
   } catch (err) {
@@ -467,7 +468,7 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
 
     const videos = loadVideos();
     videos.push(videoData);
-    saveVideos(videos);
+    await saveVideos(videos);
 
     res.json({ success: true, video: videoData });
   } catch (err) {
@@ -505,7 +506,7 @@ app.put('/api/videos/:id', requireAdmin, upload.fields([
       videos[index].thumbnailFilename = thumbFilename;
     }
 
-    saveVideos(videos);
+    await saveVideos(videos);
     res.json({ success: true, video: videos[index] });
   } catch (err) {
     console.error('Update error:', err);
@@ -531,7 +532,7 @@ app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
     }
 
     videos.splice(index, 1);
-    saveVideos(videos);
+    await saveVideos(videos);
     res.json({ success: true, message: 'Video deleted' });
   } catch (err) {
     console.error('Delete error:', err);
