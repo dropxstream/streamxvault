@@ -54,6 +54,7 @@ function createVideoCard(video) {
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
         <span>👁️ ${views}</span>
         <span>🕐 ${timeAgo}</span>
@@ -184,9 +185,17 @@ function updateHero(video) {
   const heroBg = document.getElementById('hero-bg');
   const heroPlayBtn = document.getElementById('hero-play-btn');
   const heroBadge = document.getElementById('hero-badge');
+  const heroGenreBadge = document.getElementById('hero-genre-badge');
 
   heroTitle.textContent = video.title;
   heroDesc.textContent = video.description || 'Watch the latest content on StreamXvault.';
+
+  if (video.genre) {
+    heroGenreBadge.textContent = '🏷️ ' + video.genre;
+    heroGenreBadge.style.display = 'inline-flex';
+  } else {
+    heroGenreBadge.style.display = 'none';
+  }
 
   if (video.thumbnailUrl) {
     heroBg.style.backgroundImage = `url(${video.thumbnailUrl})`;
@@ -201,10 +210,12 @@ function updateHeroDefault() {
   const heroTitle = document.getElementById('hero-title');
   const heroDesc = document.getElementById('hero-desc');
   const heroPlayBtn = document.getElementById('hero-play-btn');
+  const heroGenreBadge = document.getElementById('hero-genre-badge');
 
   heroTitle.textContent = 'Welcome to StreamXvault';
   heroDesc.textContent = 'Your premium streaming platform. Watch curated video content shared by the admin — always fresh, always exciting.';
   heroPlayBtn.style.display = 'none';
+  if(heroGenreBadge) heroGenreBadge.style.display = 'none';
 }
 
 // ==================== Search ====================

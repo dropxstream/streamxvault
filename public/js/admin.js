@@ -443,7 +443,13 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   }
 
   const description = document.getElementById('video-desc').value.trim();
+  const genre = document.getElementById('video-genre').value;
   const thumbFile = thumbFileInput.files[0];
+
+  if (!genre) {
+    showToast('Please select a video genre', 'error');
+    return;
+  }
 
   // Show progress
   const progressEl = document.getElementById('upload-progress');
@@ -483,6 +489,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         body: JSON.stringify({
           videoId: videoResult.id,
           title,
+          genre,
           description,
           videoUrl: videoResult.publicUrl,
           videoFilename: videoResult.key,
@@ -501,6 +508,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       const formData = new FormData();
       formData.append('video', videoFile);
       formData.append('title', title);
+      formData.append('genre', genre);
       formData.append('description', description);
       if (thumbFile) formData.append('thumbnail', thumbFile);
 
@@ -596,6 +604,7 @@ function openEditModal(videoId) {
 
   document.getElementById('edit-id').value = video.id;
   document.getElementById('edit-title').value = video.title;
+  document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
@@ -610,6 +619,7 @@ async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
   const formData = new FormData();
   formData.append('title', document.getElementById('edit-title').value.trim());
+  formData.append('genre', document.getElementById('edit-genre').value);
   formData.append('description', document.getElementById('edit-desc').value.trim());
   formData.append('published', document.getElementById('edit-published').checked);
 

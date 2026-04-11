@@ -352,11 +352,12 @@ app.post('/api/upload/multipart/abort', requireAdmin, async (req, res) => {
 // Register video after direct upload completes
 app.post('/api/upload/complete', requireAdmin, (req, res) => {
   try {
-    const { videoId, title, description, videoUrl, videoFilename, thumbnailUrl, thumbnailFilename } = req.body;
+    const { videoId, title, genre, description, videoUrl, videoFilename, thumbnailUrl, thumbnailFilename } = req.body;
 
     const videoData = {
       id: videoId,
       title: title || 'Untitled Video',
+      genre: genre || '',
       description: description || '',
       videoUrl,
       thumbnailUrl: thumbnailUrl || null,
@@ -409,6 +410,7 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
     const videoData = {
       id: videoId,
       title: req.body.title || 'Untitled Video',
+      genre: req.body.genre || '',
       description: req.body.description || '',
       videoUrl,
       thumbnailUrl,
@@ -443,6 +445,7 @@ app.put('/api/videos/:id', requireAdmin, upload.fields([
     }
 
     if (req.body.title) videos[index].title = req.body.title;
+    if (req.body.genre !== undefined) videos[index].genre = req.body.genre;
     if (req.body.description !== undefined) videos[index].description = req.body.description;
     if (req.body.published !== undefined) videos[index].published = req.body.published === 'true' || req.body.published === true;
 
