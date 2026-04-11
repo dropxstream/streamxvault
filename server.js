@@ -232,7 +232,8 @@ app.get('/api/videos', (req, res) => {
 
   // Apply genre filter first
   if (genre) {
-    filtered = filtered.filter(v => v.genre === genre);
+    const g = genre.toLowerCase();
+    filtered = filtered.filter(v => v.genre && v.genre.toLowerCase() === g);
   }
 
   // Then apply search filter
