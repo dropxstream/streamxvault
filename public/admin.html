@@ -95,21 +95,58 @@
         <div class="admin-tab" id="tab-upload" style="display: none;">
           <h2 style="margin-bottom: 1.5rem; font-weight: 700;">⬆️ Upload Video</h2>
 
+          <!-- Source Toggle -->
+          <div style="display: flex; gap: 1.5rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="radio" name="upload-source" value="file" checked onchange="toggleUploadSource()"> 
+              <span style="font-weight: 600;">📁 Upload File</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="radio" name="upload-source" value="external" onchange="toggleUploadSource()"> 
+              <span style="font-weight: 600;">🔗 Link External URL</span>
+            </label>
+          </div>
+
           <form id="upload-form">
-            <!-- Video File -->
-            <div class="upload-area" id="video-drop-area" onclick="document.getElementById('video-file').click()">
-              <div class="upload-icon">🎥</div>
-              <h3 id="video-file-label">Drag & drop your video or click to browse</h3>
-              <p>MP4, WebM, OGG, MOV, AVI, MKV (Max 500MB)</p>
-              <input type="file" id="video-file" accept="video/*" style="display:none" required>
+            <!-- File Mode Inputs -->
+            <div id="file-upload-mode">
+              <!-- Video File -->
+              <div class="upload-area" id="video-drop-area" onclick="document.getElementById('video-file').click()">
+                <div class="upload-icon">🎥</div>
+                <h3 id="video-file-label">Drag & drop your video or click to browse</h3>
+                <p>MP4, WebM, OGG, MOV, AVI, MKV (Max 500MB)</p>
+                <input type="file" id="video-file" accept="video/*" style="display:none">
+              </div>
+
+              <!-- Upload Progress -->
+              <div class="upload-progress" id="upload-progress">
+                <div class="progress-bar-container">
+                  <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="progress-text" id="progress-text">Uploading... 0%</div>
+              </div>
+              
+              <!-- Thumbnail File -->
+              <div class="form-group">
+                <label>Thumbnail (optional)</label>
+                <div class="upload-area" id="thumb-drop-area" style="padding: 1.5rem;" onclick="document.getElementById('thumb-file').click()">
+                  <div class="upload-icon" style="font-size: 1.5rem;">🖼️</div>
+                  <p id="thumb-file-label">Click to upload thumbnail image</p>
+                  <input type="file" id="thumb-file" accept="image/*" style="display:none">
+                </div>
+              </div>
             </div>
 
-            <!-- Upload Progress -->
-            <div class="upload-progress" id="upload-progress">
-              <div class="progress-bar-container">
-                <div class="progress-bar" id="progress-bar"></div>
+            <!-- External Link Mode Inputs -->
+            <div id="external-link-mode" style="display: none;">
+              <div class="form-group">
+                <label for="ext-video-url">Video URL *</label>
+                <input type="url" id="ext-video-url" placeholder="https://example.com/video.mp4">
               </div>
-              <div class="progress-text" id="progress-text">Uploading... 0%</div>
+              <div class="form-group">
+                <label for="ext-thumb-url">Thumbnail Image URL *</label>
+                <input type="url" id="ext-thumb-url" placeholder="https://example.com/thumb.jpg">
+              </div>
             </div>
 
             <!-- Title -->
@@ -134,16 +171,6 @@
             <div class="form-group">
               <label for="video-desc">Description</label>
               <textarea id="video-desc" placeholder="Enter video description (optional)"></textarea>
-            </div>
-
-            <!-- Thumbnail -->
-            <div class="form-group">
-              <label>Thumbnail (optional)</label>
-              <div class="upload-area" id="thumb-drop-area" style="padding: 1.5rem;" onclick="document.getElementById('thumb-file').click()">
-                <div class="upload-icon" style="font-size: 1.5rem;">🖼️</div>
-                <p id="thumb-file-label">Click to upload thumbnail image</p>
-                <input type="file" id="thumb-file" accept="image/*" style="display:none">
-              </div>
             </div>
 
             <button type="submit" class="btn btn-primary btn-lg" id="upload-submit-btn" style="width: 100%;">

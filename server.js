@@ -424,6 +424,37 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
   }
 });
 
+// Register video with external links
+app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
+  try {
+    const { title, genre, description, videoUrl, thumbnailUrl } = req.body;
+
+    const videoData = {
+      id: uuidv4(),
+      title: title || 'Untitled Video',
+      genre: genre || '',
+      description: description || '',
+      videoUrl,
+      thumbnailUrl: thumbnailUrl || null,
+      duration: null,
+      views: 0,
+      published: true,
+      uploadedAt: new Date().toISOString(),
+      videoFilename: null,
+      thumbnailFilename: null
+    };
+
+    const videos = loadVideos();
+    videos.push(videoData);
+    await saveVideos(videos);
+
+    res.json({ success: true, video: videoData });
+  } catch (err) {
+    console.error('External link error:', err);
+    res.status(500).json({ error: 'Failed to register external video' });
+  }
+});
+
 // Legacy upload (fallback for local storage)
 app.post('/api/videos/upload', requireAdmin, upload.fields([
   { name: 'video', maxCount: 1 },

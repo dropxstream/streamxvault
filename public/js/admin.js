@@ -430,15 +430,18 @@ async function legacyUpload(formData, progressCallback) {
   });
 }
 
+let currentUploadSource = 'file';
+
+window.toggleUploadSource = function() {
+  const source = document.querySelector('input[name="upload-source"]:checked').value;
+  currentUploadSource = source;
+  document.getElementById('file-upload-mode').style.display = source === 'file' ? 'block' : 'none';
+  document.getElementById('external-link-mode').style.display = source === 'external' ? 'block' : 'none';
+};
+
 // Upload form submission
 document.getElementById('upload-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-
-  const videoFile = videoFileInput.files[0];
-  if (!videoFile) {
-    showToast('Please select a video file', 'error');
-    return;
-  }
 
   const title = document.getElementById('video-title').value.trim();
   if (!title) {
@@ -446,15 +449,59 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  const description = document.getElementById('video-desc').value.trim();
   const genre = document.getElementById('video-genre').value;
-  const thumbFile = thumbFileInput.files[0];
-
   if (!genre) {
     showToast('Please select a video genre', 'error');
     return;
   }
 
+  const description = document.getElementById('video-desc').value.trim();
+
+  // Handle External Link Submission
+  if (currentUploadSource === 'external') {
+    const extVideoUrl = document.getElementById('ext-video-url').value.trim();
+    const extThumbUrl = document.getElementById('ext-thumb-url').value.trim();
+
+    if (!extVideoUrl) {
+      showToast('Please enter an External Video URL', 'error');
+      return;
+    }
+
+    const submitBtn = document.getElementById('upload-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Linking...';
+
+    try {
+      const res = await fetch('/api/admin/videos/external', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ title, genre, description, videoUrl: extVideoUrl, thumbnailUrl: extThumbUrl })
+      });
+
+      if (!res.ok) throw new Error('Failed to link external video');
+      
+      showToast(`"${title}" linked successfully! 🎬`, 'success');
+      document.getElementById('upload-form').reset();
+      updateFileLabel('video');
+      updateFileLabel('thumb');
+      loadVideosAdmin(); // Refresh list
+    } catch (err) {
+      showToast('Error linking external video', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '⬆️ Upload Video';
+    }
+    return;
+  }
+
+  // Handle Standard File Upload
+  const videoFile = videoFileInput.files[0];
+  if (!videoFile) {
+    showToast('Please select a video file', 'error');
+    return;
+  }
+
+  const thumbFile = thumbFileInput.files[0];
   // Show progress
   const progressEl = document.getElementById('upload-progress');
   const progressBar = document.getElementById('progress-bar');
