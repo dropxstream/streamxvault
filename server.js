@@ -460,6 +460,7 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
       videoFilename,
       thumbnailFilename: thumbnailFilename || null,
       bunnyId: req.body.bunnyId || null,
+      bunnyLibraryId: req.body.bunnyLibraryId || null,
       downloads: {
         p720: req.body.dl720 || null,
         p1080: req.body.dl1080 || null
@@ -497,6 +498,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       videoFilename: null,
       thumbnailFilename: null,
       bunnyId: req.body.bunnyId || null,
+      bunnyLibraryId: req.body.bunnyLibraryId || null,
       downloads: {
         p720: req.body.dl720 || null,
         p1080: req.body.dl1080 || null
@@ -556,6 +558,7 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
       videoFilename,
       thumbnailFilename: req.files.thumbnail ? `thumb_${videoId}${path.extname(req.files.thumbnail[0].originalname)}` : null,
       bunnyId: req.body.bunnyId || null,
+      bunnyLibraryId: req.body.bunnyLibraryId || null,
       downloads: {
         p720: req.body.dl720 || null,
         p1080: req.body.dl1080 || null
@@ -589,6 +592,7 @@ app.put('/api/videos/:id', requireAdmin, upload.fields([
     if (req.body.description !== undefined) videos[index].description = req.body.description;
     if (req.body.published !== undefined) videos[index].published = req.body.published === 'true' || req.body.published === true;
     if (req.body.bunnyId !== undefined) videos[index].bunnyId = req.body.bunnyId || null;
+    if (req.body.bunnyLibraryId !== undefined) videos[index].bunnyLibraryId = req.body.bunnyLibraryId || null;
     
     // Handle downloads
     if (req.body.dl720 !== undefined || req.body.dl1080 !== undefined) {

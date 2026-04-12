@@ -506,13 +506,14 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
 
   // Handle Bunny Stream Submission
   if (currentUploadSource === 'bunny') {
+    const bunnyLibId = document.getElementById('bunny-lib-id').value.trim();
     const bunnyVideoId = document.getElementById('bunny-video-id').value.trim();
     const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
     const dl720 = document.getElementById('dl-720').value.trim();
     const dl1080 = document.getElementById('dl-1080').value.trim();
 
-    if (!bunnyVideoId) {
-      showToast('Please enter a Bunny Video ID', 'error');
+    if (!bunnyLibId || !bunnyVideoId) {
+      showToast('Please enter both Library ID and Video ID', 'error');
       return;
     }
 
@@ -529,6 +530,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           videoUrl: '', // Will be handled by player
           thumbnailUrl: bunnyThumbUrl,
           bunnyId: bunnyVideoId,
+          bunnyLibraryId: bunnyLibId,
           dl720, dl1080
         })
       });
@@ -748,6 +750,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-bunny-id').value = video.bunnyId || '';
+  document.getElementById('edit-bunny-lib-id').value = video.bunnyLibraryId || '';
   document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
   document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
   document.getElementById('edit-published').checked = video.published !== false;
@@ -766,6 +769,7 @@ async function saveEdit() {
     formData.append('genre', document.getElementById('edit-genre').value);
     formData.append('description', document.getElementById('edit-desc').value.trim());
     formData.append('bunnyId', document.getElementById('edit-bunny-id').value.trim());
+    formData.append('bunnyLibraryId', document.getElementById('edit-bunny-lib-id').value.trim());
     formData.append('dl720', document.getElementById('edit-dl-720').value.trim());
     formData.append('dl1080', document.getElementById('edit-dl-1080').value.trim());
     formData.append('published', document.getElementById('edit-published').checked);

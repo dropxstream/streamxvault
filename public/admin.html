@@ -165,12 +165,18 @@
 
             <!-- Bunny Stream Mode Inputs -->
             <div id="bunny-link-mode" style="display: none;">
-              <div class="form-group">
-                <label for="bunny-video-id">Bunny Video ID *</label>
-                <input type="text" id="bunny-video-id" placeholder="e.g. 52627-abc-123">
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Found in your Bunny Stream dashboard</p>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                  <label for="bunny-lib-id">Bunny Library ID *</label>
+                  <input type="text" id="bunny-lib-id" placeholder="e.g. 636087" value="636087">
+                </div>
+                <div class="form-group">
+                  <label for="bunny-video-id">Bunny Video ID *</label>
+                  <input type="text" id="bunny-video-id" placeholder="e.g. 52627-abc-123">
+                </div>
               </div>
-              <div class="form-group">
+              <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Found in your Bunny Stream dashboard URL</p>
+              <div class="form-group" style="margin-top: 1rem;">
                 <label for="bunny-thumb-url">Bunny Poster/Thumb URL (Optional)</label>
                 <input type="url" id="bunny-thumb-url" placeholder="https://vz-abc.xyz/poster.jpg">
               </div>
@@ -279,6 +285,10 @@
             <div class="form-group">
               <label for="edit-bunny-id">Bunny Video ID</label>
               <input type="text" id="edit-bunny-id" placeholder="Optional">
+            </div>
+            <div class="form-group">
+              <label for="edit-bunny-lib-id">Bunny Library ID</label>
+              <input type="text" id="edit-bunny-lib-id" placeholder="e.g. 636087">
             </div>
             <div class="form-group">
               <label for="edit-dl-720">720p Download</label>
