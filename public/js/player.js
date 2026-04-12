@@ -254,12 +254,23 @@ async function likeVideo() {
   }
 }
 
+function toggleDownloadMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('download-menu');
+  menu.classList.toggle('active');
+}
+
+// Close dropdown on outside click
+window.addEventListener('click', () => {
+  const menu = document.getElementById('download-menu');
+  if (menu) menu.classList.remove('active');
+});
+
 // Global scope exports for UI hooks
 window.likeVideo = likeVideo;
+window.toggleDownloadMenu = toggleDownloadMenu;
 window.switchTab = (tab, el) => {}; 
 window.toggleUploadSource = () => {};
 
 // ==================== Initialize ====================
-document.addEventListener('DOMContentLoaded', () => {
-  loadVideo();
-});
+document.addEventListener('DOMContentLoaded', loadVideo);

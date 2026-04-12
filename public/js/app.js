@@ -55,7 +55,7 @@ function createVideoCard(video) {
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
       ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
-      <div class="card-meta">
+      <div class="card-meta" style="color: #cbd5e1 !important;">
         <span>👁️ ${views}</span>
         <span>🕐 ${timeAgo}</span>
       </div>

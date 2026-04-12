@@ -1776,7 +1776,7 @@ img, video {
   animation: slideInUp 0.3s ease;
 }
 
-.download-dropdown:hover .download-menu {
+.download-menu.active {
   display: block;
 }
 
