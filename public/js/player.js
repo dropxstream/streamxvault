@@ -146,19 +146,22 @@ async function loadVideo() {
     dlMenu.innerHTML = '';
     const hasDownloads = video.downloads && (video.downloads.p720 || video.downloads.p1080 || video.downloads.orig);
     
+    // Sanitize filename for download attribute
+    const safeTitle = (video.title || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
     if (hasDownloads) {
       if (video.downloads.p720) {
-        dlMenu.innerHTML += `<a href="${video.downloads.p720}" class="download-item" target="_blank" download>
+        dlMenu.innerHTML += `<a href="${video.downloads.p720}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4">
           <span>720p HD</span> <span class="quality">MP4/Link</span>
         </a>`;
       }
       if (video.downloads.p1080) {
-        dlMenu.innerHTML += `<a href="${video.downloads.p1080}" class="download-item" target="_blank" download>
+        dlMenu.innerHTML += `<a href="${video.downloads.p1080}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4">
           <span>1080p FHD</span> <span class="quality">MP4/Link</span>
         </a>`;
       }
       if (video.downloads.orig) {
-        dlMenu.innerHTML += `<a href="${video.downloads.orig}" class="download-item" target="_blank" download>
+        dlMenu.innerHTML += `<a href="${video.downloads.orig}" class="download-item" target="_blank" download="${safeTitle}_Original.mp4">
           <span>4K / Original</span> <span class="quality">Master</span>
         </a>`;
       }
