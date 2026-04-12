@@ -39,7 +39,7 @@ function createVideoCard(video) {
   card.onclick = () => window.location.href = `/watch?v=${video.id}`;
 
   const thumbnailContent = video.thumbnailUrl
-    ? `<img src="${video.thumbnailUrl}" alt="${video.title}" loading="lazy">`
+    ? `<img src="${video.thumbnailUrl}" alt="${video.title}" loading="lazy" decoding="async">`
     : `<div class="thumb-placeholder">🎬</div>`;
 
   const timeAgo = getTimeAgo(video.uploadedAt);
