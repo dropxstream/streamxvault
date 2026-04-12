@@ -695,12 +695,30 @@ app.get('/sitemap.xml', (req, res) => {
   </url>`;
 
   videos.forEach(video => {
+    // Determine player/content location
+    let playerUrl = `${baseUrl}/watch?v=${video.id}`;
+    let thumbUrl = video.thumbnailUrl || `${baseUrl}/images/logo.png`;
+    let contentUrl = video.videoUrl || '';
+    
+    // If Bunny Stream, use the specialized iframe URL for indexing
+    if (video.bunnyId) {
+       playerUrl = `https://iframe.mediadelivery.net/embed/400619/${video.bunnyId}`;
+    }
+
     xml += `
   <url>
     <loc>${baseUrl}/watch?v=${video.id}</loc>
     <lastmod>${video.uploadedAt ? new Date(video.uploadedAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <video:video>
+      <video:thumbnail_loc>${thumbUrl}</video:thumbnail_loc>
+      <video:title>${video.title.replace(/[&<>"']/g, '')}</video:title>
+      <video:description>${(video.description || 'Watch ' + video.title + ' on StreamXvault').replace(/[&<>"']/g, '')}</video:description>
+      ${contentUrl ? `<video:content_loc>${contentUrl}</video:content_loc>` : ''}
+      <video:player_loc>${playerUrl}</video:player_loc>
+      <video:publication_date>${video.uploadedAt ? new Date(video.uploadedAt).toISOString() : new Date().toISOString()}</video:publication_date>
+    </video:video>
   </url>`;
   });
 
