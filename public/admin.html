@@ -272,12 +272,28 @@
           </div>
           <div class="form-group">
             <label for="edit-desc">Description</label>
-            <textarea id="edit-desc"></textarea>
+            <textarea id="edit-desc" rows="3"></textarea>
           </div>
-          <div class="form-group">
-            <label>
-              <input type="checkbox" id="edit-published" style="width: auto; margin-right: 0.5rem;">
-              Published (visible to viewers)
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
+            <div class="form-group">
+              <label for="edit-bunny-id">Bunny Video ID</label>
+              <input type="text" id="edit-bunny-id" placeholder="Optional">
+            </div>
+            <div class="form-group">
+              <label for="edit-dl-720">720p Download</label>
+              <input type="url" id="edit-dl-720" placeholder="Optional URL">
+            </div>
+            <div class="form-group">
+              <label for="edit-dl-1080">1080p Download</label>
+              <input type="url" id="edit-dl-1080" placeholder="Optional URL">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 1.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="checkbox" id="edit-published" checked> 
+              <span>Published (Show on site)</span>
             </label>
           </div>
         </form>
