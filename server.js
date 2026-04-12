@@ -23,7 +23,9 @@ const storage = createStorage();
 
 // Data file path (local cache)
 const DATA_FILE = path.join(__dirname, 'data', 'videos.json');
-const DB_KEY = '_database/videos.json'; // Key in R2 for persistent storage
+const STATS_FILE = path.join(__dirname, 'data', 'stats.json');
+const DB_KEY = '_database/videos.json'; 
+const STATS_KEY = '_database/stats.json'; 
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -31,6 +33,9 @@ if (!fs.existsSync(path.join(__dirname, 'data'))) {
 }
 if (!fs.existsSync(DATA_FILE)) {
   fs.writeFileSync(DATA_FILE, '[]');
+}
+if (!fs.existsSync(STATS_FILE)) {
+  fs.writeFileSync(STATS_FILE, JSON.stringify({ totalVisitors: 0, uniqueIps: [] }));
 }
 
 // ==================== Helper Functions ====================
@@ -50,6 +55,17 @@ async function initDatabase() {
       const videos = JSON.parse(body);
       fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
       console.log('✅ SUCCESS: Loaded ' + videos.length + ' videos from R2 database');
+      
+      // Also load stats from R2
+      try {
+        const statsCmd = new GetObjectCommand({ Bucket: storage.bucketName, Key: STATS_KEY });
+        const statsRes = await storage.client.send(statsCmd);
+        const statsBody = await statsRes.Body.transformToString();
+        fs.writeFileSync(STATS_FILE, statsBody);
+        console.log('✅ SUCCESS: Loaded site stats from R2');
+      } catch (e) {
+        console.log('📝 No existing stats in R2, starting fresh');
+      }
     } catch (err) {
       const code = err.name || err.Code || '';
       const httpCode = err.$metadata ? err.$metadata.httpStatusCode : 0;
@@ -88,6 +104,37 @@ async function saveVideos(videos) {
     }
   }
 }
+
+async function saveStats(stats) {
+  fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2));
+  if (storage.mode === 'r2') {
+    try {
+      await storage.upload(STATS_KEY, Buffer.from(JSON.stringify(stats)), 'application/json');
+    } catch (err) {
+      console.error('❌ R2 Stats backup failed:', err.message);
+    }
+  }
+}
+
+function loadStats() {
+  try { return JSON.parse(fs.readFileSync(STATS_FILE, 'utf-8')); }
+  catch { return { totalVisitors: 0, uniqueIps: [] }; }
+}
+
+// Track visitors middleware
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.includes('.')) return next();
+  
+  const stats = loadStats();
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  
+  if (!stats.uniqueIps.includes(ip)) {
+    stats.uniqueIps.push(ip);
+    stats.totalVisitors = stats.uniqueIps.length;
+    saveStats(stats);
+  }
+  next();
+});
 
 // Middleware
 app.use(express.json());
@@ -407,10 +454,16 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
       thumbnailUrl: thumbnailUrl || null,
       duration: null,
       views: 0,
+      likes: 0,
       published: true,
       uploadedAt: new Date().toISOString(),
       videoFilename,
-      thumbnailFilename: thumbnailFilename || null
+      thumbnailFilename: thumbnailFilename || null,
+      bunnyId: req.body.bunnyId || null,
+      downloads: {
+        p720: req.body.dl720 || null,
+        p1080: req.body.dl1080 || null
+      }
     };
 
     const videos = loadVideos();
@@ -438,10 +491,16 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       thumbnailUrl: thumbnailUrl || null,
       duration: null,
       views: 0,
+      likes: 0,
       published: true,
       uploadedAt: new Date().toISOString(),
       videoFilename: null,
-      thumbnailFilename: null
+      thumbnailFilename: null,
+      bunnyId: req.body.bunnyId || null,
+      downloads: {
+        p720: req.body.dl720 || null,
+        p1080: req.body.dl1080 || null
+      }
     };
 
     const videos = loadVideos();
@@ -491,10 +550,16 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
       thumbnailUrl,
       duration: req.body.duration || null,
       views: 0,
+      likes: 0,
       published: true,
       uploadedAt: new Date().toISOString(),
       videoFilename,
-      thumbnailFilename: req.files.thumbnail ? `thumb_${videoId}${path.extname(req.files.thumbnail[0].originalname)}` : null
+      thumbnailFilename: req.files.thumbnail ? `thumb_${videoId}${path.extname(req.files.thumbnail[0].originalname)}` : null,
+      bunnyId: req.body.bunnyId || null,
+      downloads: {
+        p720: req.body.dl720 || null,
+        p1080: req.body.dl1080 || null
+      }
     };
 
     const videos = loadVideos();
@@ -574,11 +639,34 @@ app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
 // Get stats
 app.get('/api/stats', requireAdmin, (req, res) => {
   const videos = loadVideos();
+  const stats = loadStats();
   const totalViews = videos.reduce((sum, v) => sum + (v.views || 0), 0);
+  const totalLikes = videos.reduce((sum, v) => sum + (v.likes || 0), 0);
   const totalVideos = videos.length;
   const publishedVideos = videos.filter(v => v.published !== false).length;
 
-  res.json({ totalVideos, publishedVideos, totalViews });
+  res.json({ 
+    totalVideos, 
+    publishedVideos, 
+    totalViews, 
+    totalLikes,
+    totalVisitors: stats.totalVisitors || 0 
+  });
+});
+
+// Like a video
+app.post('/api/videos/:id/like', async (req, res) => {
+  try {
+    const videos = loadVideos();
+    const video = videos.find(v => v.id === req.params.id);
+    if (!video) return res.status(404).json({ error: 'Video not found' });
+    
+    video.likes = (video.likes || 0) + 1;
+    await saveVideos(videos);
+    res.json({ success: true, likes: video.likes });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to like video' });
+  }
 });
 
 // Trust proxy (for production behind Nginx)

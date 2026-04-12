@@ -9,9 +9,9 @@
   <meta name="robots" content="index, follow">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
-  
-  <!-- Popunder Adsterra -->
-  <script src="https://bowlsharp.com/37/d8/9b/37d89bdeecbef50bff24d821730b3206.js"></script>
+  <!-- Video.js Player -->
+  <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+  <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 </head>
 <body>
   <!-- Navbar -->
@@ -36,8 +36,11 @@
     <div class="player-container animate-fade-in">
       <!-- Video Player -->
       <div class="video-player-wrapper" id="player-wrapper">
-        <video id="video-player" controls autoplay>
-          Your browser does not support the video tag.
+        <video id="video-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto" width="640" height="264">
+          <p class="vjs-no-js">
+            To view this video please enable JavaScript, and consider upgrading to a web browser that
+            <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+          </p>
         </video>
       </div>
 
@@ -47,6 +50,22 @@
         <div class="video-meta" id="video-meta">
           <span id="video-views">— views</span>
           <span id="video-date">—</span>
+        </div>
+
+        <div class="video-actions">
+          <button id="like-btn" class="action-btn" onclick="likeVideo()">
+            <span class="icon">❤️</span> <span id="like-count">0</span>
+          </button>
+          
+          <div class="download-dropdown">
+            <button class="action-btn">
+              <span class="icon">📥</span> Download
+            </button>
+            <div class="download-menu" id="download-menu">
+              <!-- Populated by JS -->
+              <div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links available</div>
+            </div>
+          </div>
         </div>
         <div class="video-description" id="video-description">—</div>
       </div>

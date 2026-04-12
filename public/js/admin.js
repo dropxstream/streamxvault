@@ -173,6 +173,8 @@ async function loadStats() {
     document.getElementById('stat-total').textContent = stats.totalVideos;
     document.getElementById('stat-published').textContent = stats.publishedVideos;
     document.getElementById('stat-views').textContent = formatViews(stats.totalViews);
+    document.getElementById('stat-likes').textContent = formatViews(stats.totalLikes || 0);
+    document.getElementById('stat-visitors').textContent = formatViews(stats.totalVisitors || 0);
   } catch (err) {
     console.error('Failed to load stats:', err);
   }
@@ -437,6 +439,7 @@ window.toggleUploadSource = function() {
   currentUploadSource = source;
   document.getElementById('file-upload-mode').style.display = source === 'file' ? 'block' : 'none';
   document.getElementById('external-link-mode').style.display = source === 'external' ? 'block' : 'none';
+  document.getElementById('bunny-link-mode').style.display = source === 'bunny' ? 'block' : 'none';
 };
 
 // Upload form submission
@@ -461,6 +464,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   if (currentUploadSource === 'external') {
     const extVideoUrl = document.getElementById('ext-video-url').value.trim();
     const extThumbUrl = document.getElementById('ext-thumb-url').value.trim();
+    const dl720 = document.getElementById('dl-720').value.trim();
+    const dl1080 = document.getElementById('dl-1080').value.trim();
 
     if (!extVideoUrl) {
       showToast('Please enter an External Video URL', 'error');
@@ -475,7 +480,12 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       const res = await fetch('/api/admin/videos/external', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ title, genre, description, videoUrl: extVideoUrl, thumbnailUrl: extThumbUrl })
+        body: JSON.stringify({ 
+          title, genre, description, 
+          videoUrl: extVideoUrl, 
+          thumbnailUrl: extThumbUrl,
+          dl720, dl1080
+        })
       });
 
       if (!res.ok) throw new Error('Failed to link external video');
@@ -487,6 +497,52 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       loadVideosAdmin(); // Refresh list
     } catch (err) {
       showToast('Error linking external video', 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '⬆️ Upload Video';
+    }
+    return;
+  }
+
+  // Handle Bunny Stream Submission
+  if (currentUploadSource === 'bunny') {
+    const bunnyVideoId = document.getElementById('bunny-video-id').value.trim();
+    const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
+    const dl720 = document.getElementById('dl-720').value.trim();
+    const dl1080 = document.getElementById('dl-1080').value.trim();
+
+    if (!bunnyVideoId) {
+      showToast('Please enter a Bunny Video ID', 'error');
+      return;
+    }
+
+    const submitBtn = document.getElementById('upload-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Linking Bunny Stream...';
+
+    try {
+      const res = await fetch('/api/admin/videos/external', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ 
+          title, genre, description, 
+          videoUrl: '', // Will be handled by player
+          thumbnailUrl: bunnyThumbUrl,
+          bunnyId: bunnyVideoId,
+          dl720, dl1080
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to link Bunny stream');
+      
+      showToast(`"${title}" linked from Bunny! 🐰`, 'success');
+      document.getElementById('upload-form').reset();
+      updateFileLabel('video');
+      updateFileLabel('thumb');
+      loadDashboard();
+      switchTab('manage', document.querySelector('[data-tab=manage]'));
+    } catch (err) {
+      showToast('Error linking Bunny stream', 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '⬆️ Upload Video';
@@ -545,7 +601,9 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           videoUrl: videoResult.publicUrl,
           videoFilename: videoResult.key,
           thumbnailUrl: thumbResult ? thumbResult.publicUrl : null,
-          thumbnailFilename: thumbResult ? thumbResult.key : null
+          thumbnailFilename: thumbResult ? thumbResult.key : null,
+          dl720: document.getElementById('dl-720').value.trim(),
+          dl1080: document.getElementById('dl-1080').value.trim()
         })
       });
 

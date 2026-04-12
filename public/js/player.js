@@ -107,14 +107,58 @@ async function loadVideo() {
 
     // Update page
     document.title = `${video.title} — StreamXvault`;
-
-    const player = document.getElementById('video-player');
-    player.src = video.videoUrl;
-
     document.getElementById('video-title').textContent = video.title;
     document.getElementById('video-views').textContent = `👁️ ${formatViews(video.views || 0)} views`;
     document.getElementById('video-date').textContent = `📅 ${formatDate(video.uploadedAt)}`;
     document.getElementById('video-description').textContent = video.description || 'No description provided.';
+    document.getElementById('like-count').textContent = video.likes || 0;
+
+    // ====== PLAYER LOGIC: Hybrid Switch ======
+    const wrapper = document.getElementById('player-wrapper');
+    
+    if (video.bunnyId) {
+      // PRO: Bunny Stream Player (Adaptive Quality + Skip Transcoding)
+      wrapper.innerHTML = `
+        <div style="position:relative; padding-top:56.25%;">
+            <iframe src="https://iframe.mediadelivery.net/embed/400619/${video.bunnyId}?autoplay=true" 
+                    loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%; border-radius:12px; overflow:hidden;" 
+                    allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
+                    allowfullscreen="true"></iframe>
+        </div>`;
+    } else {
+      // POWER: Video.js (Supports VAST Ads + Custom Skinning)
+      wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto"></video>`;
+      const vPlayer = videojs('video-js-player', {
+        autoplay: true,
+        controls: true,
+        responsive: true,
+        fluid: true,
+        sources: [{ src: video.videoUrl, type: 'video/mp4' }]
+      });
+
+      // Simulation of Preroll Ad (User can put actual VAST tag here)
+      console.log('Video.js initialized for local file. Pre-roll ready.');
+    }
+
+    // ====== DOWNLOADS LOGIC ======
+    const dlMenu = document.getElementById('download-menu');
+    dlMenu.innerHTML = '';
+    const hasDownloads = video.downloads && (video.downloads.p720 || video.downloads.p1080);
+    
+    if (hasDownloads) {
+      if (video.downloads.p720) {
+        dlMenu.innerHTML += `<a href="${video.downloads.p720}" class="download-item" target="_blank" download>
+          <span>720p HD</span> <span class="quality">MP4</span>
+        </a>`;
+      }
+      if (video.downloads.p1080) {
+        dlMenu.innerHTML += `<a href="${video.downloads.p1080}" class="download-item" target="_blank" download>
+          <span>1080p FHD</span> <span class="quality">MP4</span>
+        </a>`;
+      }
+    } else {
+      dlMenu.innerHTML = `<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No direct download ready</div>`;
+    }
 
     // ====== SEO: Inject JSON-LD ======
     const ldJson = document.createElement('script');
@@ -183,6 +227,36 @@ window.addEventListener('scroll', () => {
     navbar.classList.remove('scrolled');
   }
 });
+
+// ==================== Social: Likes ====================
+async function likeVideo() {
+  const params = new URLSearchParams(window.location.search);
+  const videoId = params.get('v');
+  if (!videoId) return;
+
+  const btn = document.getElementById('like-btn');
+  if (btn.classList.contains('liked')) {
+    showToast('Already liked!', 'info');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/videos/${videoId}/like`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('like-count').textContent = data.likes || 0;
+      btn.classList.add('liked');
+      showToast('Video liked! ❤️', 'success');
+    }
+  } catch (e) {
+    console.error('Like failed');
+  }
+}
+
+// Global scope exports for UI hooks
+window.likeVideo = likeVideo;
+window.switchTab = (tab, el) => {}; 
+window.toggleUploadSource = () => {};
 
 // ==================== Initialize ====================
 document.addEventListener('DOMContentLoaded', () => {

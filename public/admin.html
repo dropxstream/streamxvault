@@ -80,6 +80,16 @@
               <div class="stat-value" id="stat-views">0</div>
               <div class="stat-label">Total Views</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-icon pink" style="background: rgba(236, 72, 153, 0.1); color: #ec4899;">❤️</div>
+              <div class="stat-value" id="stat-likes">0</div>
+              <div class="stat-label">Total Likes</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple" style="background: rgba(168, 85, 247, 0.1); color: #a855f7;">👥</div>
+              <div class="stat-value" id="stat-visitors">0</div>
+              <div class="stat-label">Total Visitors</div>
+            </div>
           </div>
 
           <!-- Quick Actions -->
@@ -104,6 +114,10 @@
             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
               <input type="radio" name="upload-source" value="external" onchange="toggleUploadSource()"> 
               <span style="font-weight: 600;">🔗 Link External URL</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="radio" name="upload-source" value="bunny" onchange="toggleUploadSource()"> 
+              <span style="font-weight: 600;">🐰 Bunny Stream</span>
             </label>
           </div>
 
@@ -144,8 +158,35 @@
                 <input type="url" id="ext-video-url" placeholder="https://example.com/video.mp4">
               </div>
               <div class="form-group">
-                <label for="ext-thumb-url">Thumbnail Image URL *</label>
+                <label for="ext-thumb-url">Thumbnail Image URL * (Optional)</label>
                 <input type="url" id="ext-thumb-url" placeholder="https://example.com/thumb.jpg">
+              </div>
+            </div>
+
+            <!-- Bunny Stream Mode Inputs -->
+            <div id="bunny-link-mode" style="display: none;">
+              <div class="form-group">
+                <label for="bunny-video-id">Bunny Video ID *</label>
+                <input type="text" id="bunny-video-id" placeholder="e.g. 52627-abc-123">
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Found in your Bunny Stream dashboard</p>
+              </div>
+              <div class="form-group">
+                <label for="bunny-thumb-url">Bunny Poster/Thumb URL (Optional)</label>
+                <input type="url" id="bunny-thumb-url" placeholder="https://vz-abc.xyz/poster.jpg">
+              </div>
+            </div>
+
+            <div class="advanced-settings" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
+              <h4 style="margin-bottom: 0.75rem; color: var(--text-muted);">Download Links (Optional)</h4>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                  <label for="dl-720">720p Link</label>
+                  <input type="url" id="dl-720" placeholder="Direct MP4 URL">
+                </div>
+                <div class="form-group">
+                  <label for="dl-1080">1080p Link</label>
+                  <input type="url" id="dl-1080" placeholder="Direct MP4 URL">
+                </div>
               </div>
             </div>
 
