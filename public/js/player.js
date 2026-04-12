@@ -144,21 +144,26 @@ async function loadVideo() {
     // ====== DOWNLOADS LOGIC ======
     const dlMenu = document.getElementById('download-menu');
     dlMenu.innerHTML = '';
-    const hasDownloads = video.downloads && (video.downloads.p720 || video.downloads.p1080);
+    const hasDownloads = video.downloads && (video.downloads.p720 || video.downloads.p1080 || video.downloads.orig);
     
     if (hasDownloads) {
       if (video.downloads.p720) {
         dlMenu.innerHTML += `<a href="${video.downloads.p720}" class="download-item" target="_blank" download>
-          <span>720p HD</span> <span class="quality">MP4</span>
+          <span>720p HD</span> <span class="quality">MP4/Link</span>
         </a>`;
       }
       if (video.downloads.p1080) {
         dlMenu.innerHTML += `<a href="${video.downloads.p1080}" class="download-item" target="_blank" download>
-          <span>1080p FHD</span> <span class="quality">MP4</span>
+          <span>1080p FHD</span> <span class="quality">MP4/Link</span>
+        </a>`;
+      }
+      if (video.downloads.orig) {
+        dlMenu.innerHTML += `<a href="${video.downloads.orig}" class="download-item" target="_blank" download>
+          <span>4K / Original</span> <span class="quality">Master</span>
         </a>`;
       }
     } else {
-      dlMenu.innerHTML = `<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No direct download ready</div>`;
+      dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';
     }
 
     // ====== SEO: Inject JSON-LD ======

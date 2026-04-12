@@ -561,7 +561,8 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
       bunnyLibraryId: req.body.bunnyLibraryId || null,
       downloads: {
         p720: req.body.dl720 || null,
-        p1080: req.body.dl1080 || null
+        p1080: req.body.dl1080 || null,
+        orig: req.body.dlOrig || null
       }
     };
 
@@ -595,10 +596,11 @@ app.put('/api/videos/:id', requireAdmin, upload.fields([
     if (req.body.bunnyLibraryId !== undefined) videos[index].bunnyLibraryId = req.body.bunnyLibraryId || null;
     
     // Handle downloads
-    if (req.body.dl720 !== undefined || req.body.dl1080 !== undefined) {
+    if (req.body.dl720 !== undefined || req.body.dl1080 !== undefined || req.body.dlOrig !== undefined) {
       if (!videos[index].downloads) videos[index].downloads = {};
       if (req.body.dl720 !== undefined) videos[index].downloads.p720 = req.body.dl720 || null;
       if (req.body.dl1080 !== undefined) videos[index].downloads.p1080 = req.body.dl1080 || null;
+      if (req.body.dlOrig !== undefined) videos[index].downloads.orig = req.body.dlOrig || null;
     }
 
     // Handle new thumbnail upload

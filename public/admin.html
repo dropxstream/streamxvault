@@ -176,9 +176,23 @@
                 </div>
               </div>
               <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Found in your Bunny Stream dashboard URL</p>
-              <div class="form-group" style="margin-top: 1rem;">
-                <label for="bunny-thumb-url">Bunny Poster/Thumb URL (Optional)</label>
-                <input type="url" id="bunny-thumb-url" placeholder="https://vz-abc.xyz/poster.jpg">
+              <div class="form-group" style="margin-top: 1rem; border: 1px dashed var(--border-color); padding: 1rem; border-radius: 8px;">
+                <label style="color: var(--accent-cyan); font-size: 0.8rem; margin-bottom: 0.5rem; display: block;">📥 Download Links (Optional)</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                  <div class="form-group">
+                    <label for="dl-720">720p URL</label>
+                    <input type="url" id="dl-720" placeholder="Direct link">
+                  </div>
+                  <div class="form-group">
+                    <label for="dl-1080">1080p URL</label>
+                    <input type="url" id="dl-1080" placeholder="Direct link">
+                  </div>
+                </div>
+                <div class="form-group" style="margin-top: 0.5rem;">
+                  <label for="dl-orig">4K / Original URL</label>
+                  <input type="url" id="dl-orig" placeholder="e.g. Google Drive, Mega or Direct File">
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem;">💡 Tip: For 1-click downloads, use direct <b>.mp4</b> links from your Bunny Dashboard 'Delivery' tab.</p>
               </div>
             </div>
 
@@ -291,12 +305,16 @@
               <input type="text" id="edit-bunny-lib-id" placeholder="e.g. 636087">
             </div>
             <div class="form-group">
-              <label for="edit-dl-720">720p Download</label>
+              <label for="edit-dl-720">720p URL</label>
               <input type="url" id="edit-dl-720" placeholder="Optional URL">
             </div>
             <div class="form-group">
-              <label for="edit-dl-1080">1080p Download</label>
+              <label for="edit-dl-1080">1080p URL</label>
               <input type="url" id="edit-dl-1080" placeholder="Optional URL">
+            </div>
+            <div class="form-group">
+              <label for="edit-dl-orig">4K / Original URL</label>
+              <input type="url" id="edit-dl-orig" placeholder="Optional URL">
             </div>
           </div>
 

@@ -511,6 +511,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
     const dl720 = document.getElementById('dl-720').value.trim();
     const dl1080 = document.getElementById('dl-1080').value.trim();
+    const dlOrig = document.getElementById('dl-orig').value.trim();
 
     if (!bunnyLibId || !bunnyVideoId) {
       showToast('Please enter both Library ID and Video ID', 'error');
@@ -531,7 +532,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           thumbnailUrl: bunnyThumbUrl,
           bunnyId: bunnyVideoId,
           bunnyLibraryId: bunnyLibId,
-          dl720, dl1080
+          dl720, dl1080, dlOrig
         })
       });
 
@@ -753,6 +754,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-bunny-lib-id').value = video.bunnyLibraryId || '';
   document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
   document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
+  document.getElementById('edit-dl-orig').value = (video.downloads && video.downloads.orig) || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
   document.getElementById('edit-modal').classList.add('active');
@@ -772,6 +774,7 @@ async function saveEdit() {
     formData.append('bunnyLibraryId', document.getElementById('edit-bunny-lib-id').value.trim());
     formData.append('dl720', document.getElementById('edit-dl-720').value.trim());
     formData.append('dl1080', document.getElementById('edit-dl-1080').value.trim());
+    formData.append('dlOrig', document.getElementById('edit-dl-orig').value.trim());
     formData.append('published', document.getElementById('edit-published').checked);
 
   try {
