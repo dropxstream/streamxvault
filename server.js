@@ -173,17 +173,6 @@ const upload = multer({
 
 // ==================== Helper Functions ====================
 
-function loadVideos() {
-  try {
-    const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-
-
 // JWT-based auth middleware (survives server restarts)
 function requireAdmin(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
@@ -209,6 +198,7 @@ app.get('/robots.txt', (req, res) => {
   res.send(`User-agent: *
 Allow: /
 Sitemap: https://streamxvault.online/sitemap.xml`);
+});
 });
 
 app.get('/sitemap.xml', (req, res) => {
@@ -459,7 +449,11 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
       uploadedAt: new Date().toISOString(),
       videoFilename,
       thumbnailFilename: thumbnailFilename || null,
-      bunnyId: req.body.bunnyId || null
+      bunnyId: req.body.bunnyId || null,
+      downloads: {
+        p720: req.body.dl720 || null,
+        p1080: req.body.dl1080 || null
+      }
     };
 
     const videos = loadVideos();
@@ -492,7 +486,11 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       uploadedAt: new Date().toISOString(),
       videoFilename: null,
       thumbnailFilename: null,
-      bunnyId: req.body.bunnyId || null
+      bunnyId: req.body.bunnyId || null,
+      downloads: {
+        p720: req.body.dl720 || null,
+        p1080: req.body.dl1080 || null
+      }
     };
 
     const videos = loadVideos();
@@ -547,7 +545,11 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
       uploadedAt: new Date().toISOString(),
       videoFilename,
       thumbnailFilename: req.files.thumbnail ? `thumb_${videoId}${path.extname(req.files.thumbnail[0].originalname)}` : null,
-      bunnyId: req.body.bunnyId || null
+      bunnyId: req.body.bunnyId || null,
+      downloads: {
+        p720: req.body.dl720 || null,
+        p1080: req.body.dl1080 || null
+      }
     };
 
     const videos = loadVideos();
@@ -577,7 +579,13 @@ app.put('/api/videos/:id', requireAdmin, upload.fields([
     if (req.body.description !== undefined) videos[index].description = req.body.description;
     if (req.body.published !== undefined) videos[index].published = req.body.published === 'true' || req.body.published === true;
     if (req.body.bunnyId !== undefined) videos[index].bunnyId = req.body.bunnyId || null;
-
+    
+    // Handle downloads
+    if (req.body.dl720 !== undefined || req.body.dl1080 !== undefined) {
+      if (!videos[index].downloads) videos[index].downloads = {};
+      if (req.body.dl720 !== undefined) videos[index].downloads.p720 = req.body.dl720 || null;
+      if (req.body.dl1080 !== undefined) videos[index].downloads.p1080 = req.body.dl1080 || null;
+    }
     // Handle new thumbnail upload
     if (req.files && req.files.thumbnail) {
       // Delete old thumbnail if exists

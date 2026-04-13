@@ -508,6 +508,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   if (currentUploadSource === 'bunny') {
     const bunnyVideoId = document.getElementById('bunny-video-id').value.trim();
     const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
+    const dl720 = document.getElementById('dl-720').value.trim();
+    const dl1080 = document.getElementById('dl-1080').value.trim();
 
     if (!bunnyVideoId) {
       showToast('Please enter a Bunny Video ID', 'error');
@@ -526,7 +528,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title, genre, description, 
           videoUrl: '', // Will be handled by player
           thumbnailUrl: bunnyThumbUrl,
-          bunnyId: bunnyVideoId
+          bunnyId: bunnyVideoId,
+          dl720, dl1080
         })
       });
 
@@ -744,6 +747,9 @@ function openEditModal(videoId) {
   document.getElementById('edit-title').value = video.title;
   document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
+  document.getElementById('edit-bunny-id').value = video.bunnyId || '';
+  document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
+  document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
   document.getElementById('edit-modal').classList.add('active');
@@ -759,6 +765,9 @@ async function saveEdit() {
     formData.append('title', document.getElementById('edit-title').value.trim());
     formData.append('genre', document.getElementById('edit-genre').value);
     formData.append('description', document.getElementById('edit-desc').value.trim());
+    formData.append('bunnyId', document.getElementById('edit-bunny-id').value.trim());
+    formData.append('dl720', document.getElementById('edit-dl-720').value.trim());
+    formData.append('dl1080', document.getElementById('edit-dl-1080').value.trim());
     formData.append('published', document.getElementById('edit-published').checked);
 
   try {

@@ -137,9 +137,31 @@ async function loadVideo() {
         sources: [{ src: video.videoUrl, type: 'video/mp4' }]
       });
 
-      // Simulation of Preroll Ad (User can put actual VAST tag here)
-      console.log('Video.js initialized for local file. Pre-roll ready.');
+      // ====== DOWNLOADS LOGIC ======
+    const dlMenu = document.getElementById('download-menu');
+    if (dlMenu) {
+      dlMenu.innerHTML = '';
+      const hasDownloads = video.downloads && (video.downloads.p720 || video.downloads.p1080);
+      
+      // Sanitize filename for download attribute
+      const safeTitle = (video.title || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+      if (hasDownloads) {
+        if (video.downloads.p720) {
+          dlMenu.innerHTML += `<a href="${video.downloads.p720}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4">
+            <span>720p HD</span> <span class="quality">MP4</span>
+          </a>`;
+        }
+        if (video.downloads.p1080) {
+          dlMenu.innerHTML += `<a href="${video.downloads.p1080}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4">
+            <span>1080p FHD</span> <span class="quality">MP4</span>
+          </a>`;
+        }
+      } else {
+        dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';
+      }
     }
+  }
 
 
     // ====== SEO: Inject JSON-LD ======
