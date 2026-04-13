@@ -199,7 +199,6 @@ app.get('/robots.txt', (req, res) => {
 Allow: /
 Sitemap: https://streamxvault.online/sitemap.xml`);
 });
-});
 
 app.get('/sitemap.xml', (req, res) => {
   const videos = loadVideos();
