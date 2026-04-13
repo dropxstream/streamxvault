@@ -508,9 +508,6 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   if (currentUploadSource === 'bunny') {
     const bunnyVideoId = document.getElementById('bunny-video-id').value.trim();
     const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
-    const dl720 = document.getElementById('dl-720').value.trim();
-    const dl1080 = document.getElementById('dl-1080').value.trim();
-    const dlOrig = document.getElementById('dl-orig').value.trim();
 
     if (!bunnyVideoId) {
       showToast('Please enter a Bunny Video ID', 'error');
@@ -529,8 +526,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title, genre, description, 
           videoUrl: '', // Will be handled by player
           thumbnailUrl: bunnyThumbUrl,
-          bunnyId: bunnyVideoId,
-          dl720, dl1080, dlOrig
+          bunnyId: bunnyVideoId
         })
       });
 

@@ -459,11 +459,7 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
       uploadedAt: new Date().toISOString(),
       videoFilename,
       thumbnailFilename: thumbnailFilename || null,
-      bunnyId: req.body.bunnyId || null,
-      downloads: {
-        p720: req.body.dl720 || null,
-        p1080: req.body.dl1080 || null
-      }
+      bunnyId: req.body.bunnyId || null
     };
 
     const videos = loadVideos();
@@ -496,11 +492,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       uploadedAt: new Date().toISOString(),
       videoFilename: null,
       thumbnailFilename: null,
-      bunnyId: req.body.bunnyId || null,
-      downloads: {
-        p720: req.body.dl720 || null,
-        p1080: req.body.dl1080 || null
-      }
+      bunnyId: req.body.bunnyId || null
     };
 
     const videos = loadVideos();
@@ -555,12 +547,7 @@ app.post('/api/videos/upload', requireAdmin, upload.fields([
       uploadedAt: new Date().toISOString(),
       videoFilename,
       thumbnailFilename: req.files.thumbnail ? `thumb_${videoId}${path.extname(req.files.thumbnail[0].originalname)}` : null,
-      bunnyId: req.body.bunnyId || null,
-      downloads: {
-        p720: req.body.dl720 || null,
-        p1080: req.body.dl1080 || null,
-        orig: req.body.dlOrig || null
-      }
+      bunnyId: req.body.bunnyId || null
     };
 
     const videos = loadVideos();
