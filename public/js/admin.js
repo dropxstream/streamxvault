@@ -506,15 +506,14 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
 
   // Handle Bunny Stream Submission
   if (currentUploadSource === 'bunny') {
-    const bunnyLibId = document.getElementById('bunny-lib-id').value.trim();
     const bunnyVideoId = document.getElementById('bunny-video-id').value.trim();
     const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
     const dl720 = document.getElementById('dl-720').value.trim();
     const dl1080 = document.getElementById('dl-1080').value.trim();
     const dlOrig = document.getElementById('dl-orig').value.trim();
 
-    if (!bunnyLibId || !bunnyVideoId) {
-      showToast('Please enter both Library ID and Video ID', 'error');
+    if (!bunnyVideoId) {
+      showToast('Please enter a Bunny Video ID', 'error');
       return;
     }
 
@@ -531,7 +530,6 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           videoUrl: '', // Will be handled by player
           thumbnailUrl: bunnyThumbUrl,
           bunnyId: bunnyVideoId,
-          bunnyLibraryId: bunnyLibId,
           dl720, dl1080, dlOrig
         })
       });

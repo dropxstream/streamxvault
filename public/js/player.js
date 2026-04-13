@@ -118,10 +118,10 @@ async function loadVideo() {
     
     if (video.bunnyId) {
       // PRO: Bunny Stream Player (Adaptive Quality + Skip Transcoding)
-      const libId = video.bunnyLibraryId || '636087';
+      // Custom Library ID: 636087
       wrapper.innerHTML = `
         <div style="position:relative; padding-top:56.25%;">
-            <iframe src="https://iframe.mediadelivery.net/embed/${libId}/${video.bunnyId}?autoplay=true" 
+            <iframe src="https://iframe.mediadelivery.net/embed/636087/${video.bunnyId}?autoplay=true" 
                     loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%; border-radius:12px; overflow:hidden;" 
                     allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
                     allowfullscreen="true"></iframe>
