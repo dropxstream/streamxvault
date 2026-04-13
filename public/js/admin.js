@@ -748,11 +748,6 @@ function openEditModal(videoId) {
   document.getElementById('edit-title').value = video.title;
   document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
-  document.getElementById('edit-bunny-id').value = video.bunnyId || '';
-  document.getElementById('edit-bunny-lib-id').value = video.bunnyLibraryId || '';
-  document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
-  document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
-  document.getElementById('edit-dl-orig').value = (video.downloads && video.downloads.orig) || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
   document.getElementById('edit-modal').classList.add('active');
@@ -768,11 +763,6 @@ async function saveEdit() {
     formData.append('title', document.getElementById('edit-title').value.trim());
     formData.append('genre', document.getElementById('edit-genre').value);
     formData.append('description', document.getElementById('edit-desc').value.trim());
-    formData.append('bunnyId', document.getElementById('edit-bunny-id').value.trim());
-    formData.append('bunnyLibraryId', document.getElementById('edit-bunny-lib-id').value.trim());
-    formData.append('dl720', document.getElementById('edit-dl-720').value.trim());
-    formData.append('dl1080', document.getElementById('edit-dl-1080').value.trim());
-    formData.append('dlOrig', document.getElementById('edit-dl-orig').value.trim());
     formData.append('published', document.getElementById('edit-published').checked);
 
   try {

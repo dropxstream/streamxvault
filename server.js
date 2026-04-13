@@ -590,14 +590,6 @@ app.put('/api/videos/:id', requireAdmin, upload.fields([
     if (req.body.description !== undefined) videos[index].description = req.body.description;
     if (req.body.published !== undefined) videos[index].published = req.body.published === 'true' || req.body.published === true;
     if (req.body.bunnyId !== undefined) videos[index].bunnyId = req.body.bunnyId || null;
-    
-    // Handle downloads
-    if (req.body.dl720 !== undefined || req.body.dl1080 !== undefined || req.body.dlOrig !== undefined) {
-      if (!videos[index].downloads) videos[index].downloads = {};
-      if (req.body.dl720 !== undefined) videos[index].downloads.p720 = req.body.dl720 || null;
-      if (req.body.dl1080 !== undefined) videos[index].downloads.p1080 = req.body.dl1080 || null;
-      if (req.body.dlOrig !== undefined) videos[index].downloads.orig = req.body.dlOrig || null;
-    }
 
     // Handle new thumbnail upload
     if (req.files && req.files.thumbnail) {
