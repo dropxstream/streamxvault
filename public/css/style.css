@@ -55,6 +55,9 @@
   --transition-fast: 0.15s ease;
   --transition-normal: 0.3s ease;
   --transition-slow: 0.5s ease;
+
+  /* Custom Identity Colors */
+  --brand-maroon: #8B1A1A;
 }
 
 /* ==================== Reset & Base ==================== */
@@ -124,20 +127,21 @@ input, textarea, select {
   left: 0;
   right: 0;
   height: var(--nav-height);
-  background: rgba(10, 10, 15, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 4px solid var(--brand-maroon);
   border-bottom: 1px solid var(--border-color);
   z-index: 1000;
   display: flex;
   align-items: center;
   padding: 0 2rem;
-  transition: background var(--transition-normal);
+  transition: all var(--transition-normal);
 }
 
 .navbar.scrolled {
-  background: rgba(10, 10, 15, 0.95);
-  box-shadow: var(--shadow-md);
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .nav-brand {
@@ -329,9 +333,9 @@ input, textarea, select {
   inset: 0;
   background: linear-gradient(180deg,
     transparent 0%,
-    rgba(10, 10, 15, 0.15) 30%,
-    rgba(10, 10, 15, 0.6) 65%,
-    rgba(10, 10, 15, 0.9) 85%,
+    rgba(255, 255, 255, 0.05) 30%,
+    rgba(255, 255, 255, 0.4) 65%,
+    rgba(255, 255, 255, 0.8) 85%,
     var(--bg-primary) 100%
   );
   z-index: 1;
