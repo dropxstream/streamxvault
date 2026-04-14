@@ -707,6 +707,7 @@ function renderAdminVideoList(videosToRender) {
           ${statusBadge}
           ${genreBadge}
           ${video.bunnyId ? '<span class="badge" style="background: rgba(255, 153, 0, 0.1); color: #ff9900;">🐰 Bunny</span>' : ''}
+          ${(video.downloads && (video.downloads.p720 || video.downloads.p1080)) ? '<span class="badge" style="background: rgba(46, 204, 113, 0.1); color: #2ecc71;" title="Download links set">📥 Simple DL</span>' : ''}
           <span>👁️ ${formatViews(video.views || 0)} views</span>
           <span>❤️ ${formatViews(video.likes || 0)} likes</span>
           <span>🕐 ${getTimeAgo(video.uploadedAt)}</span>

@@ -123,7 +123,22 @@ function loadStats() {
 
 // Track visitors middleware
 app.use((req, res, next) => {
+  // Ignore API calls, static files
   if (req.path.startsWith('/api') || req.path.includes('.')) return next();
+  
+  // Ignore Bots & Crawlers
+  const ua = req.headers['user-agent'] || '';
+  const botRegex = /bot|crawler|spider|google|bing|yandex|baidu|slurp|duckduckbot/i;
+  if (botRegex.test(ua)) return next();
+
+  // Ignore Admin visits
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (decoded.isAdmin) return next();
+    } catch (e) {}
+  }
   
   const stats = loadStats();
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -302,9 +317,28 @@ app.get('/api/videos/:id', async (req, res) => {
     return res.status(404).json({ error: 'Video not found' });
   }
 
-  // Increment view count
-  video.views = (video.views || 0) + 1;
-  await saveVideos(videos);
+  // View counting logic
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  let isAdmin = false;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      isAdmin = !!decoded.isAdmin;
+    } catch (e) {}
+  }
+
+  // 1. Don't count Admin views
+  // 2. Only count once per session for normal users
+  const sessionKey = `view_${video.id}`;
+  const cookies = req.headers.cookie || '';
+  const hasViewed = cookies.includes(sessionKey);
+  
+  if (!isAdmin && !hasViewed) {
+    video.views = (video.views || 0) + 1;
+    // Set a simple cookie without a library
+    res.setHeader('Set-Cookie', `${sessionKey}=1; Max-Age=3600; Path=/; HttpOnly`);
+    await saveVideos(videos);
+  }
 
   res.json(video);
 });
