@@ -6,19 +6,19 @@
 
 /* ==================== CSS Variables ==================== */
 :root {
-  /* Colors */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-tertiary: #1a1a2e;
-  --bg-card: rgba(255, 255, 255, 0.03);
-  --bg-card-hover: rgba(255, 255, 255, 0.06);
-  --bg-glass: rgba(255, 255, 255, 0.05);
-  --bg-glass-strong: rgba(255, 255, 255, 0.08);
+  /* Colors - Light Theme */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-card: #f8fafc;
+  --bg-card-hover: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.9);
+  --bg-glass-strong: rgba(255, 255, 255, 1);
 
-  --text-primary: #ffffff;
-  --text-secondary: #a0a0b8;
-  --text-muted: #6b6b80;
-  --text-accent: #c084fc;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-accent: #7c3aed;
 
   --accent-purple: #7C3AED;
   --accent-purple-light: #a78bfa;
@@ -28,8 +28,8 @@
   --accent-gradient-hover: linear-gradient(135deg, #8B5CF6 0%, #22D3EE 100%);
   --accent-gradient-pink: linear-gradient(135deg, #7C3AED 0%, #ec4899 100%);
 
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-glow: rgba(124, 58, 237, 0.3);
+  --border-color: #e2e8f0;
+  --border-glow: rgba(124, 58, 237, 0.1);
 
   --danger: #ef4444;
   --success: #22c55e;
@@ -44,12 +44,12 @@
   --radius-xl: 20px;
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 30px rgba(124, 58, 237, 0.15);
-  --shadow-glow-strong: 0 0 60px rgba(124, 58, 237, 0.25);
+  /* Shadows - Light Theme */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.1);
+  --shadow-glow-strong: 0 0 40px rgba(124, 58, 237, 0.15);
 
   /* Transitions */
   --transition-fast: 0.15s ease;
@@ -259,7 +259,7 @@ input, textarea, select {
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--bg-tertiary);
   border-color: var(--text-muted);
 }
 
