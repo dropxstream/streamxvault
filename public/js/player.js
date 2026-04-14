@@ -105,6 +105,22 @@ async function initPlayer() {
       "contentUrl": video.videoUrl
     });
     document.head.appendChild(ldJson);
+    
+    // Dynamic Meta Tags (OG / Twitter)
+    const updateMeta = (name, content, isProperty = false) => {
+      let el = document.querySelector(isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        if (isProperty) el.setAttribute('property', name); else el.setAttribute('name', name);
+        document.head.appendChild(el);
+      }
+      el.content = content;
+    };
+    
+    updateMeta('og:title', `${video.title} — Official StreamXvault`, true);
+    updateMeta('og:description', video.description || 'Watch premium video on StreamXvault.', true);
+    updateMeta('og:image', video.thumbnailUrl || 'https://streamxvault.online/images/logo.png', true);
+    updateMeta('twitter:card', 'summary_large_image');
     // =================================
     
     // ====== RECOMMENDATION ENGINE: Update Profile ======
