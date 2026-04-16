@@ -41,16 +41,23 @@ async function initPlayer() {
     const wrapper = document.getElementById('player-wrapper');
     
     // ==========================================
-    // 🚀 MASTER INTEGRATION: BUNNY STREAM FIRST
+    // 🚀 MASTER INTEGRATION: BUNNY STREAM DETECTION
     // ==========================================
-    if (video.bunnyId) {
-      // Professional Bunny Stream Player with Quality Selection
+    let bId = video.bunnyId;
+    // Auto-detect Bunny ID if it's hidden in the URL
+    if (!bId && video.videoUrl && video.videoUrl.includes('mediadelivery.net')) {
+      const parts = video.videoUrl.split('/');
+      bId = parts[parts.length - 1].split('?')[0];
+    }
+
+    if (bId) {
+      // Professional Bunny Stream Player (Prioritized)
       wrapper.innerHTML = `
         <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <iframe src="https://iframe.mediadelivery.net/embed/636087/${video.bunnyId}?autoplay=true" 
+            <iframe src="https://iframe.mediadelivery.net/embed/636087/${bId}?autoplay=true" 
                     loading="lazy" 
                     style="border:0;position:absolute;top:0;height:100%;width:100%;" 
-                    allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
+                    allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 
                     allowfullscreen="true"></iframe>
         </div>`;
     } else if (video.videoUrl && (video.videoUrl.includes('<iframe') || video.videoUrl.includes('embed'))) {
