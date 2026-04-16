@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const upload = multer({ limits: { fileSize: 50 * 1024 * 1024 } }); // Small limit for metadata-only multipart forms
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
@@ -94,6 +95,24 @@ app.use((req, res, next) => {
     saveStats(stats);
   }
   next();
+});
+
+// API: Dashboard Stats
+app.get('/api/stats', requireAdmin, (req, res) => {
+  const videos = loadVideos();
+  const stats = loadStats();
+  
+  const totalViews = videos.reduce((sum, v) => sum + (v.views || 0), 0);
+  const totalLikes = videos.reduce((sum, v) => sum + (v.likes || 0), 0);
+  const publishedVideos = videos.filter(v => v.published !== false).length;
+
+  res.json({
+    totalVideos: videos.length,
+    publishedVideos,
+    totalViews,
+    totalLikes,
+    totalVisitors: stats.totalVisitors || 0
+  });
 });
 
 app.use(express.json());
@@ -231,6 +250,7 @@ app.post('/api/upload/multipart/complete', requireAdmin, async (req, res) => {
   }
 });
 
+// Register video after direct upload completes
 app.post('/api/upload/complete', requireAdmin, async (req, res) => {
   try {
     const videos = loadVideos();
@@ -238,7 +258,7 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
       ...req.body,
       views: 0,
       likes: 0,
-      published: true,
+      published: req.body.published !== false,
       uploadedAt: new Date().toISOString()
     };
     videos.push(videoData);
@@ -246,6 +266,89 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Create external video (Bunny/Embed)
+app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
+  try {
+    const { title, genre, description, videoUrl, thumbnailUrl, bunnyId, dl720, dl1080 } = req.body;
+    const vId = require('crypto').randomUUID();
+    
+    const videoData = {
+      id: vId,
+      title,
+      genre,
+      description,
+      videoUrl,
+      thumbnailUrl,
+      bunnyId,
+      views: 0,
+      likes: 0,
+      published: true,
+      downloads: {
+        p720: dl720 || null,
+        p1080: dl1080 || null
+      },
+      uploadedAt: new Date().toISOString()
+    };
+
+    const videos = loadVideos();
+    videos.push(videoData);
+    await saveVideos(videos);
+    res.json({ success: true, id: vId });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create external video' });
+  }
+});
+
+// Update Video Metadata (Edit)
+app.put('/api/videos/:id', requireAdmin, upload.none(), async (req, res) => {
+  try {
+    const { title, genre, description, bunnyId, dl720, dl1080, published } = req.body;
+    const videos = loadVideos();
+    const video = videos.find(v => v.id === req.params.id);
+    
+    if (!video) return res.status(404).json({ error: 'Video not found' });
+
+    video.title = title || video.title;
+    video.genre = genre || video.genre;
+    video.description = description || video.description;
+    video.bunnyId = bunnyId || video.bunnyId;
+    video.published = published === 'true' || published === true;
+    
+    video.downloads = {
+      p720: dl720 || (video.downloads ? video.downloads.p720 : null),
+      p1080: dl1080 || (video.downloads ? video.downloads.p1080 : null)
+    };
+
+    await saveVideos(videos);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update video' });
+  }
+});
+
+// Delete Video
+app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
+  try {
+    let videos = loadVideos();
+    const video = videos.find(v => v.id === req.params.id);
+    if (!video) return res.status(404).json({ error: 'Not found' });
+
+    // Cleanup R2 files if they exist
+    if (storage.mode === 'r2') {
+      try {
+        if (video.videoFilename) await storage.delete('videos/' + video.videoFilename);
+        if (video.thumbnailFilename) await storage.delete('thumbnails/' + video.thumbnailFilename);
+      } catch (e) {}
+    }
+
+    videos = videos.filter(v => v.id !== req.params.id);
+    await saveVideos(videos);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete video' });
   }
 });
 
