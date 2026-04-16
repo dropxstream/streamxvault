@@ -41,30 +41,42 @@ async function initPlayer() {
     document.getElementById('video-description').textContent = video.description || 'No description available.';
 
     const wrapper = document.getElementById('player-wrapper');
-    
+    const isEmbed = video.videoUrl && (video.videoUrl.includes('iframe') || video.videoUrl.includes('embed') || !video.videoUrl.match(/\.(mp4|m3u8|webm)$|bunny/i));
+
     if (video.bunnyId) {
-      // PRO: Bunny Stream Player (Adaptive Quality + Skip Transcoding)
-      // Custom Library ID: 636087
+      // PRO: Bunny Stream Player
       wrapper.innerHTML = `
         <div style="position:relative; padding-top:56.25%;">
             <iframe src="https://iframe.mediadelivery.net/embed/636087/${video.bunnyId}?autoplay=true" 
                     loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%; border-radius:12px; overflow:hidden;" 
+                    allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 
+                    allowfullscreen="true"></iframe>
+        </div>`;
+    } else if (isEmbed) {
+      // FLEX: Iframe Embed (For external players)
+      // Check if the URL is already an iframe tag or just a URL
+      const embedSrc = video.videoUrl.includes('<iframe') 
+        ? video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl 
+        : video.videoUrl;
+
+      wrapper.innerHTML = `
+        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 12px; overflow: hidden;">
+            <iframe src="${embedSrc}" 
+                    style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                     allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
                     allowfullscreen="true"></iframe>
         </div>`;
     } else {
-      // POWER: Video.js (Supports VAST Ads + Custom Skinning)
+      // POWER: Video.js (For direct MP4/HLS files)
       wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto"></video>`;
       const vPlayer = videojs('video-js-player', {
         autoplay: true,
         controls: true,
         responsive: true,
         fluid: true,
-        sources: [{ src: video.videoUrl, type: 'video/mp4' }]
+        sources: [{ src: video.videoUrl }]
       });
-
-      // Simulation of Preroll Ad (User can put actual VAST tag here)
-      console.log('Video.js initialized for local file. Pre-roll ready.');
+      console.log('Video.js player initialized.');
     }
 
     // ====== DOWNLOADS LOGIC ======
