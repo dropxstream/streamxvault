@@ -12,8 +12,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'streamxvault_secret_key_123';
 
 const DATA_FILE = path.join(__dirname, 'data', 'videos.json');
 const STATS_FILE = path.join(__dirname, 'data', 'stats.json');
-const DB_KEY = 'db/videos.json';
-const STATS_KEY = 'db/stats.json';
+const DB_KEY = 'videos.json'; // Fix: Reverted to original root key
+const STATS_KEY = 'stats.json'; // Fix: Reverted to original root key
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -306,18 +306,34 @@ app.get('/sitemap.xml', (req, res) => {
   res.type('application/xml').send(xml);
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 StreamXvault Server running on port ${PORT}`);
-  // Initial R2 Sync
+// Start Server Routine
+const startServer = async () => {
+  // 1. Initial R2 Sync (Before Listening)
   if (storage.mode === 'r2') {
-     storage.download(DB_KEY).then(data => {
-        if (data) fs.writeFileSync(DATA_FILE, data);
-        console.log('📦 Database synced from R2');
-     }).catch(() => {});
-     storage.download(STATS_KEY).then(data => {
-        if (data) fs.writeFileSync(STATS_FILE, data);
-        console.log('📈 Stats synced from R2');
-     }).catch(() => {});
+    try {
+      console.log('🔄 Syncing Database from R2...');
+      const remoteData = await storage.download(DB_KEY);
+      if (remoteData && remoteData.length > 5) { // Verify it's not an empty file
+        fs.writeFileSync(DATA_FILE, remoteData);
+        console.log('📦 Database synced (Size: ' + remoteData.length + ' bytes)');
+      } else {
+        console.log('⚠️ R2 Database empty or missing, using local/fresh');
+      }
+
+      const remoteStats = await storage.download(STATS_KEY);
+      if (remoteStats) {
+        fs.writeFileSync(STATS_FILE, remoteStats);
+        console.log('📈 Stats synced');
+      }
+    } catch (err) {
+      console.error('❌ Sync failed:', err.message);
+    }
   }
-});
+
+  // 2. Start Listening
+  app.listen(PORT, () => {
+    console.log(`🚀 StreamXvault Server running on port ${PORT}`);
+  });
+};
+
+startServer();
