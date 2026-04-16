@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
-const storage = require('./storage'); // R2 storage helper
+const storage = require('./storage').createStorage(); // Fix: Actually create the storage instance
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -98,8 +98,12 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+// Support for .html extensions and clean URLs
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Redirect /admin to /admin.html
+app.get('/admin', (req, res) => res.redirect('/admin.html'));
 
 // Trust proxy for production (correct IP detection)
 app.set('trust proxy', 1);

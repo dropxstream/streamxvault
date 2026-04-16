@@ -48,6 +48,13 @@ class LocalStorage {
     return null;
   }
 
+  async download(filename) {
+    const filepath = path.join(this.uploadDir, filename);
+    if (fs.existsSync(filepath)) {
+      return fs.readFileSync(filepath);
+    }
+    return null;
+  }
   async createMultipartUpload(filename, contentType) { return null; }
   async getPresignedPartUrl(filename, uploadId, partNumber) { return null; }
   async completeMultipartUpload(filename, uploadId, parts) { return null; }
@@ -148,6 +155,28 @@ class R2Storage {
       UploadId: uploadId,
     });
     await this.client.send(command);
+  }
+
+  async download(filename) {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: filename,
+      });
+      const response = await this.client.send(command);
+      // Convert stream to buffer
+      const streamToBuffer = (stream) =>
+        new Promise((resolve, reject) => {
+          const chunks = [];
+          stream.on('data', (chunk) => chunks.push(chunk));
+          stream.on('error', reject);
+          stream.on('end', () => resolve(Buffer.concat(chunks)));
+        });
+      return await streamToBuffer(response.Body);
+    } catch (err) {
+      if (err.name === 'NoSuchKey') return null;
+      throw err;
+    }
   }
 }
 
