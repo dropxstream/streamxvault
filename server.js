@@ -308,16 +308,30 @@ app.get('/sitemap.xml', (req, res) => {
 
 // Start Server Routine
 const startServer = async () => {
-  // 1. Initial R2 Sync (Before Listening)
+  // 1. Initial R2 Sync (Diagnostics Mode)
   if (storage.mode === 'r2') {
     try {
-      console.log('🔄 Syncing Database from R2...');
-      const remoteData = await storage.download(DB_KEY);
-      if (remoteData && remoteData.length > 5) { // Verify it's not an empty file
+      console.log('🔍 [DIAGNOSTIC] Listing R2 objects...');
+      const keys = await storage.listObjects();
+      console.log('👀 Found objects in R2:', keys.join(', '));
+      
+      let targetKey = DB_KEY;
+      // If we don't find the expected key, but there is a renamed one, try it
+      if (!keys.includes(DB_KEY)) {
+        const potentialKeys = keys.filter(k => k.endsWith('.json') && !k.includes('stats'));
+        if (potentialKeys.length > 0) {
+          console.log(`💡 Found alternative database: ${potentialKeys[0]}`);
+          targetKey = potentialKeys[0];
+        }
+      }
+
+      console.log(`🔄 Syncing Database from R2 (${targetKey})...`);
+      const remoteData = await storage.download(targetKey);
+      if (remoteData && remoteData.length > 5) {
         fs.writeFileSync(DATA_FILE, remoteData);
         console.log('📦 Database synced (Size: ' + remoteData.length + ' bytes)');
       } else {
-        console.log('⚠️ R2 Database empty or missing, using local/fresh');
+        console.log('⚠️ R2 Database empty or missing.');
       }
 
       const remoteStats = await storage.download(STATS_KEY);

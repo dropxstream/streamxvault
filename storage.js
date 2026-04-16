@@ -14,7 +14,8 @@ const {
   CreateMultipartUploadCommand,
   UploadPartCommand,
   CompleteMultipartUploadCommand,
-  AbortMultipartUploadCommand
+  AbortMultipartUploadCommand,
+  ListObjectsV2Command
 } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -176,6 +177,19 @@ class R2Storage {
     } catch (err) {
       if (err.name === 'NoSuchKey') return null;
       throw err;
+    }
+  }
+
+  async listObjects() {
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: this.bucketName,
+      });
+      const response = await this.client.send(command);
+      return (response.Contents || []).map(o => o.Key);
+    } catch (err) {
+      console.error('❌ R2 List error:', err.message);
+      return [];
     }
   }
 }
