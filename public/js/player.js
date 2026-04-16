@@ -43,41 +43,61 @@ async function initPlayer() {
     const wrapper = document.getElementById('player-wrapper');
     const isEmbed = video.videoUrl && (video.videoUrl.includes('iframe') || video.videoUrl.includes('embed') || !video.videoUrl.match(/\.(mp4|m3u8|webm)$|bunny/i));
 
+    // 1. BUNNY PLAYER (High Authority)
     if (video.bunnyId) {
-      // PRO: Bunny Stream Player
       wrapper.innerHTML = `
-        <div style="position:relative; padding-top:56.25%;">
+        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
             <iframe src="https://iframe.mediadelivery.net/embed/636087/${video.bunnyId}?autoplay=true" 
-                    loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%; border-radius:12px; overflow:hidden;" 
+                    loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                     allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 
                     allowfullscreen="true"></iframe>
         </div>`;
-    } else if (isEmbed) {
-      // FLEX: Iframe Embed (For external players)
-      // Check if the URL is already an iframe tag or just a URL
+      return;
+    }
+
+    // 2. IFRAME EMBED (External Players)
+    if (isEmbed) {
       const embedSrc = video.videoUrl.includes('<iframe') 
         ? video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl 
         : video.videoUrl;
 
       wrapper.innerHTML = `
-        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 12px; overflow: hidden;">
+        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
             <iframe src="${embedSrc}" 
                     style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                     allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
                     allowfullscreen="true"></iframe>
         </div>`;
-    } else {
-      // POWER: Video.js (For direct MP4/HLS files)
-      wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto"></video>`;
-      const vPlayer = videojs('video-js-player', {
-        autoplay: true,
-        controls: true,
-        responsive: true,
-        fluid: true,
-        sources: [{ src: video.videoUrl }]
-      });
-      console.log('Video.js player initialized.');
+      return;
     }
+
+    // 3. VIDEO.JS (Direct Files)
+    wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9 vjs-custom-professional" preload="auto"></video>`;
+    
+    // Use a small timeout to ensure the DOM is ready for Video.js
+    setTimeout(() => {
+      if (typeof videojs !== 'undefined') {
+        const vPlayer = videojs('video-js-player', {
+          autoplay: true,
+          controls: true,
+          responsive: true,
+          fluid: true,
+          playbackRates: [0.5, 1, 1.5, 2],
+          userActions: { hotkeys: true },
+          sources: [{ src: video.videoUrl }]
+        });
+        
+        vPlayer.ready(() => {
+          console.log('✅ Video.js Professional Player Initialized');
+        });
+      } else {
+        console.error('❌ Video.js library not loaded');
+        // Fallback to basic HTML5 if VJS is missing
+        const v = document.getElementById('video-js-player');
+        v.controls = true;
+        v.src = video.videoUrl;
+      }
+    }, 50);
 
     // ====== DOWNLOADS LOGIC ======
     const dlMenu = document.getElementById('download-menu');
@@ -118,21 +138,6 @@ async function initPlayer() {
     });
     document.head.appendChild(ldJson);
     
-    // Dynamic Meta Tags (OG / Twitter)
-    const updateMeta = (name, content, isProperty = false) => {
-      let el = document.querySelector(isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`);
-      if (!el) {
-        el = document.createElement('meta');
-        if (isProperty) el.setAttribute('property', name); else el.setAttribute('name', name);
-        document.head.appendChild(el);
-      }
-      el.content = content;
-    };
-    
-    updateMeta('og:title', `${video.title} — Official StreamXvault`, true);
-    updateMeta('og:description', video.description || 'Watch premium video on StreamXvault.', true);
-    updateMeta('og:image', video.thumbnailUrl || 'https://streamxvault.online/images/logo.png', true);
-    updateMeta('twitter:card', 'summary_large_image');
     // =================================
     
     // ====== RECOMMENDATION ENGINE: Update Profile ======
