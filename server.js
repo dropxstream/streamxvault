@@ -12,8 +12,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'streamxvault_secret_key_123';
 
 const DATA_FILE = path.join(__dirname, 'data', 'videos.json');
 const STATS_FILE = path.join(__dirname, 'data', 'stats.json');
-const DB_KEY = 'videos.json'; // Fix: Reverted to original root key
-const STATS_KEY = 'stats.json'; // Fix: Reverted to original root key
+const DB_KEY = '_database/videos.json'; // Permanently locked to recovered path
+const STATS_KEY = '_database/stats.json'; // Permanently locked to recovered path
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -308,30 +308,25 @@ app.get('/sitemap.xml', (req, res) => {
 
 // Start Server Routine
 const startServer = async () => {
-  // 1. Initial R2 Sync (Diagnostics Mode)
+  // 1. Initial R2 Sync
   if (storage.mode === 'r2') {
     try {
-      console.log('🔍 [DIAGNOSTIC] Listing R2 objects...');
-      const keys = await storage.listObjects();
-      console.log('👀 Found objects in R2:', keys.join(', '));
-      
-      let targetKey = DB_KEY;
-      // If we don't find the expected key, but there is a renamed one, try it
-      if (!keys.includes(DB_KEY)) {
-        const potentialKeys = keys.filter(k => k.endsWith('.json') && !k.includes('stats'));
-        if (potentialKeys.length > 0) {
-          console.log(`💡 Found alternative database: ${potentialKeys[0]}`);
-          targetKey = potentialKeys[0];
-        }
-      }
-
-      console.log(`🔄 Syncing Database from R2 (${targetKey})...`);
-      const remoteData = await storage.download(targetKey);
+      console.log('🔄 Syncing Database from R2...');
+      const remoteData = await storage.download(DB_KEY);
       if (remoteData && remoteData.length > 5) {
         fs.writeFileSync(DATA_FILE, remoteData);
         console.log('📦 Database synced (Size: ' + remoteData.length + ' bytes)');
       } else {
-        console.log('⚠️ R2 Database empty or missing.');
+        console.log('⚠️ Primary database empty, checking for any available .json...');
+        const keys = await storage.listObjects();
+        const jsonKeys = keys.filter(k => k.endsWith('.json') && !k.includes('stats'));
+        if (jsonKeys.length > 0) {
+           const backupData = await storage.download(jsonKeys[0]);
+           if (backupData) {
+             fs.writeFileSync(DATA_FILE, backupData);
+             console.log(`✅ Recovered from fallback: ${jsonKeys[0]}`);
+           }
+        }
       }
 
       const remoteStats = await storage.download(STATS_KEY);
