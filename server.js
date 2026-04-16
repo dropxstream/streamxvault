@@ -126,9 +126,9 @@ app.use((req, res, next) => {
   // Ignore API calls, static files
   if (req.path.startsWith('/api') || req.path.includes('.')) return next();
   
-  // Ignore Bots & Crawlers
+  // Ignore Bots & Crawlers (Hardened)
   const ua = req.headers['user-agent'] || '';
-  const botRegex = /bot|crawler|spider|google|bing|yandex|baidu|slurp|duckduckbot/i;
+  const botRegex = /bot|crawler|spider|google|bing|yandex|baidu|slurp|duckduck|postman|headless|axios|python|curl|wget|lighthouse|semrush|ahrefs|dotbot/i;
   if (botRegex.test(ua)) return next();
 
   // Ignore Admin visits
@@ -327,16 +327,23 @@ app.get('/api/videos/:id', async (req, res) => {
     } catch (e) {}
   }
 
-  // 1. Don't count Admin views
-  // 2. Only count once per session for normal users
+  // Bot Filter for views too
+  const ua = req.headers['user-agent'] || '';
+  const botRegex = /bot|crawler|spider|google|bing|yandex|baidu|slurp|duckduck|postman|headless|axios|python|curl|wget|lighthouse|semrush|ahrefs|dotbot/i;
+  const isBot = botRegex.test(ua);
+
+  // 1. Don't count Admin views (to keep stats clean)
+  // 2. Don't count Bots
+  // 3. Only count once per session for normal users
   const sessionKey = `view_${video.id}`;
   const cookies = req.headers.cookie || '';
-  const hasViewed = cookies.includes(sessionKey);
+  // Precise cookie check using regex to avoid substring matches
+  const hasViewed = new RegExp(`(?:^|; )${sessionKey}=`).test(cookies);
   
-  if (!isAdmin && !hasViewed) {
+  if (!isAdmin && !isBot && !hasViewed) {
     video.views = (video.views || 0) + 1;
-    // Set a simple cookie without a library
-    res.setHeader('Set-Cookie', `${sessionKey}=1; Max-Age=3600; Path=/; HttpOnly`);
+    // Set a cross-browser compatible cookie (Lax for maximum visibility)
+    res.setHeader('Set-Cookie', `${sessionKey}=1; Max-Age=3600; Path=/; SameSite=Lax; HttpOnly`);
     await saveVideos(videos);
   }
 
