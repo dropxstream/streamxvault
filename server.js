@@ -77,8 +77,8 @@ app.use((req, res, next) => {
   // Ignore Bots & Crawlers
   if (isRequestBot(req)) return next();
 
-  // Ignore Admin visits (via token or query)
-  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  // Ignore Admin visits (via token, query, or cookie)
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token || req.headers.cookie?.match(/sxv_token=([^;]+)/)?.[1];
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -145,10 +145,17 @@ function requireAdmin(req, res, next) {
 app.post('/api/auth/login', (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
     const token = jwt.sign({ isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
+    // Set a cookie so HTML requests are also ignored for tracking
+    res.setHeader('Set-Cookie', `sxv_token=${token}; Max-Age=${7 * 24 * 3600}; Path=/; SameSite=Lax; HttpOnly`);
     res.json({ success: true, token });
   } else {
     res.status(401).json({ error: 'Invalid password' });
   }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'sxv_token=; Max-Age=0; Path=/; SameSite=Lax; HttpOnly');
+  res.json({ success: true });
 });
 
 app.get('/api/auth/status', (req, res) => {

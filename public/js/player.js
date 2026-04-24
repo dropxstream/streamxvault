@@ -3,6 +3,11 @@
  * Restored to Official Bunny Stream Integration.
  */
 
+function getAuthHeaders() {
+  const token = localStorage.getItem('streamxvault_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 function toggleDownloadMenu(event) {
   if (event) event.stopPropagation();
   const menu = document.getElementById('download-menu');
@@ -26,7 +31,7 @@ async function initPlayer() {
   }
 
   try {
-    const res = await fetch(`/api/videos/${videoId}`);
+    const res = await fetch(`/api/videos/${videoId}`, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error('Video not found');
     const video = await res.json();
 

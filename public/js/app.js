@@ -110,6 +110,11 @@ let allVideos = [];
 let currentSearch = '';
 let currentGenre = '';
 
+function getAuthHeaders() {
+  const token = localStorage.getItem('streamxvault_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 async function loadVideos() {
   const loadingEl = document.getElementById('videos-loading');
   const gridEl = document.getElementById('videos-grid');
@@ -132,7 +137,7 @@ async function loadVideos() {
     
     const url = '/api/videos' + (params.toString() ? '?' + params.toString() : '');
 
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: getAuthHeaders() });
     const videos = await res.json();
     allVideos = videos;
 
