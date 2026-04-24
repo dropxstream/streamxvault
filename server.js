@@ -124,6 +124,111 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Redirect /admin to /admin.html
 app.get('/admin', (req, res) => res.redirect('/admin.html'));
 
+// ==================== SEO & SITEMAP ====================
+
+// Helper: Escape HTML for meta tags
+function escapeMeta(text) {
+  if (!text) return '';
+  return text.replace(/[&<>"']/g, function(m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+
+// Sitemap Generator
+app.get('/sitemap.xml', (req, res) => {
+  const videos = loadVideos().filter(v => v.published !== false);
+  const baseUrl = `https://${req.get('host')}`;
+  
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>`;
+
+  videos.forEach(v => {
+    xml += `
+  <url>
+    <loc>${baseUrl}/watch?v=${v.id}</loc>
+    <lastmod>${v.uploadedAt ? v.uploadedAt.split('T')[0] : new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+  });
+
+  xml += '\n</urlset>';
+  res.header('Content-Type', 'application/xml');
+  res.send(xml);
+});
+
+// Robots.txt
+app.get('/robots.txt', (req, res) => {
+  const baseUrl = `https://${req.get('host')}`;
+  res.type('text/plain');
+  res.send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml`);
+});
+
+// Dynamic SEO for Watch Page
+app.get('/watch', (req, res) => {
+  const vId = req.query.v;
+  const videos = loadVideos();
+  const video = videos.find(v => v.id === vId);
+  const indexPath = path.join(__dirname, 'public', 'watch.html');
+
+  if (!fs.existsSync(indexPath)) return res.status(404).send('Page not found');
+  let html = fs.readFileSync(indexPath, 'utf8');
+
+  if (video) {
+    const title = escapeMeta(`${video.title} — Watch on StreamXvault`);
+    const desc = escapeMeta(video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`);
+    const thumb = video.thumbnailUrl || `https://${req.get('host')}/images/logo.png`;
+    const url = `https://${req.get('host')}/watch?v=${video.id}`;
+
+    // Inject Meta Tags
+    html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
+    html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
+    
+    // Add OpenGraph / Twitter Cards
+    const headEnd = '</head>';
+    const seoTags = `
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="video.other">
+  <meta property="og:url" content="${url}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:image" content="${thumb}">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="${url}">
+  <meta property="twitter:title" content="${title}">
+  <meta property="twitter:description" content="${desc}">
+  <meta property="twitter:image" content="${thumb}">
+`;
+    html = html.replace(headEnd, seoTags + headEnd);
+  }
+
+  res.send(html);
+});
+
+// Dynamic SEO for Home Page
+app.get('/', (req, res) => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (!fs.existsSync(indexPath)) return res.status(404).send('Page not found');
+  
+  let html = fs.readFileSync(indexPath, 'utf8');
+  const videos = loadVideos().filter(v => v.published !== false);
+  
+  if (videos.length > 0) {
+    const latest = videos[0];
+    const desc = escapeMeta(`StreamXvault — Watch ${latest.title} and ${videos.length - 1} other premium videos. Your ultimate streaming library.`);
+    html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
+  }
+
+  res.send(html);
+});
+
 // Trust proxy for production (correct IP detection)
 app.set('trust proxy', 1);
 
