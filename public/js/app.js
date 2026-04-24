@@ -282,7 +282,11 @@ function filterByGenre(genre) {
   // Update button active states
   const buttons = document.querySelectorAll('.genre-filters .btn');
   buttons.forEach(btn => btn.className = 'btn btn-secondary');
-  document.getElementById('filter-' + (genre || 'All')).className = 'btn btn-primary';
+  
+  // Fix: Handle spaces in genre names for ID lookup
+  const buttonId = 'filter-' + (genre ? genre.replace(/\s+/g, '-') : 'All');
+  const activeBtn = document.getElementById(buttonId);
+  if (activeBtn) activeBtn.className = 'btn btn-primary';
   
   loadVideos();
 }

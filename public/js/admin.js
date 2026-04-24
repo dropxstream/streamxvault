@@ -727,7 +727,10 @@ function filterAdminVideos(genre) {
   // Update button active states
   const buttons = document.querySelectorAll('#admin-genre-filters .btn');
   buttons.forEach(btn => btn.className = 'btn btn-secondary');
-  const activeBtn = document.getElementById('admin-filter-' + (genre || 'All'));
+  
+  // Fix: Handle spaces in genre names for ID lookup
+  const buttonId = 'admin-filter-' + (genre ? genre.replace(/\s+/g, '-') : 'All');
+  const activeBtn = document.getElementById(buttonId);
   if (activeBtn) activeBtn.className = 'btn btn-primary';
 
   if (!genre) {
