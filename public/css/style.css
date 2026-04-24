@@ -1845,3 +1845,177 @@ img, video {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ==================== Responsive Design ==================== */
+
+/* Tablets & Small Laptops (up to 1024px) */
+@media (max-width: 1024px) {
+  :root {
+    --nav-height: 90px;
+    --container-width: 95%;
+  }
+  .admin-layout {
+    grid-template-columns: 220px 1fr;
+  }
+}
+
+/* Mobile Devices (up to 768px) */
+@media (max-width: 768px) {
+  :root {
+    --nav-height: 70px;
+  }
+
+  .container {
+    padding: 0 1rem;
+  }
+
+  .navbar {
+    padding: 0 1rem;
+  }
+
+  .nav-center {
+    display: none; /* Hide search in center on mobile */
+  }
+
+  .nav-brand .brand-logo {
+    width: 60px;
+    height: 60px;
+  }
+
+  .nav-brand {
+    font-size: 1.1rem;
+  }
+
+  .main-content {
+    padding-top: var(--nav-height);
+  }
+
+  .hero {
+    height: 60vh;
+    min-height: 400px;
+    padding-bottom: 2rem;
+  }
+
+  .hero h1 {
+    font-size: 1.8rem;
+  }
+
+  .hero p {
+    font-size: 0.95rem;
+    -webkit-line-clamp: 3;
+  }
+
+  .video-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .section {
+    padding: 2rem 0;
+  }
+
+  .section-title {
+    font-size: 1.25rem;
+  }
+
+  /* Watch Page */
+  .player-container {
+    padding: 1rem;
+  }
+
+  .video-info h1 {
+    font-size: 1.4rem;
+  }
+
+  .video-meta {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .video-actions {
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .action-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* Admin Panel Mobile */
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .sidebar-link {
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .admin-main {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+}
+
+/* Very Small Devices (up to 480px) */
+@media (max-width: 480px) {
+  .hero h1 {
+    font-size: 1.5rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+  }
+
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-video-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .item-thumb {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 1rem;
+  }
+
+  .item-actions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 1rem;
+  }
+}
