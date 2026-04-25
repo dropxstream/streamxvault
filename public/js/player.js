@@ -88,6 +88,15 @@ async function initPlayer() {
         fluid: true,
         sources: [{ src: video.videoUrl }]
       });
+
+      // VAST Video Ads Integration
+      const vastAdTag = "https://annualunion.com/d/m/F/z.dXGlNYvBZkG/UU/ue-my9CusZ/U/lVkqP-TMYg5UOLD/g/4DNKDIEMtxNIj/kh4/OUDtgs0SNFQx";
+      if (typeof vPlayer.ima === 'function') {
+        vPlayer.ima({
+          id: 'video-js-player',
+          adTagUrl: vastAdTag
+        });
+      }
     }
 
     // ====== DOWNLOADS LOGIC ======
