@@ -50,6 +50,28 @@ async function saveVideos(videos) {
   }
 }
 
+// ==================== SEO: IndexNow (Bing/DuckDuckGo) ====================
+const INDEXNOW_KEY = '503e50ed1a9444b9a1a3abe5f872635f';
+async function submitToIndexNow(vId) {
+  if (!vId) return;
+  const videoUrl = `https://streamxvault.online/watch?v=${vId}`;
+  try {
+    const response = await fetch('https://www.bing.com/indexnow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        host: 'streamxvault.online',
+        key: INDEXNOW_KEY,
+        keyLocation: `https://streamxvault.online/${INDEXNOW_KEY}.txt`,
+        urlList: [videoUrl]
+      })
+    });
+    if (response.ok) console.log(`🚀 IndexNow: ${videoUrl} pinged successfully.`);
+  } catch (err) {
+    console.error(`⚠️ IndexNow failed:`, err.message);
+  }
+}
+
 function loadStats() {
   try { 
     if (!fs.existsSync(STATS_FILE)) return { totalVisitors: 0, uniqueIps: [] };
@@ -375,6 +397,7 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
     };
     videos.push(videoData);
     await saveVideos(videos);
+    submitToIndexNow(videoData.id); // 🔥 Auto-Index
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -408,6 +431,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
     const videos = loadVideos();
     videos.push(videoData);
     await saveVideos(videos);
+    submitToIndexNow(vId); // 🔥 Auto-Index
     res.json({ success: true, id: vId });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create external video' });
@@ -436,6 +460,7 @@ app.put('/api/videos/:id', requireAdmin, upload.none(), async (req, res) => {
     };
 
     await saveVideos(videos);
+    submitToIndexNow(req.params.id); // 🔥 Auto-Index
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update video' });
