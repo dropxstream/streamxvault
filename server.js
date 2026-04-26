@@ -211,6 +211,10 @@ app.get('/watch', (req, res) => {
     html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
     html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
     
+    // 🔥 Fix Soft 404: Inject content into Body for Googlebot
+    html = html.replace(/<h1 id="video-title">.*?<\/h1>/, `<h1 id="video-title">${title}</h1>`);
+    html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${desc}</div>`);
+    
     // Add OpenGraph / Twitter Cards / Canonical / Schema
     const headEnd = '</head>';
     const seoTags = `
