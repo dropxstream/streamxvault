@@ -211,9 +211,10 @@ app.get('/watch', (req, res) => {
     html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
     html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
     
-    // Add OpenGraph / Twitter Cards
+    // Add OpenGraph / Twitter Cards / Canonical / Schema
     const headEnd = '</head>';
     const seoTags = `
+  <link rel="canonical" href="${url}">
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="video.other">
   <meta property="og:url" content="${url}">
@@ -227,6 +228,24 @@ app.get('/watch', (req, res) => {
   <meta property="twitter:title" content="${title}">
   <meta property="twitter:description" content="${desc}">
   <meta property="twitter:image" content="${thumb}">
+
+  <!-- Video Schema (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    "name": "${title}",
+    "description": "${desc}",
+    "thumbnailUrl": ["${thumb}"],
+    "uploadDate": "${video.uploadedAt || new Date().toISOString()}",
+    "embedUrl": "${url}",
+    "interactionStatistic": {
+      "@type": "InteractionCounter",
+      "interactionType": "https://schema.org/WatchAction",
+      "userInteractionCount": ${video.views || 0}
+    }
+  }
+  </script>
 `;
     html = html.replace(headEnd, seoTags + headEnd);
   }
@@ -246,6 +265,27 @@ app.get('/', (req, res) => {
     const latest = videos[0];
     const desc = escapeMeta(`StreamXvault — Watch ${latest.title} and ${videos.length - 1} other premium videos. Your ultimate streaming library.`);
     html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
+    
+    // Inject Canonical and WebSite Schema
+    const baseUrl = `https://${req.get('host')}`;
+    const headEnd = '</head>';
+    const homeSeo = `
+  <link rel="canonical" href="${baseUrl}/">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "StreamXvault",
+    "url": "${baseUrl}/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "${baseUrl}/?search={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+`;
+    html = html.replace(headEnd, homeSeo + headEnd);
   }
 
   res.send(html);
