@@ -227,6 +227,7 @@ input, textarea, select {
 
 .btn {
   display: inline-flex;
+  text-decoration: none;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
@@ -456,6 +457,9 @@ input, textarea, select {
 
 .video-card {
   position: relative;
+  display: block;
+  text-decoration: none;
+  color: inherit;
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--bg-card);

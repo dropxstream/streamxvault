@@ -34,9 +34,9 @@ window.addEventListener('scroll', () => {
 
 // ==================== Video Card Builder ====================
 function createVideoCard(video) {
-  const card = document.createElement('div');
+  const card = document.createElement('a');
   card.className = 'video-card';
-  card.onclick = () => window.location.href = `/watch?v=${video.id}`;
+  card.href = `/watch?v=${video.id}`;
 
   const thumbnailContent = video.thumbnailUrl
     ? `<img src="${video.thumbnailUrl}" alt="${video.title}" loading="lazy" decoding="async">`
@@ -242,7 +242,7 @@ function updateHero(video) {
   }
 
   heroPlayBtn.style.display = 'inline-flex';
-  heroPlayBtn.onclick = () => window.location.href = `/watch?v=${video.id}`;
+  heroPlayBtn.href = `/watch?v=${video.id}`;
   heroBadge.innerHTML = '🔴 Latest Upload';
 }
 
