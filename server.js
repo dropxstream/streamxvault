@@ -417,7 +417,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
 // Update Video Metadata (Edit)
 app.put('/api/videos/:id', requireAdmin, upload.none(), async (req, res) => {
   try {
-    const { title, genre, description, bunnyId, dl720, dl1080, published } = req.body;
+    const { title, genre, description, thumbnailUrl, bunnyId, dl720, dl1080, published } = req.body;
     const videos = loadVideos();
     const video = videos.find(v => v.id === req.params.id);
     
@@ -426,6 +426,7 @@ app.put('/api/videos/:id', requireAdmin, upload.none(), async (req, res) => {
     video.title = title || video.title;
     video.genre = genre || video.genre;
     video.description = description || video.description;
+    video.thumbnailUrl = thumbnailUrl !== undefined ? thumbnailUrl : video.thumbnailUrl;
     video.bunnyId = bunnyId || video.bunnyId;
     video.published = published === 'true' || published === true;
     
