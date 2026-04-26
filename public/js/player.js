@@ -80,22 +80,25 @@ async function initPlayer() {
         </div>`;
     } else {
       // Standard Video.js for Direct Files
-      wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto"></video>`;
-      const vPlayer = videojs('video-js-player', {
-        autoplay: true,
-        controls: true,
-        responsive: true,
-        fluid: true,
-        sources: [{ src: video.videoUrl }]
-      });
-
-      // VAST Video Ads Integration
-      const vastAdTag = "https://annualunion.com/d/m/F/z.dXGlNYvBZkG/UU/ue-my9CusZ/U/lVkqP-TMYg5UOLD/g/4DNKDIEMtxNIj/kh4/OUDtgs0SNFQx";
-      if (typeof vPlayer.ima === 'function') {
-        vPlayer.ima({
-          id: 'video-js-player',
-          adTagUrl: vastAdTag
+      wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto" width="640" height="264"><source src="${video.videoUrl}"></video>`;
+      
+      if (typeof videojs !== 'undefined') {
+        const vPlayer = videojs('video-js-player', {
+          autoplay: true,
+          controls: true,
+          responsive: true,
+          fluid: true,
+          sources: [{ src: video.videoUrl }]
         });
+
+        // VAST Video Ads Integration
+        const vastAdTag = "https://annualunion.com/d/m/F/z.dXGlNYvBZkG/UU/ue-my9CusZ/U/lVkqP-TMYg5UOLD/g/4DNKDIEMtxNIj/kh4/OUDtgs0SNFQx";
+        if (typeof vPlayer.ima === 'function') {
+          vPlayer.ima({
+            id: 'video-js-player',
+            adTagUrl: vastAdTag
+          });
+        }
       }
     }
 
