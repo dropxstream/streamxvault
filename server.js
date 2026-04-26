@@ -194,46 +194,49 @@ app.get('/robots.txt', (req, res) => {
 // Dynamic SEO for Watch Page
 app.get('/watch', (req, res) => {
   const vId = req.query.v;
-  const videos = loadVideos();
-  const video = videos.find(v => v.id === vId);
   const indexPath = path.join(__dirname, 'public', 'watch.html');
 
   if (!fs.existsSync(indexPath)) return res.status(404).send('Page not found');
   let html = fs.readFileSync(indexPath, 'utf8');
 
-  if (video) {
-    const title = escapeMeta(`${video.title} — Watch on StreamXvault`);
-    const desc = escapeMeta(video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`);
-    const thumb = video.thumbnailUrl || `https://${req.get('host')}/images/logo.png`;
-    const url = `https://${req.get('host')}/watch?v=${video.id}`;
+  // 🛡️ Bulletproof SEO: Even if video is not in DB yet, tell Google it's a valid page
+  const videos = loadVideos();
+  const video = videos.find(v => v.id === vId);
+  
+  // Base Metadata
+  const baseUrl = `https://${req.get('host')}`;
+  const url = `${baseUrl}/watch?v=${vId}`;
+  let title = escapeMeta('Watch Video — StreamXvault');
+  let desc = escapeMeta('Watch premium content on StreamXvault — your personal streaming library.');
+  let thumb = `${baseUrl}/images/logo.png`;
 
-    // Inject Meta Tags
-    html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
-    html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
-    
-    // 🔥 Fix Soft 404: Inject content into Body for Googlebot
-    html = html.replace(/<h1 id="video-title">.*?<\/h1>/, `<h1 id="video-title">${title}</h1>`);
-    html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${desc}</div>`);
-    
-    // Add OpenGraph / Twitter Cards / Canonical / Schema
-    const headEnd = '</head>';
-    const seoTags = `
+  if (video) {
+    title = escapeMeta(`${video.title} — Watch on StreamXvault`);
+    desc = escapeMeta(video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`);
+    thumb = video.thumbnailUrl || thumb;
+  }
+
+  // 1. Inject Standard Meta Tags
+  html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
+  html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
+  
+  // 2. Inject Body Content (Fix Soft 404)
+  html = html.replace(/<h1 id="video-title">.*?<\/h1>/, `<h1 id="video-title">${title}</h1>`);
+  html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${desc}</div>`);
+
+  // 3. Inject Advanced SEO (Canonical / Schema / OG)
+  const headEnd = '</head>';
+  const seoTags = `
   <link rel="canonical" href="${url}">
-  <!-- Open Graph / Facebook -->
   <meta property="og:type" content="video.other">
   <meta property="og:url" content="${url}">
   <meta property="og:title" content="${title}">
   <meta property="og:description" content="${desc}">
   <meta property="og:image" content="${thumb}">
-
-  <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="${url}">
   <meta property="twitter:title" content="${title}">
   <meta property="twitter:description" content="${desc}">
   <meta property="twitter:image" content="${thumb}">
-
-  <!-- Video Schema (JSON-LD) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -241,18 +244,17 @@ app.get('/watch', (req, res) => {
     "name": "${title}",
     "description": "${desc}",
     "thumbnailUrl": ["${thumb}"],
-    "uploadDate": "${video.uploadedAt || new Date().toISOString()}",
+    "uploadDate": "${video ? (video.uploadedAt || new Date().toISOString()) : new Date().toISOString()}",
     "embedUrl": "${url}",
     "interactionStatistic": {
       "@type": "InteractionCounter",
       "interactionType": "https://schema.org/WatchAction",
-      "userInteractionCount": ${video.views || 0}
+      "userInteractionCount": ${video ? (video.views || 0) : 0}
     }
   }
   </script>
 `;
-    html = html.replace(headEnd, seoTags + headEnd);
-  }
+  html = html.replace(headEnd, seoTags + headEnd);
 
   res.send(html);
 });
