@@ -139,9 +139,7 @@ app.get('/api/stats', requireAdmin, (req, res) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// Support for .html extensions and clean URLs
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // Redirect /admin to /admin.html
 app.get('/admin', (req, res) => res.redirect('/admin.html'));
@@ -156,33 +154,7 @@ function escapeMeta(text) {
   });
 }
 
-// Sitemap Generator
-app.get('/sitemap.xml', (req, res) => {
-  const videos = loadVideos().filter(v => v.published !== false);
-  const baseUrl = `https://${req.get('host')}`;
-  
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${baseUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>`;
 
-  videos.forEach(v => {
-    xml += `
-  <url>
-    <loc>${baseUrl}/watch?v=${v.id}</loc>
-    <lastmod>${v.uploadedAt ? v.uploadedAt.split('T')[0] : new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>`;
-  });
-
-  xml += '\n</urlset>';
-  res.header('Content-Type', 'application/xml');
-  res.send(xml);
-});
 
 // Robots.txt
 app.get('/robots.txt', (req, res) => {
@@ -296,6 +268,11 @@ app.get('/', (req, res) => {
 
   res.send(html);
 });
+
+// Support for .html extensions and clean URLs
+// Placed after dynamic routes so SEO injection works
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Trust proxy for production (correct IP detection)
 app.set('trust proxy', 1);
