@@ -146,12 +146,27 @@ app.get('/admin', (req, res) => res.redirect('/admin.html'));
 
 // ==================== SEO & SITEMAP ====================
 
-// Helper: Escape HTML for meta tags
+// Helper: Normalize and Escape HTML for meta tags
 function escapeMeta(text) {
   if (!text) return '';
-  return text.replace(/[&<>"']/g, function(m) {
+  // Normalize smart quotes and dashes to prevent UTF-8 mojibake in scrapers
+  let normalized = text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-');
+  return normalized.replace(/[&<>"']/g, function(m) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
   });
+}
+
+// Helper: Escape for JSON-LD scripts
+function escapeJsonStr(text) {
+  if (!text) return '';
+  let normalized = text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-');
+  return normalized.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
 }
 
 
@@ -175,30 +190,37 @@ app.get('/watch', (req, res) => {
   const videos = loadVideos();
   const video = videos.find(v => v.id === vId);
   
+  // Set precise charset to prevent Bing encoding errors
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
   // Base Metadata
   const baseUrl = `https://${req.get('host')}`;
   const url = `${baseUrl}/watch?v=${vId}`;
-  let title = escapeMeta('Watch Video — StreamXvault');
-  let fullDesc = escapeMeta('Watch premium content on StreamXvault — your personal streaming library.');
-  let seoDesc = fullDesc;
+  
+  let rawTitle = 'Watch Video - StreamXvault';
+  let rawDesc = 'Watch premium content on StreamXvault - your personal streaming library.';
   let thumb = `${baseUrl}/images/logo.png`;
 
   if (video) {
-    title = escapeMeta(`${video.title} — Watch on StreamXvault`);
-    fullDesc = escapeMeta(video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`);
-    
-    // Truncate SEO description for Bing/Google (Max ~155 characters)
-    seoDesc = fullDesc;
-    if (seoDesc.length > 155) {
-      // Find the last space before the limit to not cut off in the middle of a word
-      let cutoff = seoDesc.substring(0, 152);
-      let lastSpace = cutoff.lastIndexOf(' ');
-      if (lastSpace > 100) cutoff = cutoff.substring(0, lastSpace);
-      seoDesc = cutoff + '...';
-    }
-    
+    rawTitle = `${video.title} - Watch on StreamXvault`;
+    rawDesc = video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`;
     thumb = video.thumbnailUrl || thumb;
   }
+
+  let title = escapeMeta(rawTitle);
+  let fullDesc = escapeMeta(rawDesc);
+  let seoDesc = fullDesc;
+  
+  if (seoDesc.length > 155) {
+    let cutoff = seoDesc.substring(0, 152);
+    let lastSpace = cutoff.lastIndexOf(' ');
+    if (lastSpace > 100) cutoff = cutoff.substring(0, lastSpace);
+    seoDesc = cutoff + '...';
+  }
+
+  // Pure JSON strings (no HTML entities)
+  const jsonTitle = escapeJsonStr(rawTitle);
+  const jsonDesc = escapeJsonStr(rawDesc);
 
   // 1. Inject Standard Meta Tags
   html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
@@ -225,8 +247,8 @@ app.get('/watch', (req, res) => {
   {
     "@context": "https://schema.org",
     "@type": "VideoObject",
-    "name": "${title}",
-    "description": "${fullDesc}",
+    "name": "${jsonTitle}",
+    "description": "${jsonDesc}",
     "thumbnailUrl": ["${thumb}"],
     "uploadDate": "${video ? (video.uploadedAt || new Date().toISOString()) : new Date().toISOString()}",
     "embedUrl": "${url}",
@@ -253,8 +275,13 @@ app.get('/', (req, res) => {
   
   if (videos.length > 0) {
     const latest = videos[0];
-    const desc = escapeMeta(`StreamXvault — Watch ${latest.title} and ${videos.length - 1} other premium videos. Your ultimate streaming library.`);
-    html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
+    const rawTitle = 'StreamXvault';
+    const rawDesc = `StreamXvault - Watch ${latest.title} and ${videos.length - 1} other premium videos. Your ultimate streaming library.`;
+    const seoDesc = escapeMeta(rawDesc);
+    const jsonTitle = escapeJsonStr(rawTitle);
+    const jsonDesc = escapeJsonStr(rawDesc);
+
+    html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${seoDesc}">`);
     
     // Inject Canonical and WebSite Schema
     const baseUrl = `https://${req.get('host')}`;
@@ -265,11 +292,12 @@ app.get('/', (req, res) => {
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "StreamXvault",
+    "name": "${jsonTitle}",
     "url": "${baseUrl}/",
+    "description": "${jsonDesc}",
     "potentialAction": {
       "@type": "SearchAction",
-      "target": "${baseUrl}/?search={search_term_string}",
+      "target": "${baseUrl}/?q={search_term_string}",
       "query-input": "required name=search_term_string"
     }
   }
