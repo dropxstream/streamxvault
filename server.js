@@ -179,22 +179,34 @@ app.get('/watch', (req, res) => {
   const baseUrl = `https://${req.get('host')}`;
   const url = `${baseUrl}/watch?v=${vId}`;
   let title = escapeMeta('Watch Video — StreamXvault');
-  let desc = escapeMeta('Watch premium content on StreamXvault — your personal streaming library.');
+  let fullDesc = escapeMeta('Watch premium content on StreamXvault — your personal streaming library.');
+  let seoDesc = fullDesc;
   let thumb = `${baseUrl}/images/logo.png`;
 
   if (video) {
     title = escapeMeta(`${video.title} — Watch on StreamXvault`);
-    desc = escapeMeta(video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`);
+    fullDesc = escapeMeta(video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`);
+    
+    // Truncate SEO description for Bing/Google (Max ~155 characters)
+    seoDesc = fullDesc;
+    if (seoDesc.length > 155) {
+      // Find the last space before the limit to not cut off in the middle of a word
+      let cutoff = seoDesc.substring(0, 152);
+      let lastSpace = cutoff.lastIndexOf(' ');
+      if (lastSpace > 100) cutoff = cutoff.substring(0, lastSpace);
+      seoDesc = cutoff + '...';
+    }
+    
     thumb = video.thumbnailUrl || thumb;
   }
 
   // 1. Inject Standard Meta Tags
   html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
-  html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${desc}">`);
+  html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${seoDesc}">`);
   
-  // 2. Inject Body Content (Fix Soft 404)
+  // 2. Inject Body Content (Unlimited Full Description)
   html = html.replace(/<h1 id="video-title">.*?<\/h1>/, `<h1 id="video-title">${title}</h1>`);
-  html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${desc}</div>`);
+  html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${fullDesc}</div>`);
 
   // 3. Inject Advanced SEO (Canonical / Schema / OG)
   const headEnd = '</head>';
@@ -203,18 +215,18 @@ app.get('/watch', (req, res) => {
   <meta property="og:type" content="video.other">
   <meta property="og:url" content="${url}">
   <meta property="og:title" content="${title}">
-  <meta property="og:description" content="${desc}">
+  <meta property="og:description" content="${seoDesc}">
   <meta property="og:image" content="${thumb}">
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:title" content="${title}">
-  <meta property="twitter:description" content="${desc}">
+  <meta property="twitter:description" content="${seoDesc}">
   <meta property="twitter:image" content="${thumb}">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "VideoObject",
     "name": "${title}",
-    "description": "${desc}",
+    "description": "${fullDesc}",
     "thumbnailUrl": ["${thumb}"],
     "uploadDate": "${video ? (video.uploadedAt || new Date().toISOString()) : new Date().toISOString()}",
     "embedUrl": "${url}",
