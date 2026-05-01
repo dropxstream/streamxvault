@@ -1921,9 +1921,16 @@ img, video {
   }
 
   .hero {
-    height: 60vh;
-    min-height: 400px;
+    height: auto;
+    min-height: 60vh;
+    padding-top: 55vw; /* Push text below the uncropped 16:9 thumbnail */
     padding-bottom: 2rem;
+  }
+
+  .hero-video-bg {
+    background-size: 100% auto;
+    background-position: top center;
+    background-repeat: no-repeat;
   }
 
   .hero h1 {
@@ -1951,6 +1958,14 @@ img, video {
   /* Watch Page */
   .player-container {
     padding: 1rem;
+    margin: 0;
+    width: 100%;
+    overflow: hidden; /* Prevent ad iframes from stretching width */
+  }
+
+  .ad-banner-wrapper {
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .video-info h1 {
