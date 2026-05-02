@@ -92,7 +92,7 @@ async function initPlayer() {
         });
 
         // VAST Video Ads Integration
-        const vastAdTag = "https://annualunion.com/d/m/F/z.dXGlNYvBZkG/UU/ue-my9CusZ/U/lVkqP-TMYg5UOLD/g/4DNKDIEMtxNIj/kh4/OUDtgs0SNFQx";
+        const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
         if (typeof vPlayer.ima === 'function') {
           vPlayer.ima({
             id: 'video-js-player',
