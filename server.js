@@ -265,6 +265,11 @@ app.get('/watch', (req, res) => {
   res.send(html);
 });
 
+// Fix 'Accessible index page' SEO Duplicate Content Error
+app.get(['/index.html', '/index.php'], (req, res) => {
+  res.redirect(301, '/');
+});
+
 // Dynamic SEO for Home Page
 app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'public', 'index.html');
