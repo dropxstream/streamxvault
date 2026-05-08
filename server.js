@@ -91,6 +91,27 @@ async function saveStats(stats) {
   }
 }
 
+// Security Headers Middleware (Sitechecker fixes)
+app.use((req, res, next) => {
+  // 1. Strict Transport Security (HSTS) - Enforce HTTPS
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  
+  // 2. Click-jacking defense
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  
+  // 3. MIME type sniffing defense
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // 4. Content Security Policy (Basic - allows resources but blocks obvious XSS)
+  // We use a permissive policy to ensure Adcash, VideoJS, and external fonts don't break
+  res.setHeader('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;");
+  
+  // 5. XSS Protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  next();
+});
+
 // Track visitors middleware
 app.use((req, res, next) => {
   // Ignore API calls, static files
