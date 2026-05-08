@@ -311,9 +311,19 @@ app.get('/', (req, res) => {
     
     // Inject Canonical and WebSite Schema
     const baseUrl = `https://${req.get('host')}`;
+    const title = escapeMeta(rawTitle);
     const headEnd = '</head>';
     const homeSeo = `
   <link rel="canonical" href="${baseUrl}/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${baseUrl}/">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${seoDesc}">
+  <meta property="og:image" content="${baseUrl}/images/logo.png">
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:title" content="${title}">
+  <meta property="twitter:description" content="${seoDesc}">
+  <meta property="twitter:image" content="${baseUrl}/images/logo.png">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
