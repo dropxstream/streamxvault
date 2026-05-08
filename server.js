@@ -340,6 +340,16 @@ app.get('/', (req, res) => {
   </script>
 `;
     html = html.replace(headEnd, homeSeo + headEnd);
+    // Server-Side Rendered HTML list for Bingbot (which struggles with Javascript)
+    // This increases the text-to-code ratio and gives bots hard links to follow.
+    const seoListItems = videos.map(v => `<li><a href="${baseUrl}/watch?v=${v.id}">Watch ${escapeMeta(v.title)}</a></li>`).join('');
+    const seoBodyHtml = `<div style="display:none;" aria-hidden="true">
+      <h2>Complete Video Directory</h2>
+      <ul>${seoListItems}</ul>
+      <p>${seoDesc}</p>
+    </div>`;
+
+    html = html.replace('</body>', `${seoBodyHtml}\n</body>`);
   }
 
   res.send(html);
