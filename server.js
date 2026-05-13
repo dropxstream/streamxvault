@@ -283,6 +283,18 @@ app.get('/watch', (req, res) => {
 `;
   html = html.replace(headEnd, seoTags + headEnd);
 
+  // Inject Server-Side Rendered (SSR) related video links.
+  // This solves Google's "Has only one followed internal linking URL" error
+  // by providing hard-coded HTML links instead of relying on JS-rendered "More Videos" grids.
+  const otherVideos = videos.filter(v => v.id !== vId && v.published !== false).slice(0, 20);
+  const relatedListItems = otherVideos.map(v => `<li><a href="${baseUrl}/watch?v=${v.id}">Watch ${escapeMeta(v.title)}</a></li>`).join('');
+  const relatedHtml = `<div style="display:none;" aria-hidden="true">
+    <h2>More Streaming Videos</h2>
+    <ul>${relatedListItems}</ul>
+  </div>`;
+  
+  html = html.replace('</body>', `${relatedHtml}\n</body>`);
+
   res.send(html);
 });
 
