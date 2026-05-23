@@ -9,7 +9,7 @@
   <meta name="keywords" content="StreamXvault, watch video, streaming, online streaming">
   <meta name="robots" content="index, follow">
   <meta name="referrer" content="no-referrer-when-downgrade" />
-  <script id="aclib" type="text/javascript" src="//acscdn.com/script/aclib.js"></script>
+  <script id="aclib" type="text/javascript" src="//acscdn.com/script/aclib.js" async></script>
   <script type="text/javascript">
     aclib.runVideoSlider({
         zoneId: '11262190',
@@ -28,11 +28,7 @@
   <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-ads/6.9.0/videojs.ads.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/videojs-ima/1.11.0/videojs.ima.css" />
-  
-  <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-  <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-ads/6.9.0/videojs.ads.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-ima/1.11.0/videojs.ima.min.js"></script>
+
 </head>
 <body>
   <!-- Navbar -->
@@ -43,8 +39,8 @@
     </a>
     <div class="nav-center">
       <div class="nav-search">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off" aria-label="Search videos">
       </div>
     </div>
     <div class="nav-right">
@@ -56,7 +52,7 @@
   <main class="main-content">
     
     <!-- Top Leaderboard Ad (728x90) -->
-    <div class="ad-banner-wrapper" style="margin: 1rem auto; display: flex; justify-content: center; width: 100%; max-width: 100vw; overflow: hidden;">
+    <div class="ad-banner-wrapper ad-banner-top">
       <script type="text/javascript">
         aclib.runBanner({
             zoneId: '11262238',
@@ -83,15 +79,15 @@
         </div>
 
         <div class="video-actions">
-          <button id="like-btn" class="action-btn" onclick="likeVideo()">
-            <span class="icon">❤️</span> <span id="like-count">0</span>
+          <button id="like-btn" class="action-btn" onclick="likeVideo()" aria-label="Like this video">
+            <span class="icon" aria-hidden="true">❤️</span> <span id="like-count">0</span>
           </button>
           
-          <div class="download-dropdown">
-            <button class="action-btn" onclick="toggleDownloadMenu(event)">
-              <span class="icon">📥</span> Download
+          <div class="download-dropdown" role="group" aria-label="Download options">
+            <button class="action-btn" onclick="toggleDownloadMenu(event)" aria-haspopup="true" aria-label="Download options">
+              <span class="icon" aria-hidden="true">📥</span> Download
             </button>
-            <div class="download-menu" id="download-menu">
+            <div class="download-menu" id="download-menu" role="menu">
               <!-- Populated by JS -->
               <div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links available</div>
             </div>
@@ -112,7 +108,7 @@
       <!-- Related Videos -->
       <section class="section">
         <div class="section-header">
-          <div style="display: flex; align-items: center; gap: 0.5rem;"><span class="icon">📺</span><h2 class="section-title" style="margin:0;">More Videos</h2></div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;"><span class="icon" aria-hidden="true">📺</span><h2 class="section-title" style="margin:0;">More Videos</h2></div>
         </div>
         <div class="video-grid" id="related-grid"></div>
       </section>
@@ -132,6 +128,11 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
+  <script src="https://vjs.zencdn.net/8.10.0/video.min.js" defer></script>
+  <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-ads/6.9.0/videojs.ads.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-ima/1.11.0/videojs.ima.min.js" defer></script>
+  <script src="/js/utils.js"></script>
   <script src="/js/player.js"></script>
   
 </body>

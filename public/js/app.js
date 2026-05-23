@@ -2,25 +2,7 @@
  * StreamXvault — Home Page Logic
  */
 
-// ==================== Toast Notifications ====================
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-
-  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
-  toast.innerHTML = `
-    <span class="toast-icon">${icons[type] || icons.info}</span>
-    <span class="toast-msg">${message}</span>
-    <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
-  `;
-
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.classList.add('removing');
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
-}
+// Shared utilities loaded from /js/utils.js
 
 // ==================== Navbar Scroll Effect ====================
 window.addEventListener('scroll', () => {
@@ -55,7 +37,7 @@ function createVideoCard(video) {
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
       ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
-      <div class="card-meta" style="color: #cbd5e1 !important;">
+      <div class="card-meta">
         <span>👁️ ${views}</span>
         <span>🕐 ${timeAgo}</span>
       </div>
@@ -80,40 +62,10 @@ function renderSkeletons(container, count = 8) {
   }
 }
 
-// ==================== Utility Functions ====================
-function escapeHtml(text) {
-  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-  return text.replace(/[&<>"']/g, m => map[m]);
-}
-
-function formatViews(count) {
-  if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
-  if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
-  return count.toString();
-}
-
-function getTimeAgo(dateStr) {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const seconds = Math.floor((now - date) / 1000);
-
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-  if (seconds < 2592000) return Math.floor(seconds / 86400) + 'd ago';
-  if (seconds < 31536000) return Math.floor(seconds / 2592000) + 'mo ago';
-  return Math.floor(seconds / 31536000) + 'y ago';
-}
-
 // ==================== Load Videos ====================
 let allVideos = [];
 let currentSearch = '';
 let currentGenre = '';
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('streamxvault_token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
 
 async function loadVideos() {
   const loadingEl = document.getElementById('videos-loading');
@@ -281,12 +233,18 @@ function filterByGenre(genre) {
   
   // Update button active states
   const buttons = document.querySelectorAll('.genre-filters .btn');
-  buttons.forEach(btn => btn.className = 'btn btn-secondary');
+  buttons.forEach(btn => {
+    btn.className = 'btn btn-secondary';
+    btn.setAttribute('aria-pressed', 'false');
+  });
   
   // Fix: Handle spaces in genre names for ID lookup
   const buttonId = 'filter-' + (genre ? genre.replace(/\s+/g, '-') : 'All');
   const activeBtn = document.getElementById(buttonId);
-  if (activeBtn) activeBtn.className = 'btn btn-primary';
+  if (activeBtn) {
+    activeBtn.className = 'btn btn-primary';
+    activeBtn.setAttribute('aria-pressed', 'true');
+  }
   
   loadVideos();
 }

@@ -3,10 +3,7 @@
  * Restored to Official Bunny Stream Integration.
  */
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('streamxvault_token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
+// Shared utilities loaded from /js/utils.js
 
 function toggleDownloadMenu(event) {
   if (event) event.stopPropagation();
@@ -59,7 +56,7 @@ async function initPlayer() {
       // Professional Bunny Stream Player (Prioritized)
       wrapper.innerHTML = `
         <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <iframe src="https://iframe.mediadelivery.net/embed/636087/${bId}?autoplay=true" 
+            <iframe src="/api/embed/${video.id}" 
                     loading="lazy" 
                     style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                     allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 
@@ -106,21 +103,28 @@ async function initPlayer() {
     const dlMenu = document.getElementById('download-menu');
     if (dlMenu) {
       dlMenu.innerHTML = '';
-      const hasDownloads = video.downloads && (video.downloads.p720 || video.downloads.p1080);
-      const safeTitle = (video.title || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      try {
+        const dlRes = await fetch(`/api/videos/${videoId}/downloads`);
+        const dlData = await dlRes.json();
+        const downloads = dlData.downloads;
+        const hasDownloads = downloads && (downloads.p720 || downloads.p1080);
+        const safeTitle = (video.title || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
-      if (hasDownloads) {
-        if (video.downloads.p720) {
-          dlMenu.innerHTML += `<a href="${video.downloads.p720}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4">
-            <span>720p HD</span> <span class="quality">MP4</span>
-          </a>`;
+        if (hasDownloads) {
+          if (downloads.p720) {
+            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p720)}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4">
+              <span>720p HD</span> <span class="quality">MP4</span>
+            </a>`;
+          }
+          if (downloads.p1080) {
+            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p1080)}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4">
+              <span>1080p FHD</span> <span class="quality">MP4</span>
+            </a>`;
+          }
+        } else {
+          dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';
         }
-        if (video.downloads.p1080) {
-          dlMenu.innerHTML += `<a href="${video.downloads.p1080}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4">
-            <span>1080p FHD</span> <span class="quality">MP4</span>
-          </a>`;
-        }
-      } else {
+      } catch (err) {
         dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';
       }
     }
@@ -149,17 +153,25 @@ function createVideoCard(video) {
   const card = document.createElement('a');
   card.href = `/watch?v=${video.id}`;
   card.className = 'video-card';
+  card.setAttribute('aria-label', escapeHtml(video.title));
   
   const thumbUrl = video.thumbnailUrl || '/images/placeholder.jpg';
+  const views = formatViews(video.views || 0);
+  const timeAgo = getTimeAgo(video.uploadedAt);
   
   card.innerHTML = `
-    <div class="video-thumb">
-      <img src="${thumbUrl}" alt="${video.title}" loading="lazy">
+    <div class="thumbnail">
+      <img src="${thumbUrl}" alt="${escapeHtml(video.title)}" loading="lazy">
+      <div class="play-overlay">
+        <div class="play-btn">▶</div>
+      </div>
     </div>
-    <div class="video-info">
-      <h3>${video.title}</h3>
-      <div class="video-meta">
-        <span>👁️ ${video.views || 0}</span>
+    <div class="card-info">
+      <div class="card-title">${escapeHtml(video.title)}</div>
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
+      <div class="card-meta">
+        <span><span aria-hidden="true">👁️</span> ${views}</span>
+        <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>
       </div>
     </div>
   `;
