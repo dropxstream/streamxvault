@@ -102,16 +102,17 @@ app.use((req, res, next) => {
   // 3. MIME type sniffing defense
   res.setHeader('X-Content-Type-Options', 'nosniff');
   
-  // 4. Content Security Policy (Restrictive)
+  // 4. Content Security Policy (Ad-compatible but secure)
+  // Allows Adcash ad network while blocking unauthorized sources
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
-    "script-src 'self' acscdn.com *.acscdn.com vjs.zencdn.net imasdk.googleapis.com cdnjs.cloudflare.com 'unsafe-inline'",
+    "script-src 'self' *.acscdn.com acscdn.com vjs.zencdn.net imasdk.googleapis.com cdnjs.cloudflare.com *.googlesyndication.com *.doubleclick.net 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' fonts.googleapis.com vjs.zencdn.net cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' fonts.gstatic.com",
-    "img-src 'self' *.b-cdn.net *.r2.dev data: blob:",
-    "frame-src iframe.mediadelivery.net",
+    "img-src 'self' *.b-cdn.net *.r2.dev *.acscdn.com *.doubleclick.net *.googlesyndication.com data: blob: *",
+    "frame-src iframe.mediadelivery.net *.acscdn.com *.doubleclick.net *.googlesyndication.com *",
     "media-src 'self' *.b-cdn.net *.r2.dev blob:",
-    "connect-src 'self' *.acscdn.com imasdk.googleapis.com",
+    "connect-src 'self' *.acscdn.com imasdk.googleapis.com *.doubleclick.net *.googlesyndication.com *",
   ].join('; '));
   
   // 5. XSS Protection
