@@ -388,7 +388,7 @@ function uploadChunk(url, chunk, progressCallback) {
       if (xhr.status >= 200 && xhr.status < 300) {
         const etag = xhr.getResponseHeader('ETag');
         if (!etag) {
-          reject(new Error('Cloudflare CORS Error: ETag header is missing. Please add "ETag" to your R2 bucket CORS ExposeHeaders configuration!'));
+          reject(new Error('Upload failed. Please check server CORS configuration.'));
           return;
         }
         resolve(etag);
@@ -494,7 +494,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       document.getElementById('upload-form').reset();
       updateFileLabel('video');
       updateFileLabel('thumb');
-      loadVideosAdmin(); // Refresh list
+      loadAdminVideos(); // Refresh list
     } catch (err) {
       showToast('Error linking external video', 'error');
     } finally {

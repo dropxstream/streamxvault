@@ -433,6 +433,17 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
+// Protect admin.js from unauthenticated users
+app.use('/js/admin.js', (req, res, next) => {
+  const token = req.cookies?.sxv_token || req.headers.cookie?.match(/sxv_token=([^;]+)/)?.[1];
+  let isAdmin = false;
+  if (token) {
+    try { isAdmin = !!jwt.verify(token, JWT_SECRET).isAdmin; } catch (e) {}
+  }
+  if (!isAdmin) return res.status(403).type('application/javascript').send('console.error("Forbidden");');
+  next();
+});
+
 // Support for .html extensions and clean URLs
 // Placed after dynamic routes so SEO injection works
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
@@ -771,6 +782,20 @@ app.delete('/api/admin/videos/:id', requireAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
+// Helper: Escape XML entities
+function escapeXml(unsafe) {
+  if (!unsafe) return '';
+  return unsafe.replace(/[<>&'"]/g, function (c) {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '\'': return '&apos;';
+      case '"': return '&quot;';
+    }
+  }).replace(/\r?\n/g, ' ');
+}
+
 // ==================== SEO: Sitemap ====================
 app.get('/sitemap.xml', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -785,9 +810,10 @@ app.get('/sitemap.xml', (req, res) => {
     <loc>${baseUrl}/watch?v=${v.id}</loc>
     <video:video>
       <video:thumbnail_loc>${v.thumbnailUrl || baseUrl + '/images/logo.png'}</video:thumbnail_loc>
-      <video:title>${(v.title || '').replace(/[&<>"']/g, '')}</video:title>
-      <video:description>${(v.description || 'Watch on StreamXvault').replace(/[&<>"']/g, '')}</video:description>
+      <video:title>${escapeXml(v.title)}</video:title>
+      <video:description>${escapeXml(v.description || 'Watch on StreamXvault')}</video:description>
       <video:publication_date>${v.uploadedAt}</video:publication_date>
+      <video:player_loc>${baseUrl}/api/embed/${v.id}</video:player_loc>
     </video:video>
   </url>`;
   });
