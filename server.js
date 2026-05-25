@@ -279,33 +279,36 @@ app.get('/watch', (req, res) => {
   const indexPath = path.join(__dirname, 'public', 'watch.html');
 
   if (!fs.existsSync(indexPath)) return res.status(404).send('Page not found');
-  let html = fs.readFileSync(indexPath, 'utf8');
 
-  // 🛡️ Bulletproof SEO: Even if video is not in DB yet, tell Google it's a valid page
   const videos = loadVideos();
   const video = videos.find(v => v.id === vId);
-  
+
+  // If video not found, return a real 404 (prevents Google Soft 404)
+  if (!video) {
+    const notFoundPath = path.join(__dirname, 'public', '404.html');
+    if (fs.existsSync(notFoundPath)) {
+      return res.status(404).sendFile(notFoundPath);
+    }
+    return res.status(404).send('<h1>Video not found</h1><p><a href="/">Back to home</a></p>');
+  }
+
+  let html = fs.readFileSync(indexPath, 'utf8');
+
   // Set precise charset to prevent Bing encoding errors
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
 
   // Base Metadata
   const baseUrl = `https://${req.get('host')}`;
   const url = `${baseUrl}/watch?v=${vId}`;
-  
-  let rawTitle = 'Watch Video - StreamXvault';
-  let rawDesc = '<meta name="description" content="Watch videos on StreamXvault — your premium streaming platform.">\n<meta name="rating" content="adult">';
-  let thumb = `${baseUrl}/images/logo.png`;
 
-  if (video) {
-    rawTitle = `${video.title} - Watch on StreamXvault`;
-    rawDesc = video.shortDescription || video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`;
-    thumb = video.thumbnailUrl || thumb;
-  }
+  const rawTitle = `${video.title} - Watch on StreamXvault`;
+  const rawDesc = video.shortDescription || video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`;
+  const thumb = video.thumbnailUrl || `${baseUrl}/images/logo.png`;
 
-  let title = escapeMeta(rawTitle);
-  let fullDesc = escapeMeta(rawDesc);
+  const title = escapeMeta(rawTitle);
+  const fullDesc = escapeMeta(rawDesc);
   let seoDesc = fullDesc;
-  
+
   if (seoDesc.length > 155) {
     let cutoff = seoDesc.substring(0, 152);
     let lastSpace = cutoff.lastIndexOf(' ');
@@ -317,17 +320,51 @@ app.get('/watch', (req, res) => {
   const jsonTitle = escapeJsonStr(rawTitle);
   const jsonDesc = escapeJsonStr(rawDesc);
 
+  // Helper: format view count
+  function formatViewCount(n) {
+    if (!n) return '0 views';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M views';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K views';
+    return n + ' views';
+  }
+
+  // Helper: format date for display
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
   // 1. Inject Standard Meta Tags
   html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
   html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${seoDesc}">`);
-  
-  // 2. Inject Body Content (Unlimited Full Description)
-  html = html.replace(/<h1 id="video-title">.*?<\/h1>/, `<h1 id="video-title">${title}</h1>`);
-  html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${fullDesc}</div>`);
 
-  // 3. Inject Advanced SEO (Canonical / Schema / OG)
+  // 2. SSR Body Content — inject REAL data instead of JS placeholders
+  // This is the key fix for Soft 404: Google must see substantive content in the initial HTML
+  html = html.replace(/<h1 id="video-title">.*?<\/h1>/, `<h1 id="video-title">${title}</h1>`);
+
+  // SSR inject views and date (replacing placeholder dashes)
+  const ssrViews = formatViewCount(video.views || 0);
+  const ssrDate = formatDate(video.uploadedAt);
+  html = html.replace(/<span id="video-views">.*?<\/span>/, `<span id="video-views">${ssrViews}</span>`);
+  html = html.replace(/<span id="video-date">.*?<\/span>/, `<span id="video-date">${ssrDate}</span>`);
+
+  // SSR inject like count
+  html = html.replace(/<span id="like-count">.*?<\/span>/, `<span id="like-count">${video.likes || 0}</span>`);
+
+  // SSR inject description with genre badge
+  const genreBadge = video.genre ? `<span style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeMeta(video.genre)}</span><br>` : '';
+  html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${genreBadge}${fullDesc}</div>`);
+
+  // SSR inject thumbnail as poster on the video element so Google sees an image
+  if (thumb) {
+    html = html.replace(/<video id="video-player"/, `<video id="video-player" poster="${thumb}"`);
+  }
+
+  // 3. Inject Advanced SEO (Canonical / Schema / OG / Rating)
   const headEnd = '</head>';
   const seoTags = `
+  <meta name="rating" content="adult">
   <link rel="canonical" href="${url}">
   <meta property="og:type" content="video.other">
   <meta property="og:url" content="${url}">
@@ -345,26 +382,27 @@ app.get('/watch', (req, res) => {
     "name": "${jsonTitle}",
     "description": "${jsonDesc}",
     "thumbnailUrl": ["${thumb}"],
-    "uploadDate": "${video ? (video.uploadedAt || new Date().toISOString()) : new Date().toISOString()}",
-    ${video && video.duration ? `    "duration": "${video.duration}",
-` : ''}    "embedUrl": "${url}",
+    "uploadDate": "${video.uploadedAt || new Date().toISOString()}",
+    ${video.duration ? `"duration": "${video.duration}",` : ''}
+    "embedUrl": "${baseUrl}/api/embed/${video.id}",
+    "contentUrl": "${url}",
     "interactionStatistic": {
       "@type": "InteractionCounter",
       "interactionType": "https://schema.org/WatchAction",
-      "userInteractionCount": ${video ? (video.views || 0) : 0}
+      "userInteractionCount": ${video.views || 0}
     }
   }
   </script>
 `;
   html = html.replace(headEnd, seoTags + headEnd);
 
-  // Inject Server-Side Rendered (SSR) related video links.
-  // This solves Google's "Has only one followed internal linking URL" error
-  // by providing hard-coded HTML links instead of relying on JS-rendered "More Videos" grids.
-  // SSR related video links (visible nav element for SEO, not hidden cloaking)
+  // 4. Inject SSR related video links (visible nav for SEO crawlers)
   const otherVideos = videos.filter(v => v.id !== vId && v.published !== false).slice(0, 20);
-  const relatedListItems = otherVideos.map(v => `<li><a href="${baseUrl}/watch?v=${v.id}">${escapeMeta(v.title)}</a></li>`).join('');
-  const relatedNav = `<nav aria-label="Related videos" style="padding: 0 1rem;"><h2 style="font-size: 1rem; color: var(--text-muted); margin-bottom: 0.5rem;">Related Videos</h2><ul style="list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem;">${relatedListItems.slice(0, 500)}</ul></nav>`;
+  const relatedListItems = otherVideos.map(v => {
+    const vThumb = v.thumbnailUrl || `${baseUrl}/images/logo.png`;
+    return `<li style="flex: 0 0 auto;"><a href="${baseUrl}/watch?v=${v.id}" style="color: var(--text-primary); text-decoration: none; display: flex; gap: 0.5rem; align-items: center;"><img src="${vThumb}" alt="${escapeMeta(v.title)}" width="120" height="68" style="border-radius: 4px; object-fit: cover;" loading="lazy"><span>${escapeMeta(v.title)}</span></a></li>`;
+  }).join('');
+  const relatedNav = `<nav aria-label="Related videos" style="padding: 1rem; max-width: 900px; margin: 0 auto;"><h2 style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 1rem;">More Videos</h2><ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.75rem;">${relatedListItems}</ul></nav>`;
   html = html.replace('</body>', `${relatedNav}\n</body>`);
 
   res.send(html);
