@@ -396,14 +396,15 @@ app.get('/watch', (req, res) => {
 `;
   html = html.replace(headEnd, seoTags + headEnd);
 
-  // 4. Inject SSR related video links (visible nav for SEO crawlers)
-  const otherVideos = videos.filter(v => v.id !== vId && v.published !== false).slice(0, 20);
-  const relatedListItems = otherVideos.map(v => {
+  // 4. SSR-populate the "More Videos" grid (replaces empty div to prevent Soft 404)
+  const otherVideos = videos.filter(v => v.id !== vId && v.published !== false).slice(0, 12);
+  const ssrCards = otherVideos.map(v => {
     const vThumb = v.thumbnailUrl || `${baseUrl}/images/logo.png`;
-    return `<li style="flex: 0 0 auto;"><a href="${baseUrl}/watch?v=${v.id}" style="color: var(--text-primary); text-decoration: none; display: flex; gap: 0.5rem; align-items: center;"><img src="${vThumb}" alt="${escapeMeta(v.title)}" width="120" height="68" style="border-radius: 4px; object-fit: cover;" loading="lazy"><span>${escapeMeta(v.title)}</span></a></li>`;
+    const vViews = v.views || 0;
+    const vDate = v.uploadedAt ? new Date(v.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    return `<a href="/watch?v=${v.id}" class="video-card" aria-label="${escapeMeta(v.title)}"><div class="thumbnail"><img src="${vThumb}" alt="${escapeMeta(v.title)}" loading="lazy" width="320" height="180" style="width:100%;height:auto;object-fit:cover;border-radius:8px;aspect-ratio:16/9;"></div><div class="card-info"><div class="card-title">${escapeMeta(v.title)}</div>${v.genre ? `<span style="display:inline-block;font-size:0.65rem;background:var(--accent-gradient-pink);color:white;padding:1px 6px;border-radius:3px;margin-top:4px;text-transform:uppercase;font-weight:700;">${escapeMeta(v.genre)}</span>` : ''}<div class="card-meta"><span>${vViews} views</span><span>${vDate}</span></div></div></a>`;
   }).join('');
-  const relatedNav = `<nav aria-label="Related videos" style="padding: 1rem; max-width: 900px; margin: 0 auto;"><h2 style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 1rem;">More Videos</h2><ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.75rem;">${relatedListItems}</ul></nav>`;
-  html = html.replace('</body>', `${relatedNav}\n</body>`);
+  html = html.replace('<div class="video-grid" id="related-grid"></div>', `<div class="video-grid" id="related-grid">${ssrCards}</div>`);
 
   res.send(html);
 });
