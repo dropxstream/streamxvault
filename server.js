@@ -293,12 +293,12 @@ app.get('/watch', (req, res) => {
   const url = `${baseUrl}/watch?v=${vId}`;
   
   let rawTitle = 'Watch Video - StreamXvault';
-  let rawDesc = 'Watch premium content on StreamXvault - your personal streaming library.';
+  let rawDesc = '<meta name="description" content="Watch videos on StreamXvault — your premium streaming platform.">\n<meta name="rating" content="adult">';
   let thumb = `${baseUrl}/images/logo.png`;
 
   if (video) {
     rawTitle = `${video.title} - Watch on StreamXvault`;
-    rawDesc = video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`;
+    rawDesc = video.shortDescription || video.description || `Watch ${video.title} on StreamXvault. High quality streaming content.`;
     thumb = video.thumbnailUrl || thumb;
   }
 
@@ -346,8 +346,8 @@ app.get('/watch', (req, res) => {
     "description": "${jsonDesc}",
     "thumbnailUrl": ["${thumb}"],
     "uploadDate": "${video ? (video.uploadedAt || new Date().toISOString()) : new Date().toISOString()}",
-    "duration": "${video && video.duration ? video.duration : 'PT0S'}",
-    "embedUrl": "${url}",
+    ${video && video.duration ? `    "duration": "${video.duration}",
+` : ''}    "embedUrl": "${url}",
     "interactionStatistic": {
       "@type": "InteractionCounter",
       "interactionType": "https://schema.org/WatchAction",
