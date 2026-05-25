@@ -541,6 +541,7 @@ function sanitizeVideoForPublic(video) {
     genre: video.genre,
     description: video.description,
     thumbnailUrl: video.thumbnailUrl,
+    bunnyId: video.bunnyId || null,
     views: video.views || 0,
     likes: video.likes || 0,
     uploadedAt: video.uploadedAt,
