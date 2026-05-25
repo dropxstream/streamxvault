@@ -270,7 +270,7 @@ function escapeJsonStr(text) {
 app.get('/robots.txt', (req, res) => {
   const baseUrl = `https://${req.get('host')}`;
   res.type('text/plain');
-  res.send(`User-agent: *\nAllow: /\nAllow: /api/embed/\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+  res.send(`User-agent: *\nAllow: /\nAllow: /api/videos/\nAllow: /api/embed/\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
 });
 
 // Dynamic SEO for Watch Page
