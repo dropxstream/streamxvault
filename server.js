@@ -356,9 +356,9 @@ app.get('/watch', (req, res) => {
   const genreBadge = video.genre ? `<span style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeMeta(video.genre)}</span><br>` : '';
   html = html.replace(/<div class="video-description" id="video-description">.*?<\/div>/, `<div class="video-description" id="video-description">${genreBadge}${fullDesc}</div>`);
 
-  // SSR inject thumbnail as poster on the video element so Google sees an image
+  // SSR inject thumbnail as background on the player placeholder so Google sees an image
   if (thumb) {
-    html = html.replace(/<video id="video-player"/, `<video id="video-player" poster="${thumb}"`);
+    html = html.replace('Loading player...</div>', `Loading player...</div><img src="${thumb}" alt="${escapeMeta(video.title)}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0.4;" loading="eager">`);
   }
 
   // 3. Inject Advanced SEO (Canonical / Schema / OG / Rating)
