@@ -962,7 +962,7 @@ app.get('/api/videos/:id', async (req, res) => {
   }
 });
 
-// Bunny Embed Proxy — hides library ID from client
+// Bunny Embed Proxy — hides library ID from client (Legacy Support for Cached Browsers)
 const BUNNY_LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '636087';
 app.get('/api/embed/:videoId', async (req, res) => {
   const videos = loadVideos();
@@ -972,8 +972,14 @@ app.get('/api/embed/:videoId', async (req, res) => {
   const bId = video.bunnyId;
   if (!bId) return res.status(404).json({ error: 'No embed available' });
   
-  // Redirect to Bunny embed (library ID hidden from client JS)
-  res.redirect(`https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${bId}?autoplay=true`);
+  // Determine correct library ID
+  let libId = video.bunnyLibraryId || BUNNY_LIBRARY_ID;
+  if (!video.bunnyLibraryId && video.thumbnailUrl && video.thumbnailUrl.includes('vz-507eee72')) {
+    libId = '636087';
+  }
+  
+  // Redirect to Bunny embed
+  res.redirect(`https://iframe.mediadelivery.net/embed/${libId}/${bId}?autoplay=true`);
 });
 
 // Download links endpoint (authenticated or with rate limiting)
