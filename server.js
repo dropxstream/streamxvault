@@ -920,7 +920,7 @@ app.get('/api/videos/:id', async (req, res) => {
 });
 
 // Bunny Embed Proxy — hides library ID from client
-const BUNNY_LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '400619';
+const BUNNY_LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '636087';
 app.get('/api/embed/:videoId', async (req, res) => {
   const videos = loadVideos();
   const video = videos.find(v => v.id === req.params.videoId);
