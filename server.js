@@ -553,16 +553,7 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// Protect admin.js from unauthenticated users
-app.use('/js/admin.js', (req, res, next) => {
-  const token = req.cookies?.sxv_token;
-  let isAdmin = false;
-  if (token) {
-    try { isAdmin = !!jwt.verify(token, JWT_SECRET).isAdmin; } catch (e) {}
-  }
-  if (!isAdmin) return res.status(403).type('application/javascript').send('console.error("Forbidden");');
-  next();
-});
+// Protection removed for /js/admin.js as it contains login logic. API endpoints remain secured.
 
 // Support for .html extensions and clean URLs
 // Placed after dynamic routes so SEO injection works
