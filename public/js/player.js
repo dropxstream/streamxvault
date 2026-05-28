@@ -45,7 +45,7 @@ async function initPlayer() {
     // ==========================================
     // 🚀 MASTER INTEGRATION: BUNNY STREAM DETECTION
     // ==========================================
-    let bId = video.hasBunnyVideo;
+    let bId = video.bunnyId || video.hasBunnyVideo;
 
     if (bId) {
       // Professional Bunny Stream Player (Prioritized)
