@@ -60,6 +60,9 @@
           <a href="#" class="sidebar-link" data-tab="manage" onclick="switchTab('manage', this)">
             <span class="link-icon">📁</span> Manage Videos
           </a>
+          <a href="#" class="sidebar-link" data-tab="vod" onclick="switchTab('vod', this)">
+            <span class="link-icon">📺</span> VOD Management
+          </a>
         </nav>
       </aside>
 
@@ -251,6 +254,46 @@
             <button class="btn btn-primary" onclick="switchTab('upload', document.querySelector('[data-tab=upload]'))">⬆️ Upload Video</button>
           </div>
         </div>
+
+        <!-- VOD Tab -->
+        <div class="admin-tab" id="tab-vod" style="display: none;">
+          <h2 style="margin-bottom: 1.5rem; font-weight: 700;">📺 VOD Management</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
+            <!-- Rules Section -->
+            <div class="vod-rules" style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <h3 style="margin-bottom: 1rem;">Allowed Production Companies</h3>
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="text" id="vod-new-company" placeholder="E.g. Brazzers" style="flex: 1; padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary);">
+                <button class="btn btn-primary btn-sm" onclick="addVodCompany()">Add</button>
+              </div>
+              <ul id="vod-company-list" style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                <!-- Populated via JS -->
+              </ul>
+            </div>
+
+            <!-- Requests Section -->
+            <div class="vod-requests" style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <h3 style="margin-bottom: 1rem;">User Demands</h3>
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                      <th style="padding: 0.75rem;">Email & Genre</th>
+                      <th style="padding: 0.75rem;">Title & Actor</th>
+                      <th style="padding: 0.75rem;">Status</th>
+                      <th style="padding: 0.75rem; text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vod-requests-table">
+                    <!-- Populated via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
@@ -333,6 +376,27 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
         <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">🗑️ Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Notification Modal -->
+  <div class="modal-overlay" id="notify-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>✉️ Notify User</h3>
+        <button class="btn-icon" onclick="closeNotifyModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Send a custom email update to <strong id="notify-user-email"></strong> regarding their request <strong id="notify-video-title"></strong>:</p>
+        <div class="form-group" style="margin-top: 1rem;">
+          <label for="notify-message">Email Message</label>
+          <textarea id="notify-message" rows="5" placeholder="Type your custom email message to the user here... (e.g. Your video is now live! Watch here...)" style="width: 100%; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); outline: none; font-family: inherit; resize: none;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeNotifyModal()">Cancel</button>
+        <button class="btn btn-primary" id="send-notify-btn" onclick="sendNotification()">✉️ Send Email</button>
       </div>
     </div>
   </div>

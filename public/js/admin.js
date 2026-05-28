@@ -138,6 +138,7 @@ function switchTab(tabName, element) {
   // Load tab data
   if (tabName === 'dashboard') loadStats();
   if (tabName === 'manage') loadAdminVideos();
+  if (tabName === 'vod') loadVodData();
 }
 
 // ==================== Dashboard ====================
@@ -839,6 +840,224 @@ window.addEventListener('scroll', () => {
     navbar.classList.remove('scrolled');
   }
 });
+
+// ==================== VOD Management ====================
+let vodRules = [];
+let vodRequests = [];
+
+async function loadVodData() {
+  try {
+    const rulesRes = await fetch('/api/admin/vod/rules', { headers: authHeaders() });
+    if (rulesRes.ok) {
+      vodRules = await rulesRes.json();
+      renderVodRules();
+    }
+    
+    const reqRes = await fetch('/api/admin/vod/requests', { headers: authHeaders() });
+    if (reqRes.ok) {
+      vodRequests = await reqRes.json();
+      renderVodRequests();
+    }
+  } catch (err) {
+    console.error('Failed to load VOD data:', err);
+    showToast('Failed to load VOD data', 'error');
+  }
+}
+
+function renderVodRules() {
+  const listEl = document.getElementById('vod-company-list');
+  listEl.innerHTML = '';
+  if (vodRules.length === 0) {
+    listEl.innerHTML = '<li style="color: var(--text-muted); font-size: 0.9rem;">No companies allowed yet.</li>';
+    return;
+  }
+  
+  vodRules.forEach((company, index) => {
+    const li = document.createElement('li');
+    li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: var(--bg-body); border-radius: var(--radius-sm); border: 1px solid var(--border-color);';
+    li.innerHTML = `
+      <span>${escapeHtml(company)}</span>
+      <button class="btn btn-danger btn-sm" onclick="removeVodCompany(${index})" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">✕</button>
+    `;
+    listEl.appendChild(li);
+  });
+}
+
+window.addVodCompany = async function() {
+  const input = document.getElementById('vod-new-company');
+  const company = input.value.trim();
+  if (!company) return;
+  
+  if (vodRules.includes(company)) {
+    showToast('Company already exists', 'error');
+    return;
+  }
+  
+  const newRules = [...vodRules, company];
+  try {
+    const res = await fetch('/api/admin/vod/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ rules: newRules })
+    });
+    if (res.ok) {
+      vodRules = newRules;
+      input.value = '';
+      renderVodRules();
+      showToast('Company added', 'success');
+    }
+  } catch (err) {
+    showToast('Failed to add company', 'error');
+  }
+};
+
+window.removeVodCompany = async function(index) {
+  const newRules = [...vodRules];
+  newRules.splice(index, 1);
+  try {
+    const res = await fetch('/api/admin/vod/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ rules: newRules })
+    });
+    if (res.ok) {
+      vodRules = newRules;
+      renderVodRules();
+      showToast('Company removed', 'success');
+    }
+  } catch (err) {
+    showToast('Failed to remove company', 'error');
+  }
+};
+
+function renderVodRequests() {
+  const tableEl = document.getElementById('vod-requests-table');
+  tableEl.innerHTML = '';
+  
+  if (vodRequests.length === 0) {
+    tableEl.innerHTML = '<tr><td colspan="4" style="padding: 1rem; text-align: center; color: var(--text-muted);">No requests found.</td></tr>';
+    return;
+  }
+  
+  vodRequests.forEach(req => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border-color)';
+    
+    let statusColor = 'var(--text-muted)';
+    if (req.status === 'Approved') statusColor = 'var(--accent-cyan)';
+    if (req.status === 'Rejected') statusColor = 'var(--accent-pink)';
+    
+    tr.innerHTML = `
+      <td style="padding: 0.75rem;">
+        <div style="font-weight: 600; font-size: 0.9rem; word-break: break-all;">${escapeHtml(req.email || 'N/A')}</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(req.genre)}</div>
+      </td>
+      <td style="padding: 0.75rem;">
+        <div style="font-weight: 600;">${escapeHtml(req.title)}</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(req.actor || 'N/A')}</div>
+      </td>
+      <td style="padding: 0.75rem;">
+        <span style="color: ${statusColor}; font-weight: 600; font-size: 0.85rem;">${req.status}</span>
+      </td>
+      <td style="padding: 0.75rem; text-align: right; display: flex; gap: 0.25rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="updateVodStatus('${req.id}', 'Approved')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Approve</button>
+        <button class="btn btn-secondary btn-sm" onclick="updateVodStatus('${req.id}', 'Rejected')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Reject</button>
+        <button class="btn btn-secondary btn-sm" onclick="openNotifyModal('${req.id}', '${escapeHtml(req.email || '')}', '${escapeHtml(req.title || '')}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 2px;">✉️ Notify</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteVodRequest('${req.id}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">🗑️</button>
+      </td>
+    `;
+    tableEl.appendChild(tr);
+  });
+}
+
+window.updateVodStatus = async function(id, status) {
+  try {
+    const res = await fetch(`/api/admin/vod/requests/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ status })
+    });
+    if (res.ok) {
+      showToast(`Request marked as ${status}`, 'success');
+      loadVodData();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to update status', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to update status', 'error');
+  }
+};
+
+window.deleteVodRequest = async function(id) {
+  if (!confirm('Are you sure you want to delete this request?')) return;
+  try {
+    const res = await fetch(`/api/admin/vod/requests/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (res.ok) {
+      showToast('Request deleted', 'success');
+      loadVodData();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to delete request', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to delete request', 'error');
+  }
+};
+
+// ==================== VOD Notifications ====================
+let activeNotifyId = null;
+
+window.openNotifyModal = function(id, email, title) {
+  activeNotifyId = id;
+  document.getElementById('notify-user-email').textContent = email;
+  document.getElementById('notify-video-title').textContent = `"${title}"`;
+  document.getElementById('notify-message').value = '';
+  document.getElementById('notify-modal').classList.add('active');
+};
+
+window.closeNotifyModal = function() {
+  activeNotifyId = null;
+  document.getElementById('notify-modal').classList.remove('active');
+};
+
+window.sendNotification = async function() {
+  if (!activeNotifyId) return;
+  const message = document.getElementById('notify-message').value.trim();
+  if (!message) {
+    showToast('Please type a message first', 'error');
+    return;
+  }
+  
+  const sendBtn = document.getElementById('send-notify-btn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending...';
+  
+  try {
+    const res = await fetch(`/api/admin/vod/requests/${activeNotifyId}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ message })
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    
+    if (res.ok) {
+      showToast('Notification email sent successfully', 'success');
+      closeNotifyModal();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to send email', 'error');
+    }
+  } catch (err) {
+    showToast('Network error sending email', 'error');
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '✉️ Send Email';
+  }
+};
 
 // ==================== Initialize ====================
 document.addEventListener('DOMContentLoaded', () => {
