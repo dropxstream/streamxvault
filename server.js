@@ -824,11 +824,11 @@ const loginLimiter = rateLimit({
 });
 
 app.post('/api/auth/login', loginLimiter, (req, res) => {
-  const { username, password } = req.body;
+  const { username = 'admin', password } = req.body;
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     const token = jwt.sign({ isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('sxv_token', token, { maxAge: 7 * 24 * 3600 * 1000, httpOnly: true, secure: true, sameSite: 'strict' });
-    res.json({ success: true });
+    res.json({ success: true, token }); // token in JSON for cached frontend compatibility
   } else {
     res.status(401).json({ error: 'Invalid credentials' });
   }
