@@ -1828,6 +1828,17 @@ img, video {
   font-family: inherit;
 }
 
+/* Fix for Video.js icons */
+@font-face {
+  font-family: 'VideoJS';
+  src: url('https://unpkg.com/video.js/dist/font/VideoJS.woff2') format('woff2'),
+       url('https://unpkg.com/video.js/dist/font/VideoJS.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+.video-js .vjs-icon-placeholder:before, .video-js .vjs-control:before {
+  font-family: VideoJS !important;
+}
 .vjs-big-play-button {
   background-color: var(--accent-purple) !important;
   border: none !important;
