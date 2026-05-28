@@ -543,10 +543,7 @@ app.get('/', (req, res) => {
   </script>
 `;
     html = html.replace(headEnd, homeSeo + headEnd);
-    // SSR video directory for bots (visible nav, not hidden cloaking)
-    const seoListItems = videos.slice(0, 20).map(v => `<li><a href="${baseUrl}/watch?v=${v.id}">${escapeMeta(v.title)}</a></li>`).join('');
-    const seoNav = `<nav aria-label="Video directory" style="padding: 0 1rem; margin-bottom: 1rem;"><h2 style="font-size: 1rem; color: var(--text-muted);">Video Directory</h2><ul style="list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem;">${seoListItems}</ul></nav>`;
-    html = html.replace('</body>', `${seoNav}\n</body>`);
+
   }
 
   res.send(html);
