@@ -1170,6 +1170,20 @@ const startServer = async () => {
         fs.writeFileSync(STATS_FILE, remoteStats);
         console.log('📈 Stats synced');
       }
+
+      // Sync VOD Rules from R2
+      const remoteVodRules = await storage.download(VOD_RULES_KEY);
+      if (remoteVodRules) {
+        fs.writeFileSync(VOD_RULES_FILE, remoteVodRules);
+        console.log('📺 VOD Rules synced from R2');
+      }
+
+      // Sync VOD Requests from R2
+      const remoteVodRequests = await storage.download(VOD_REQUESTS_KEY);
+      if (remoteVodRequests) {
+        fs.writeFileSync(VOD_REQUESTS_FILE, remoteVodRequests);
+        console.log('📺 VOD Requests synced from R2');
+      }
     } catch (err) {
       console.error('❌ Sync failed:', err.message);
     }
