@@ -11,43 +11,48 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'manoj720';
 const JWT_SECRET = process.env.JWT_SECRET || 'streamxvault_secret_key_123';
 
-// ==================== EMAIL SMTP CONFIGURATION ====================
-const smtpConfig = {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '465'),
-  secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465' || process.env.SMTP_SECURE === undefined,
-  auth: {
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || ''
-  }
-};
+// ==================== EMAIL RESEND API CONFIGURATION ====================
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 
-const isSmtpConfigured = !!(smtpConfig.auth.user && smtpConfig.auth.pass);
-let transporter = null;
-if (isSmtpConfigured) {
-  try {
-    const nodemailer = require('nodemailer');
-    transporter = nodemailer.createTransport(smtpConfig);
-    console.log('📧 SMTP transporter initialized successfully');
-  } catch (err) {
-    console.error('❌ Failed to initialize SMTP transporter:', err.message);
-  }
+if (RESEND_API_KEY) {
+  console.log('📧 Resend Email API client configured successfully');
 } else {
-  console.log('⚠️ SMTP credentials not fully set. Emails will be logged locally in simulation mode.');
+  console.log('⚠️ RESEND_API_KEY not set. Emails will be logged locally in simulation mode.');
 }
 
 async function sendMail({ to, subject, text, html }) {
-  if (!transporter) {
-    console.log(`\n✉️  [SIMULATED EMAIL]\nTo: ${to}\nSubject: ${subject}\nText:\n${text}\n--------------------\n`);
+  if (!RESEND_API_KEY) {
+    console.log(`\n✉️  [SIMULATED EMAIL - NO API KEY]\nTo: ${to}\nSubject: ${subject}\nText:\n${text}\n--------------------\n`);
     return true;
   }
   try {
-    const from = process.env.SMTP_FROM || `StreamXvault <${smtpConfig.auth.user}>`;
-    await transporter.sendMail({ from, to, subject, text, html });
-    console.log(`✉️  [EMAIL SENT] Sent successfully to ${to}`);
-    return true;
+    const from = process.env.SMTP_FROM || 'StreamXvault <noreply@streamxvault.online>';
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${RESEND_API_KEY}`
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        text,
+        html
+      })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`✉️  [EMAIL SENT VIA RESEND] Sent successfully to ${to} (ID: ${data.id})`);
+      return true;
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      console.error(`❌ [RESEND API ERROR] Failed to send email to ${to}:`, errData.message || res.statusText || JSON.stringify(errData));
+      return false;
+    }
   } catch (err) {
-    console.error(`❌ [EMAIL ERROR] Failed to send email to ${to}:`, err.message);
+    console.error(`❌ [RESEND SYSTEM ERROR] Failed to send email to ${to}:`, err.message);
     return false;
   }
 }
