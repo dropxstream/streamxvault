@@ -1202,18 +1202,35 @@ const startServer = async () => {
       } else {
         console.log('⚠️ Primary database empty, checking for any available .json...');
         const keys = await storage.listObjects();
-        const jsonKeys = keys.filter(k => k.endsWith('.json') && !k.includes('stats'));
-        if (jsonKeys.length > 0) {
-           const backupData = await storage.download(jsonKeys[0]);
-           if (backupData) {
-             fs.writeFileSync(DATA_FILE, backupData);
-             console.log(`✅ Recovered from fallback: ${jsonKeys[0]}`);
+        // Look for any videos.json in the bucket first (root or nested)
+        const videoKeys = keys.filter(k => k.endsWith('videos.json'));
+        let bestKey = null;
+        let bestData = null;
+        
+        for (const k of videoKeys) {
+           const d = await storage.download(k);
+           if (d && (!bestData || d.length > bestData.length)) {
+             bestData = d;
+             bestKey = k;
            }
+        }
+        
+        if (bestData && bestData.length > 5) {
+          fs.writeFileSync(DATA_FILE, bestData);
+          console.log(`✅ Recovered videos from fallback: ${bestKey} (Size: ${bestData.length} bytes)`);
         }
       }
 
-      const remoteStats = await storage.download(STATS_KEY);
-      if (remoteStats) {
+      let remoteStats = await storage.download(STATS_KEY);
+      if (!remoteStats || remoteStats.length < 5) {
+        // Fallback to root stats.json
+        const rootStats = await storage.download('stats.json');
+        if (rootStats && rootStats.length > 5) {
+          remoteStats = rootStats;
+          console.log('📈 Recovered stats from root stats.json');
+        }
+      }
+      if (remoteStats && remoteStats.length > 5) {
         fs.writeFileSync(STATS_FILE, remoteStats);
         console.log('📈 Stats synced');
       }
