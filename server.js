@@ -886,6 +886,12 @@ app.get('/api/auth/status', (req, res) => {
 
 // Sanitize video data for public API (strip sensitive fields)
 function sanitizeVideoForPublic(video) {
+  // Determine correct library ID (Legacy dummy videos must use 636087)
+  let libId = video.bunnyLibraryId || BUNNY_LIBRARY_ID;
+  if (!video.bunnyLibraryId && video.thumbnailUrl && video.thumbnailUrl.includes('vz-507eee72')) {
+    libId = '636087';
+  }
+
   return {
     id: video.id,
     title: video.title,
@@ -894,7 +900,7 @@ function sanitizeVideoForPublic(video) {
     thumbnailUrl: video.thumbnailUrl,
     hasBunnyVideo: !!video.bunnyId,
     bunnyId: video.bunnyId,
-    bunnyLibraryId: BUNNY_LIBRARY_ID,
+    bunnyLibraryId: libId,
     videoUrl: video.bunnyId ? null : video.videoUrl,
     views: video.views || 0,
     likes: video.likes || 0,
@@ -1050,18 +1056,19 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
     
     const videoData = {
       id: vId,
-      title,
-      genre,
-      description,
-      videoUrl,
-      thumbnailUrl,
-      bunnyId,
+      title: title.trim(),
+      genre: genre.trim(),
+      description: description.trim(),
+      videoUrl: videoUrl ? videoUrl.trim() : '',
+      thumbnailUrl: thumbnailUrl ? thumbnailUrl.trim() : '',
+      bunnyId: bunnyId ? bunnyId.trim() : null,
+      bunnyLibraryId: BUNNY_LIBRARY_ID,
       views: 0,
       likes: 0,
       published: true,
       downloads: {
-        p720: dl720 || null,
-        p1080: dl1080 || null
+        p720: dl720 ? dl720.trim() : '',
+        p1080: dl1080 ? dl1080.trim() : ''
       },
       uploadedAt: new Date().toISOString()
     };
