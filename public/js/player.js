@@ -49,9 +49,11 @@ async function initPlayer() {
 
     if (bId) {
       // Professional Bunny Stream Player (Prioritized)
+      // Uses direct iframe embed because API proxying breaks Bunny Stream's Referer/Allowed Domains security
+      const libraryId = video.bunnyLibraryId || '636087';
       wrapper.innerHTML = `
         <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <iframe src="/api/embed/${video.id}" 
+            <iframe src="https://iframe.mediadelivery.net/embed/${libraryId}/${bId}?autoplay=true" 
                     loading="lazy" 
                     style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                     allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 
