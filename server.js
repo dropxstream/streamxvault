@@ -548,12 +548,16 @@ app.get('/api/vod/rules', (req, res) => {
 app.post('/api/vod/request', async (req, res) => {
   if (isRequestBot(req)) return res.json({ success: false });
   const { genre, company, actor, title, description } = req.body;
-  if (!genre || !company || !title) return res.status(400).json({ error: 'Missing required fields' });
+  if (!genre || !title) return res.status(400).json({ error: 'Missing required fields' });
   
   const requests = loadVodRequests();
   const newRequest = {
     id: require('crypto').randomUUID(),
-    genre, company, actor, title, description,
+    genre,
+    company: company || 'N/A',
+    actor,
+    title,
+    description,
     status: 'Pending',
     createdAt: new Date().toISOString()
   };
