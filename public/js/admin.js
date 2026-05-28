@@ -902,7 +902,7 @@ function renderVodRules() {
   });
 }
 
-async function addVodCompany() {
+window.addVodCompany = async function() {
   const input = document.getElementById('vod-new-company');
   const company = input.value.trim();
   if (!company) return;
@@ -928,9 +928,9 @@ async function addVodCompany() {
   } catch (err) {
     showToast('Failed to add company', 'error');
   }
-}
+};
 
-async function removeVodCompany(index) {
+window.removeVodCompany = async function(index) {
   const newRules = [...vodRules];
   newRules.splice(index, 1);
   try {
@@ -947,7 +947,7 @@ async function removeVodCompany(index) {
   } catch (err) {
     showToast('Failed to remove company', 'error');
   }
-}
+};
 
 function renderVodRequests() {
   const tableEl = document.getElementById('vod-requests-table');
@@ -989,7 +989,7 @@ function renderVodRequests() {
   });
 }
 
-async function updateVodStatus(id, status) {
+window.updateVodStatus = async function(id, status) {
   try {
     const res = await fetch(`/api/admin/vod/requests/${id}`, {
       method: 'PUT',
@@ -999,13 +999,16 @@ async function updateVodStatus(id, status) {
     if (res.ok) {
       showToast(`Request marked as ${status}`, 'success');
       loadVodData();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to update status', 'error');
     }
   } catch (err) {
     showToast('Failed to update status', 'error');
   }
-}
+};
 
-async function deleteVodRequest(id) {
+window.deleteVodRequest = async function(id) {
   if (!confirm('Are you sure you want to delete this request?')) return;
   try {
     const res = await fetch(`/api/admin/vod/requests/${id}`, {
@@ -1015,11 +1018,14 @@ async function deleteVodRequest(id) {
     if (res.ok) {
       showToast('Request deleted', 'success');
       loadVodData();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to delete request', 'error');
     }
   } catch (err) {
     showToast('Failed to delete request', 'error');
   }
-}
+};
 
 // ==================== VOD Notifications ====================
 let activeNotifyId = null;
@@ -1029,12 +1035,12 @@ window.openNotifyModal = function(id, email, title) {
   document.getElementById('notify-user-email').textContent = email;
   document.getElementById('notify-video-title').textContent = `"${title}"`;
   document.getElementById('notify-message').value = '';
-  document.getElementById('notify-modal').classList.add('show');
+  document.getElementById('notify-modal').classList.add('active');
 };
 
 window.closeNotifyModal = function() {
   activeNotifyId = null;
-  document.getElementById('notify-modal').classList.remove('show');
+  document.getElementById('notify-modal').classList.remove('active');
 };
 
 window.sendNotification = async function() {
