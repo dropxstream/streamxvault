@@ -45,12 +45,7 @@ async function initPlayer() {
     // ==========================================
     // 🚀 MASTER INTEGRATION: BUNNY STREAM DETECTION
     // ==========================================
-    let bId = video.bunnyId;
-    // Auto-detect Bunny ID if it's hidden in the URL
-    if (!bId && video.videoUrl && video.videoUrl.includes('mediadelivery.net')) {
-      const parts = video.videoUrl.split('/');
-      bId = parts[parts.length - 1].split('?')[0];
-    }
+    let bId = video.hasBunnyVideo;
 
     if (bId) {
       // Professional Bunny Stream Player (Prioritized)
@@ -68,13 +63,17 @@ async function initPlayer() {
         ? video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl 
         : video.videoUrl;
 
-      wrapper.innerHTML = `
-        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 12px; overflow: hidden;">
-            <iframe src="${embedSrc}" 
-                    style="border:0;position:absolute;top:0;height:100%;width:100%;" 
-                    allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
-                    allowfullscreen="true"></iframe>
-        </div>`;
+      if (embedSrc && embedSrc.startsWith('https://')) {
+        wrapper.innerHTML = `
+          <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 12px; overflow: hidden;">
+              <iframe src="${embedSrc}" 
+                      style="border:0;position:absolute;top:0;height:100%;width:100%;" 
+                      allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
+                      allowfullscreen="true"></iframe>
+          </div>`;
+      } else {
+        wrapper.textContent = 'Invalid video source';
+      }
     } else {
       // Standard Video.js for Direct Files
       wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto" width="640" height="264"><source src="${video.videoUrl}"></video>`;
@@ -145,7 +144,12 @@ async function initPlayer() {
 
   } catch (err) {
     console.error('Player error:', err);
-    document.getElementById('player-wrapper').innerHTML = `<div class="error-msg">❌ Error: ${err.message}</div>`;
+    const errDiv = document.createElement('div');
+    errDiv.className = 'error-msg';
+    errDiv.textContent = '❌ Error: ' + err.message;
+    const wrapper = document.getElementById('player-wrapper');
+    wrapper.innerHTML = '';
+    wrapper.appendChild(errDiv);
   }
 }
 

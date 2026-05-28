@@ -40,7 +40,7 @@ function showToast(message, type = 'info') {
   const icons = { success: '✅', error: '❌', info: 'ℹ️' };
   toast.innerHTML = `
     <span class="toast-icon">${icons[type] || icons.info}</span>
-    <span class="toast-msg">${message}</span>
+    <span class="toast-msg">${escapeHtml(message)}</span>
     <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
   `;
 

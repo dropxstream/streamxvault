@@ -21,8 +21,8 @@ function createVideoCard(video) {
   card.href = `/watch?v=${video.id}`;
 
   const thumbnailContent = video.thumbnailUrl
-    ? `<img src="${video.thumbnailUrl}" alt="${video.title}" loading="lazy" decoding="async">`
-    : `<div class="thumb-placeholder">🎬</div>`;
+    ? `<img src="${video.thumbnailUrl}" alt="${escapeHtml(video.title)}" loading="lazy" decoding="async">`
+    : `<div class="thumb-placeholder"><span aria-hidden="true">🎬</span></div>`;
 
   const timeAgo = getTimeAgo(video.uploadedAt);
   const views = formatViews(video.views || 0);
@@ -38,8 +38,8 @@ function createVideoCard(video) {
       <div class="card-title">${escapeHtml(video.title)}</div>
       ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
-        <span>👁️ ${views}</span>
-        <span>🕐 ${timeAgo}</span>
+        <span><span aria-hidden="true">👁️</span> ${views}</span>
+        <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>
       </div>
     </div>
   `;

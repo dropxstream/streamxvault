@@ -4,21 +4,9 @@
  */
 
 // ==================== Token Management ====================
-function getToken() {
-  return localStorage.getItem('streamxvault_token');
-}
-
-function setToken(token) {
-  localStorage.setItem('streamxvault_token', token);
-}
-
-function clearToken() {
-  localStorage.removeItem('streamxvault_token');
-}
-
+// Tokens are now managed securely via HTTP-only cookies
 function authHeaders() {
-  const token = getToken();
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
+  return {};
 }
 
 // ==================== Toast Notifications ====================
@@ -68,9 +56,6 @@ function getTimeAgo(dateStr) {
 
 // ==================== Auth ====================
 async function checkAuth() {
-  const token = getToken();
-  if (!token) return;
-
   try {
     const res = await fetch('/api/auth/status', {
       headers: authHeaders()
@@ -79,17 +64,16 @@ async function checkAuth() {
     if (data.isAdmin) {
       showDashboard();
       loadDashboard();
-    } else {
-      clearToken();
     }
   } catch {
-    clearToken();
+    // ignore
   }
 }
 
 // Login
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const username = document.getElementById('admin-username').value;
   const password = document.getElementById('admin-password').value;
   const errorEl = document.getElementById('login-error');
 
@@ -97,18 +81,18 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ username, password })
     });
 
     const data = await res.json();
 
-    if (res.ok && data.token) {
-      setToken(data.token);
+    if (res.ok) {
       showToast('Welcome, Admin! 🎉', 'success');
       showDashboard();
       loadDashboard();
     } else {
       errorEl.classList.add('visible');
+      errorEl.textContent = data.error || 'Invalid credentials. Try again.';
       document.getElementById('admin-password').value = '';
       setTimeout(() => errorEl.classList.remove('visible'), 3000);
     }
@@ -123,13 +107,10 @@ async function logout() {
       method: 'POST',
       headers: authHeaders()
     });
-  } catch {}
-  clearToken();
-  showToast('Logged out', 'info');
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('admin-dashboard').style.display = 'none';
-  document.getElementById('logout-btn').style.display = 'none';
-  document.getElementById('admin-password').value = '';
+    window.location.reload();
+  } catch {
+    window.location.reload();
+  }
 }
 
 function showDashboard() {

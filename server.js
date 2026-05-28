@@ -5,9 +5,12 @@ const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const storage = require('./storage').createStorage(); // Fix: Actually create the storage instance
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'manoj720';
 const JWT_SECRET = process.env.JWT_SECRET || 'streamxvault_secret_key_123';
 
@@ -189,6 +192,7 @@ app.get('/api/stats', requireAdmin, (req, res) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 
 // Server-side protected admin route
@@ -474,7 +478,7 @@ app.get('/', (req, res) => {
 
 // Protect admin.js from unauthenticated users
 app.use('/js/admin.js', (req, res, next) => {
-  const token = req.cookies?.sxv_token || req.headers.cookie?.match(/sxv_token=([^;]+)/)?.[1];
+  const token = req.cookies?.sxv_token;
   let isAdmin = false;
   if (token) {
     try { isAdmin = !!jwt.verify(token, JWT_SECRET).isAdmin; } catch (e) {}
@@ -493,7 +497,7 @@ app.set('trust proxy', 1);
 
 // Helper: Require Admin
 function requireAdmin(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const token = req.cookies?.sxv_token || req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   if (!token) return res.status(401).json({ error: 'Admin login required.' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -506,24 +510,30 @@ function requireAdmin(req, res, next) {
 
 // ==================== API ROUTES ====================
 
-app.post('/api/auth/login', (req, res) => {
-  if (req.body.password === ADMIN_PASSWORD) {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Too many login attempts. Try again later.' }
+});
+
+app.post('/api/auth/login', loginLimiter, (req, res) => {
+  const { username, password } = req.body;
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     const token = jwt.sign({ isAdmin: true }, JWT_SECRET, { expiresIn: '7d' });
-    // Set a cookie so HTML requests are also ignored for tracking
-    res.setHeader('Set-Cookie', `sxv_token=${token}; Max-Age=${7 * 24 * 3600}; Path=/; SameSite=Lax; HttpOnly`);
-    res.json({ success: true, token });
+    res.cookie('sxv_token', token, { maxAge: 7 * 24 * 3600 * 1000, httpOnly: true, secure: true, sameSite: 'strict' });
+    res.json({ success: true });
   } else {
-    res.status(401).json({ error: 'Invalid password' });
+    res.status(401).json({ error: 'Invalid credentials' });
   }
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  res.setHeader('Set-Cookie', 'sxv_token=; Max-Age=0; Path=/; SameSite=Lax; HttpOnly');
+  res.clearCookie('sxv_token');
   res.json({ success: true });
 });
 
 app.get('/api/auth/status', (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+  const token = req.cookies?.sxv_token || req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.json({ isAdmin: false });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -541,7 +551,7 @@ function sanitizeVideoForPublic(video) {
     genre: video.genre,
     description: video.description,
     thumbnailUrl: video.thumbnailUrl,
-    bunnyId: video.bunnyId || null,
+    hasBunnyVideo: !!video.bunnyId,
     views: video.views || 0,
     likes: video.likes || 0,
     uploadedAt: video.uploadedAt,
@@ -577,7 +587,7 @@ app.get('/api/videos/:id', async (req, res) => {
   if (!video) return res.status(404).json({ error: 'Not found' });
 
   // Admin Check
-  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  const token = req.cookies?.sxv_token || req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   let isAdmin = false;
   if (token) {
     try { isAdmin = !!jwt.verify(token, JWT_SECRET).isAdmin; } catch (e) {}
@@ -774,8 +784,14 @@ app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
   }
 });
 
+const likeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests from this IP' }
+});
+
 // Like Video (Bot Filtered + Rate Limited + CSRF Check)
-app.post('/api/videos/:id/like', async (req, res) => {
+app.post('/api/videos/:id/like', likeLimiter, async (req, res) => {
   if (isRequestBot(req)) return res.json({ success: false });
   
   // Basic CSRF check via Origin/Referer
