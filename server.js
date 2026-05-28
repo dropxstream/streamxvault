@@ -15,6 +15,10 @@ const DATA_FILE = path.join(__dirname, 'data', 'videos.json');
 const STATS_FILE = path.join(__dirname, 'data', 'stats.json');
 const DB_KEY = '_database/videos.json'; // Permanently locked to recovered path
 const STATS_KEY = '_database/stats.json'; // Permanently locked to recovered path
+const VOD_RULES_FILE = path.join(__dirname, 'data', 'vod_rules.json');
+const VOD_REQUESTS_FILE = path.join(__dirname, 'data', 'vod_requests.json');
+const VOD_RULES_KEY = '_database/vod_rules.json';
+const VOD_REQUESTS_KEY = '_database/vod_requests.json';
 
 // Ensure data directory exists
 if (!fs.existsSync(path.join(__dirname, 'data'))) {
@@ -88,6 +92,36 @@ async function saveStats(stats) {
     } catch (err) {
       console.error('❌ R2 Stats backup failed:', err.message);
     }
+  }
+}
+
+function loadVodRules() {
+  try { 
+    if (!fs.existsSync(VOD_RULES_FILE)) return [];
+    return JSON.parse(fs.readFileSync(VOD_RULES_FILE, 'utf-8')); 
+  }
+  catch { return []; }
+}
+
+async function saveVodRules(rules) {
+  fs.writeFileSync(VOD_RULES_FILE, JSON.stringify(rules, null, 2));
+  if (storage.mode === 'r2') {
+    try { await storage.upload(VOD_RULES_KEY, Buffer.from(JSON.stringify(rules)), 'application/json'); } catch (err) {}
+  }
+}
+
+function loadVodRequests() {
+  try { 
+    if (!fs.existsSync(VOD_REQUESTS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(VOD_REQUESTS_FILE, 'utf-8')); 
+  }
+  catch { return []; }
+}
+
+async function saveVodRequests(requests) {
+  fs.writeFileSync(VOD_REQUESTS_FILE, JSON.stringify(requests, null, 2));
+  if (storage.mode === 'r2') {
+    try { await storage.upload(VOD_REQUESTS_KEY, Buffer.from(JSON.stringify(requests)), 'application/json'); } catch (err) {}
   }
 }
 
@@ -505,6 +539,61 @@ function requireAdmin(req, res, next) {
 }
 
 // ==================== API ROUTES ====================
+
+// --- VOD API Routes ---
+app.get('/api/vod/rules', (req, res) => {
+  res.json(loadVodRules());
+});
+
+app.post('/api/vod/request', async (req, res) => {
+  if (isRequestBot(req)) return res.json({ success: false });
+  const { genre, company, actor, title, description } = req.body;
+  if (!genre || !company || !title) return res.status(400).json({ error: 'Missing required fields' });
+  
+  const requests = loadVodRequests();
+  const newRequest = {
+    id: require('crypto').randomUUID(),
+    genre, company, actor, title, description,
+    status: 'Pending',
+    createdAt: new Date().toISOString()
+  };
+  requests.push(newRequest);
+  await saveVodRequests(requests);
+  res.json({ success: true, request: newRequest });
+});
+
+app.get('/api/admin/vod/rules', requireAdmin, (req, res) => {
+  res.json(loadVodRules());
+});
+
+app.post('/api/admin/vod/rules', requireAdmin, async (req, res) => {
+  const { rules } = req.body; // Expecting an array of strings
+  if (!Array.isArray(rules)) return res.status(400).json({ error: 'Rules must be an array' });
+  await saveVodRules(rules);
+  res.json({ success: true });
+});
+
+app.get('/api/admin/vod/requests', requireAdmin, (req, res) => {
+  res.json(loadVodRequests().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+});
+
+app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
+  const { status } = req.body;
+  const requests = loadVodRequests();
+  const reqItem = requests.find(r => r.id === req.params.id);
+  if (!reqItem) return res.status(404).json({ error: 'Not found' });
+  reqItem.status = status;
+  await saveVodRequests(requests);
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
+  let requests = loadVodRequests();
+  requests = requests.filter(r => r.id !== req.params.id);
+  await saveVodRequests(requests);
+  res.json({ success: true });
+});
+// --- End VOD API Routes ---
 
 app.post('/api/auth/login', (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {

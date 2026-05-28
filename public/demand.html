@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demand a Video — StreamXvault</title>
+  <meta name="description" content="Request any video you want to watch. Browse genres and submit your video demand on StreamXvault.">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <style>
+    /* ===== VOD DEMAND PAGE — DARK CINEMATIC THEME ===== */
+    body {
+      background: #080810;
+      color: #fff;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated particle background */
+    .vod-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .vod-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 20%, rgba(139, 26, 26, 0.25) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(124, 58, 237, 0.2) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(6, 182, 212, 0.07) 0%, transparent 70%);
+    }
+    .vod-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle 1px at 20% 35%, rgba(255,255,255,0.15) 0, transparent 0),
+        radial-gradient(circle 1px at 75% 25%, rgba(255,255,255,0.1) 0, transparent 0),
+        radial-gradient(circle 1px at 40% 80%, rgba(255,255,255,0.12) 0, transparent 0),
+        radial-gradient(circle 1px at 90% 60%, rgba(255,255,255,0.08) 0, transparent 0),
+        radial-gradient(circle 1px at 10% 70%, rgba(255,255,255,0.1) 0, transparent 0),
+        radial-gradient(circle 1px at 60% 10%, rgba(255,255,255,0.14) 0, transparent 0);
+      background-size: 100% 100%;
+    }
+
+    /* Navbar override for dark page */
+    .navbar {
+      background: rgba(8, 8, 16, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* ===== HERO SECTION ===== */
+    .vod-hero {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 120px 2rem 60px;
+    }
+    .vod-hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.4rem 1.2rem;
+      background: linear-gradient(135deg, rgba(139, 26, 26, 0.6), rgba(124, 58, 237, 0.4));
+      border: 1px solid rgba(139, 26, 26, 0.5);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #fca5a5;
+      margin-bottom: 1.5rem;
+      animation: fadeInDown 0.6s ease both;
+    }
+    .vod-hero-eyebrow .dot {
+      width: 6px; height: 6px;
+      background: #ef4444;
+      border-radius: 50%;
+      animation: pulse-red 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+      50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+    }
+    .vod-hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1.05;
+      margin-bottom: 1.25rem;
+      animation: fadeInDown 0.6s 0.1s ease both;
+    }
+    .vod-hero h1 .gradient-text {
+      background: linear-gradient(135deg, #f87171 0%, #a78bfa 50%, #22d3ee 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .vod-hero p {
+      font-size: 1.15rem;
+      color: rgba(255,255,255,0.55);
+      max-width: 520px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.7;
+      font-weight: 400;
+      animation: fadeInDown 0.6s 0.2s ease both;
+    }
+    .vod-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 3rem;
+      animation: fadeInDown 0.6s 0.3s ease both;
+      flex-wrap: wrap;
+    }
+    .vod-step {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.5);
+    }
+    .vod-step .step-num {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: rgba(124, 58, 237, 0.25);
+      border: 1px solid rgba(124, 58, 237, 0.4);
+      color: #a78bfa;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .vod-step.active .step-num {
+      background: linear-gradient(135deg, #7c3aed, #06b6d4);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(124,58,237,0.5);
+    }
+    .vod-step.active { color: rgba(255,255,255,0.9); }
+    .step-arrow { color: rgba(255,255,255,0.2); font-size: 0.9rem; }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== GENRE GRID ===== */
+    .genres-section {
+      position: relative;
+      z-index: 1;
+      padding: 0 2rem 100px;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .genres-label {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      margin-bottom: 2rem;
+    }
+    .genres-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    /* Genre Card */
+    .genre-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      height: 340px;
+      border-radius: 20px;
+      overflow: hidden;
+      text-decoration: none;
+      color: #fff;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                  box-shadow 0.4s ease,
+                  border-color 0.3s ease;
+      animation: cardIn 0.5s ease both;
+    }
+    .genre-card:nth-child(1) { animation-delay: 0.1s; }
+    .genre-card:nth-child(2) { animation-delay: 0.15s; }
+    .genre-card:nth-child(3) { animation-delay: 0.2s; }
+    .genre-card:nth-child(4) { animation-delay: 0.25s; }
+    .genre-card:nth-child(5) { animation-delay: 0.3s; }
+    .genre-card:nth-child(6) { animation-delay: 0.35s; }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(30px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Card backgrounds — each genre has its own mood */
+    .genre-card[data-genre="Trueanal"] .card-bg {
+      background: linear-gradient(160deg, #1a0a2e 0%, #3d0000 50%, #0d0d1a 100%);
+    }
+    .genre-card[data-genre="Analonly"] .card-bg {
+      background: linear-gradient(160deg, #0a0a1a 0%, #1a0030 50%, #2d0030 100%);
+    }
+    .genre-card[data-genre="Nympho"] .card-bg {
+      background: linear-gradient(160deg, #0a001a 0%, #300040 50%, #1a000a 100%);
+    }
+    .genre-card[data-genre="Analvids"] .card-bg {
+      background: linear-gradient(160deg, #000a1a 0%, #001a30 50%, #0a1a30 100%);
+    }
+    .genre-card[data-genre="Tushy Raw"] .card-bg {
+      background: linear-gradient(160deg, #1a0a00 0%, #2d1000 50%, #0a0500 100%);
+    }
+    .genre-card[data-genre="Vixen"] .card-bg {
+      background: linear-gradient(160deg, #000a10 0%, #001028 50%, #000818 100%);
+    }
+
+    .card-bg {
+      position: absolute;
+      inset: 0;
+      transition: transform 0.6s ease;
+    }
+    .genre-card:hover .card-bg {
+      transform: scale(1.05);
+    }
+
+    /* Noise texture overlay */
+    .card-noise {
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      opacity: 0.5;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+
+    /* Glowing orb inside card */
+    .card-orb {
+      position: absolute;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      top: -50px; right: -50px;
+      opacity: 0.15;
+      filter: blur(60px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .genre-card:hover .card-orb {
+      opacity: 0.35;
+      transform: scale(1.3);
+    }
+    .genre-card[data-genre="Trueanal"] .card-orb { background: #ef4444; }
+    .genre-card[data-genre="Analonly"] .card-orb { background: #a855f7; }
+    .genre-card[data-genre="Nympho"] .card-orb { background: #ec4899; }
+    .genre-card[data-genre="Analvids"] .card-orb { background: #06b6d4; }
+    .genre-card[data-genre="Tushy Raw"] .card-orb { background: #f97316; }
+    .genre-card[data-genre="Vixen"] .card-orb { background: #6366f1; }
+
+    /* Bottom gradient fade */
+    .card-fade {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 75%;
+      background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, transparent 100%);
+    }
+
+    /* Card content */
+    .card-content {
+      position: relative;
+      z-index: 2;
+      padding: 1.75rem;
+      flex: 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .card-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      text-align: center;
+    }
+    .card-icon {
+      font-size: 3rem;
+      display: block;
+      margin-bottom: 0.75rem;
+      filter: drop-shadow(0 0 16px rgba(255,255,255,0.3));
+    }
+    .card-title {
+      font-size: clamp(2.4rem, 4vw, 3.2rem);
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1.05;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+      text-align: center;
+    }
+    .card-desc {
+      font-size: 0.82rem;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.5;
+      margin-bottom: 1.25rem;
+    }
+    .card-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1.2rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+    }
+    .card-cta .arrow {
+      font-size: 1rem;
+      transition: transform 0.3s ease;
+    }
+    .genre-card:hover .card-cta {
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.3);
+    }
+    .genre-card:hover .card-cta .arrow {
+      transform: translateX(4px);
+    }
+
+    /* Hover border glow */
+    .genre-card[data-genre="Trueanal"]:hover { border-color: rgba(239,68,68,0.4); box-shadow: 0 20px 60px -10px rgba(239,68,68,0.25), 0 0 0 1px rgba(239,68,68,0.1); }
+    .genre-card[data-genre="Analonly"]:hover { border-color: rgba(168,85,247,0.4); box-shadow: 0 20px 60px -10px rgba(168,85,247,0.25), 0 0 0 1px rgba(168,85,247,0.1); }
+    .genre-card[data-genre="Nympho"]:hover { border-color: rgba(236,72,153,0.4); box-shadow: 0 20px 60px -10px rgba(236,72,153,0.25), 0 0 0 1px rgba(236,72,153,0.1); }
+    .genre-card[data-genre="Analvids"]:hover { border-color: rgba(6,182,212,0.4); box-shadow: 0 20px 60px -10px rgba(6,182,212,0.25), 0 0 0 1px rgba(6,182,212,0.1); }
+    .genre-card[data-genre="Tushy Raw"]:hover { border-color: rgba(249,115,22,0.4); box-shadow: 0 20px 60px -10px rgba(249,115,22,0.25), 0 0 0 1px rgba(249,115,22,0.1); }
+    .genre-card[data-genre="Vixen"]:hover { border-color: rgba(99,102,241,0.4); box-shadow: 0 20px 60px -10px rgba(99,102,241,0.25), 0 0 0 1px rgba(99,102,241,0.1); }
+
+    /* Top shimmer line */
+    .card-shimmer {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .genre-card:hover .card-shimmer { opacity: 1; }
+    .genre-card[data-genre="Trueanal"] .card-shimmer { background: linear-gradient(90deg, transparent, #ef4444, transparent); }
+    .genre-card[data-genre="Analonly"] .card-shimmer { background: linear-gradient(90deg, transparent, #a855f7, transparent); }
+    .genre-card[data-genre="Nympho"] .card-shimmer { background: linear-gradient(90deg, transparent, #ec4899, transparent); }
+    .genre-card[data-genre="Analvids"] .card-shimmer { background: linear-gradient(90deg, transparent, #06b6d4, transparent); }
+    .genre-card[data-genre="Tushy Raw"] .card-shimmer { background: linear-gradient(90deg, transparent, #f97316, transparent); }
+    .genre-card[data-genre="Vixen"] .card-shimmer { background: linear-gradient(90deg, transparent, #6366f1, transparent); }
+
+    /* ===== BOTTOM CTA ===== */
+    .vod-footer-cta {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 2rem 2rem 5rem;
+    }
+    .vod-footer-cta p {
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.25);
+    }
+    .vod-footer-cta a {
+      color: rgba(124, 58, 237, 0.8);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .vod-hero { padding: 100px 1.5rem 40px; }
+      .vod-hero h1 { letter-spacing: -1px; }
+      .genres-section { padding: 0 1rem 60px; }
+      .genres-grid { grid-template-columns: 1fr; }
+      .genre-card { height: 280px; }
+      .vod-steps { gap: 0.3rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="vod-bg"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar" id="navbar">
+    <a href="/" class="nav-brand" id="nav-brand">
+      <img src="/images/logo.png" alt="StreamXvault Logo" class="brand-logo" width="40" height="40">
+      StreamXvault
+    </a>
+    <div class="nav-right">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/demand.html" class="nav-link active">Demand Video</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="vod-hero">
+    <div class="vod-hero-eyebrow">
+      <span class="dot"></span>
+      Video on Demand
+    </div>
+    <h1>What do you want<br><span class="gradient-text">to watch?</span></h1>
+    <p>Pick your genre, name the video, and we'll make it happen. Requests are reviewed daily by our team.</p>
+
+    <!-- Step Indicator -->
+    <div class="vod-steps">
+      <div class="vod-step active">
+        <span class="step-num">1</span>
+        Choose Genre
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="vod-step">
+        <span class="step-num">2</span>
+        Submit Request
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="vod-step">
+        <span class="step-num">3</span>
+        We Deliver
+      </div>
+    </div>
+  </section>
+
+  <!-- Genre Cards -->
+  <section class="genres-section">
+    <p class="genres-label">Select your genre</p>
+    <div class="genres-grid">
+
+      <a href="/demand-form.html?genre=Trueanal" class="genre-card" data-genre="Trueanal">
+        <div class="card-bg"></div>
+        <div class="card-noise"></div>
+        <div class="card-orb"></div>
+        <div class="card-fade"></div>
+        <div class="card-shimmer"></div>
+        <div class="card-content">
+          <div class="card-center">
+            <span class="card-icon">🔥</span>
+            <div class="card-title">Trueanal</div>
+          </div>
+          <div class="card-cta">Request a Video <span class="arrow">→</span></div>
+        </div>
+      </a>
+
+      <a href="/demand-form.html?genre=Analonly" class="genre-card" data-genre="Analonly">
+        <div class="card-bg"></div>
+        <div class="card-noise"></div>
+        <div class="card-orb"></div>
+        <div class="card-fade"></div>
+        <div class="card-shimmer"></div>
+        <div class="card-content">
+          <div class="card-center">
+            <span class="card-icon">💜</span>
+            <div class="card-title">Analonly</div>
+          </div>
+          <div class="card-cta">Request a Video <span class="arrow">→</span></div>
+        </div>
+      </a>
+
+      <a href="/demand-form.html?genre=Nympho" class="genre-card" data-genre="Nympho">
+        <div class="card-bg"></div>
+        <div class="card-noise"></div>
+        <div class="card-orb"></div>
+        <div class="card-fade"></div>
+        <div class="card-shimmer"></div>
+        <div class="card-content">
+          <div class="card-center">
+            <span class="card-icon">💋</span>
+            <div class="card-title">Nympho</div>
+          </div>
+          <div class="card-cta">Request a Video <span class="arrow">→</span></div>
+        </div>
+      </a>
+
+      <a href="/demand-form.html?genre=Analvids" class="genre-card" data-genre="Analvids">
+        <div class="card-bg"></div>
+        <div class="card-noise"></div>
+        <div class="card-orb"></div>
+        <div class="card-fade"></div>
+        <div class="card-shimmer"></div>
+        <div class="card-content">
+          <div class="card-center">
+            <span class="card-icon">🎥</span>
+            <div class="card-title">Analvids</div>
+          </div>
+          <div class="card-cta">Request a Video <span class="arrow">→</span></div>
+        </div>
+      </a>
+
+      <a href="/demand-form.html?genre=Tushy Raw" class="genre-card" data-genre="Tushy Raw">
+        <div class="card-bg"></div>
+        <div class="card-noise"></div>
+        <div class="card-orb"></div>
+        <div class="card-fade"></div>
+        <div class="card-shimmer"></div>
+        <div class="card-content">
+          <div class="card-center">
+            <span class="card-icon">🤍</span>
+            <div class="card-title">Tushy Raw</div>
+          </div>
+          <div class="card-cta">Request a Video <span class="arrow">→</span></div>
+        </div>
+      </a>
+
+      <a href="/demand-form.html?genre=Vixen" class="genre-card" data-genre="Vixen">
+        <div class="card-bg"></div>
+        <div class="card-noise"></div>
+        <div class="card-orb"></div>
+        <div class="card-fade"></div>
+        <div class="card-shimmer"></div>
+        <div class="card-content">
+          <div class="card-center">
+            <span class="card-icon">👑</span>
+            <div class="card-title">Vixen</div>
+          </div>
+          <div class="card-cta">Request a Video <span class="arrow">→</span></div>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <div class="vod-footer-cta">
+    <p>Don't see your preferred genre? <a href="/">Browse all available videos</a> on the main page.</p>
+  </div>
+
+  <script>
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+      const nav = document.getElementById('navbar');
+      if (window.scrollY > 20) {
+        nav.style.background = 'rgba(8,8,16,0.95)';
+        nav.style.borderBottom = '1px solid rgba(255,255,255,0.08)';
+      } else {
+        nav.style.background = 'rgba(8,8,16,0.85)';
+        nav.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+      }
+    });
+
+    // Tilt effect on genre cards
+    document.querySelectorAll('.genre-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width - 0.5) * 12;
+        const y = ((e.clientY - rect.top) / rect.height - 0.5) * -12;
+        card.style.transform = `perspective(800px) rotateX(${y}deg) rotateY(${x}deg) translateY(-8px) scale(1.02)`;
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+        card.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+      });
+      card.addEventListener('mouseenter', () => {
+        card.style.transition = 'transform 0.1s ease';
+      });
+    });
+  </script>
+</body>
+</html>

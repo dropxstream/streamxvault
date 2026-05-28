@@ -1,5 +1,5 @@
 node_modules/
 uploads/
 .env
-data/videos.json
+data/*.json
 *.log
