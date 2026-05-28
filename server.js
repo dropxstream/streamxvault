@@ -270,6 +270,40 @@ app.get('/api/stats', requireAdmin, (req, res) => {
   });
 });
 
+app.get('/api/admin/r2-test', requireAdmin, async (req, res) => {
+  if (storage.mode !== 'r2') {
+    return res.json({ status: 'error', message: 'Storage mode is not R2. Current mode: ' + storage.mode + '. ENV STORAGE_MODE: ' + process.env.STORAGE_MODE });
+  }
+  try {
+    const { ListObjectsV2Command, GetObjectCommand } = require('@aws-sdk/client-s3');
+    const listCmd = new ListObjectsV2Command({ Bucket: storage.bucketName });
+    const response = await storage.client.send(listCmd);
+    const keys = (response.Contents || []).map(o => o.Key);
+    
+    let downloadTest = 'Skipped';
+    if (keys.length > 0) {
+      const getCmd = new GetObjectCommand({ Bucket: storage.bucketName, Key: keys[0] });
+      const getResp = await storage.client.send(getCmd);
+      downloadTest = 'Success! Body type: ' + (typeof getResp.Body) + ', stream: ' + (typeof getResp.Body?.on);
+    }
+    
+    res.json({ 
+      status: 'success', 
+      bucket: storage.bucketName,
+      keysFound: keys.length,
+      sampleKeys: keys.slice(0, 5),
+      downloadTest
+    });
+  } catch (err) {
+    res.json({ 
+      status: 'error', 
+      errorName: err.name,
+      errorMessage: err.message,
+      errorStack: err.stack
+    });
+  }
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
