@@ -275,8 +275,8 @@
                 <table style="width: 100%; border-collapse: collapse; text-align: left;">
                   <thead>
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                      <th style="padding: 0.75rem;">Company & Genre</th>
-                      <th style="padding: 0.75rem;">Actor/Title</th>
+                      <th style="padding: 0.75rem;">Email & Genre</th>
+                      <th style="padding: 0.75rem;">Title & Actor</th>
                       <th style="padding: 0.75rem;">Status</th>
                       <th style="padding: 0.75rem; text-align: right;">Actions</th>
                     </tr>
@@ -372,6 +372,27 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
         <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">🗑️ Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Notification Modal -->
+  <div class="modal-overlay" id="notify-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>✉️ Notify User</h3>
+        <button class="btn-icon" onclick="closeNotifyModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Send a custom email update to <strong id="notify-user-email"></strong> regarding their request <strong id="notify-video-title"></strong>:</p>
+        <div class="form-group" style="margin-top: 1rem;">
+          <label for="notify-message">Email Message</label>
+          <textarea id="notify-message" rows="5" placeholder="Type your custom email message to the user here... (e.g. Your video is now live! Watch here...)" style="width: 100%; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); outline: none; font-family: inherit; resize: none;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeNotifyModal()">Cancel</button>
+        <button class="btn btn-primary" id="send-notify-btn" onclick="sendNotification()">✉️ Send Email</button>
       </div>
     </div>
   </div>

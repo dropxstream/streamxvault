@@ -11,6 +11,47 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'manoj720';
 const JWT_SECRET = process.env.JWT_SECRET || 'streamxvault_secret_key_123';
 
+// ==================== EMAIL SMTP CONFIGURATION ====================
+const smtpConfig = {
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '465'),
+  secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465' || process.env.SMTP_SECURE === undefined,
+  auth: {
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || ''
+  }
+};
+
+const isSmtpConfigured = !!(smtpConfig.auth.user && smtpConfig.auth.pass);
+let transporter = null;
+if (isSmtpConfigured) {
+  try {
+    const nodemailer = require('nodemailer');
+    transporter = nodemailer.createTransport(smtpConfig);
+    console.log('📧 SMTP transporter initialized successfully');
+  } catch (err) {
+    console.error('❌ Failed to initialize SMTP transporter:', err.message);
+  }
+} else {
+  console.log('⚠️ SMTP credentials not fully set. Emails will be logged locally in simulation mode.');
+}
+
+async function sendMail({ to, subject, text, html }) {
+  if (!transporter) {
+    console.log(`\n✉️  [SIMULATED EMAIL]\nTo: ${to}\nSubject: ${subject}\nText:\n${text}\n--------------------\n`);
+    return true;
+  }
+  try {
+    const from = process.env.SMTP_FROM || `StreamXvault <${smtpConfig.auth.user}>`;
+    await transporter.sendMail({ from, to, subject, text, html });
+    console.log(`✉️  [EMAIL SENT] Sent successfully to ${to}`);
+    return true;
+  } catch (err) {
+    console.error(`❌ [EMAIL ERROR] Failed to send email to ${to}:`, err.message);
+    return false;
+  }
+}
+
 const DATA_FILE = path.join(__dirname, 'data', 'videos.json');
 const STATS_FILE = path.join(__dirname, 'data', 'stats.json');
 const DB_KEY = '_database/videos.json'; // Permanently locked to recovered path
@@ -547,9 +588,12 @@ app.get('/api/vod/rules', (req, res) => {
 
 app.post('/api/vod/request', async (req, res) => {
   if (isRequestBot(req)) return res.json({ success: false });
-  const { genre, company, actor, title, description } = req.body;
-  if (!genre || !title || !actor) return res.status(400).json({ error: 'Missing required fields' });
+  const { genre, company, actor, title, description, email } = req.body;
+  if (!genre || !title || !actor || !email) return res.status(400).json({ error: 'Missing required fields' });
   
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return res.status(400).json({ error: 'Invalid email address' });
+
   const requests = loadVodRequests();
   const newRequest = {
     id: require('crypto').randomUUID(),
@@ -558,11 +602,56 @@ app.post('/api/vod/request', async (req, res) => {
     actor,
     title,
     description,
+    email,
     status: 'Pending',
     createdAt: new Date().toISOString()
   };
   requests.push(newRequest);
   await saveVodRequests(requests);
+  
+  // Send Confirmation Email to User
+  const emailHtml = `
+    <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Video on Demand Request</p>
+      </div>
+      <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+        <h2 style="color: #22d3ee; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Request Received 🚀</h2>
+        <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">We have successfully received your video request! Here are the details:</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold; width: 35%;">Category / Genre:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9;">${genre}</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold;">Video Title:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9; font-weight: 600;">${title}</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold;">Actor / Actress Name:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9;">${actor}</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold; vertical-align: top;">Additional Details:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9; line-height: 1.4;">${description || '<em>None</em>'}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+        Our admin team will review your request shortly. Once approved, you will receive another confirmation email.<br>
+        © 2026 StreamXvault. All rights reserved.
+      </p>
+    </div>
+  `;
+  
+  sendMail({
+    to: email,
+    subject: 'VOD Request Received — StreamXvault',
+    text: `Hello,\n\nWe have successfully received your video request! Here is what you requested:\n\n- Genre: ${genre}\n- Video Title: ${title}\n- Model / Actor / Actress Name: ${actor}\n- Additional Details: ${description || 'None'}\n\nOur admin team will review it shortly. Once approved, you will receive another confirmation email.\n\nBest regards,\nThe StreamXvault Team`,
+    html: emailHtml
+  });
+
   res.json({ success: true, request: newRequest });
 });
 
@@ -586,9 +675,98 @@ app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
   const requests = loadVodRequests();
   const reqItem = requests.find(r => r.id === req.params.id);
   if (!reqItem) return res.status(404).json({ error: 'Not found' });
+  
+  const oldStatus = reqItem.status;
   reqItem.status = status;
   await saveVodRequests(requests);
+  
+  // Trigger automated approval email
+  if (status === 'Approved' && oldStatus !== 'Approved' && reqItem.email) {
+    const emailHtml = `
+      <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+          <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Video on Demand Request</p>
+        </div>
+        <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+          <h2 style="color: #4ade80; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Request Approved! 🎉</h2>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Great news! Your video request has been approved by the admin team:</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold; width: 35%;">Category / Genre:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${reqItem.genre}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Video Title:</td>
+               <td style="padding: 0.5rem 0; color: #f1f5f9; font-weight: 600;">${reqItem.title}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Actor / Actress Name:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${reqItem.actor}</td>
+            </tr>
+          </table>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1; margin-top: 1.25rem;">We are preparing the video for upload now. You will receive a final confirmation email containing the watch link as soon as it is delivered and ready!</p>
+        </div>
+        <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+          You'll receive an email as soon as the video is ready to watch.<br>
+          © 2026 StreamXvault. All rights reserved.
+        </p>
+      </div>
+    `;
+    sendMail({
+      to: reqItem.email,
+      subject: 'Your VOD Request has been Approved! — StreamXvault',
+      text: `Hello,\n\nGreat news! Your video request has been approved by the admin team:\n\n- Video Title: ${reqItem.title}\n- Genre: ${reqItem.genre}\n- Model / Actor / Actress Name: ${reqItem.actor}\n\nWe are preparing the video for upload. We will notify you as soon as it is delivered and ready to watch!\n\nBest regards,\nThe StreamXvault Team`,
+      html: emailHtml
+    });
+  }
+
   res.json({ success: true });
+});
+
+app.post('/api/admin/vod/requests/:id/notify', requireAdmin, async (req, res) => {
+  const { message } = req.body;
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Message is required' });
+  
+  const requests = loadVodRequests();
+  const reqItem = requests.find(r => r.id === req.params.id);
+  if (!reqItem) return res.status(404).json({ error: 'Request not found' });
+  if (!reqItem.email) return res.status(400).json({ error: 'Request has no associated email' });
+  
+  const emailHtml = `
+    <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Update Regarding Your Request</p>
+      </div>
+      <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+        <h2 style="color: #22d3ee; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Video Request Status Update 🔔</h2>
+        <p style="font-size: 0.95rem; line-height: 1.6; color: #f1f5f9; white-space: pre-wrap; font-weight: 500;">${message.trim()}</p>
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #232338; font-size: 0.85rem; color: #94a3b8;">
+          <strong>Request Reference:</strong><br>
+          Title: ${reqItem.title}<br>
+          Genre: ${reqItem.genre}
+        </div>
+      </div>
+      <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+        This email was sent by the administrator regarding your request.<br>
+        © 2026 StreamXvault. All rights reserved.
+      </p>
+    </div>
+  `;
+  
+  const success = await sendMail({
+    to: reqItem.email,
+    subject: `Update regarding your VOD Request "${reqItem.title}" — StreamXvault`,
+    text: `Hello,\n\nHere is an update from the StreamXvault administrator regarding your video request "${reqItem.title}":\n\n${message.trim()}\n\nBest regards,\nThe StreamXvault Team`,
+    html: emailHtml
+  });
+  
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(500).json({ error: 'Failed to send notification email' });
+  }
 });
 
 app.delete('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {

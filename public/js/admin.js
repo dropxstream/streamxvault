@@ -968,7 +968,7 @@ function renderVodRequests() {
     
     tr.innerHTML = `
       <td style="padding: 0.75rem;">
-        <div style="font-weight: 600;">${escapeHtml(req.company)}</div>
+        <div style="font-weight: 600; font-size: 0.9rem; word-break: break-all;">${escapeHtml(req.email || 'N/A')}</div>
         <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(req.genre)}</div>
       </td>
       <td style="padding: 0.75rem;">
@@ -978,9 +978,10 @@ function renderVodRequests() {
       <td style="padding: 0.75rem;">
         <span style="color: ${statusColor}; font-weight: 600; font-size: 0.85rem;">${req.status}</span>
       </td>
-      <td style="padding: 0.75rem; text-align: right; display: flex; gap: 0.25rem; justify-content: flex-end;">
+      <td style="padding: 0.75rem; text-align: right; display: flex; gap: 0.25rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
         <button class="btn btn-secondary btn-sm" onclick="updateVodStatus('${req.id}', 'Approved')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Approve</button>
         <button class="btn btn-secondary btn-sm" onclick="updateVodStatus('${req.id}', 'Rejected')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Reject</button>
+        <button class="btn btn-secondary btn-sm" onclick="openNotifyModal('${req.id}', '${escapeHtml(req.email || '')}', '${escapeHtml(req.title || '')}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 2px;">✉️ Notify</button>
         <button class="btn btn-danger btn-sm" onclick="deleteVodRequest('${req.id}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">🗑️</button>
       </td>
     `;
@@ -1019,6 +1020,57 @@ async function deleteVodRequest(id) {
     showToast('Failed to delete request', 'error');
   }
 }
+
+// ==================== VOD Notifications ====================
+let activeNotifyId = null;
+
+window.openNotifyModal = function(id, email, title) {
+  activeNotifyId = id;
+  document.getElementById('notify-user-email').textContent = email;
+  document.getElementById('notify-video-title').textContent = `"${title}"`;
+  document.getElementById('notify-message').value = '';
+  document.getElementById('notify-modal').classList.add('show');
+};
+
+window.closeNotifyModal = function() {
+  activeNotifyId = null;
+  document.getElementById('notify-modal').classList.remove('show');
+};
+
+window.sendNotification = async function() {
+  if (!activeNotifyId) return;
+  const message = document.getElementById('notify-message').value.trim();
+  if (!message) {
+    showToast('Please type a message first', 'error');
+    return;
+  }
+  
+  const sendBtn = document.getElementById('send-notify-btn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending...';
+  
+  try {
+    const res = await fetch(`/api/admin/vod/requests/${activeNotifyId}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ message })
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    
+    if (res.ok) {
+      showToast('Notification email sent successfully', 'success');
+      closeNotifyModal();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to send email', 'error');
+    }
+  } catch (err) {
+    showToast('Network error sending email', 'error');
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = '✉️ Send Email';
+  }
+};
 
 // ==================== Initialize ====================
 document.addEventListener('DOMContentLoaded', () => {
