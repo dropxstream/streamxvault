@@ -548,7 +548,7 @@ app.get('/api/vod/rules', (req, res) => {
 app.post('/api/vod/request', async (req, res) => {
   if (isRequestBot(req)) return res.json({ success: false });
   const { genre, company, actor, title, description } = req.body;
-  if (!genre || !title) return res.status(400).json({ error: 'Missing required fields' });
+  if (!genre || !title || !actor) return res.status(400).json({ error: 'Missing required fields' });
   
   const requests = loadVodRequests();
   const newRequest = {

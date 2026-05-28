@@ -597,9 +597,10 @@
           <div class="field-label">
             <span class="label-icon">🌟</span>
             Model / Actor / Actress Name
+            <span class="field-required">* Required</span>
           </div>
-          <input type="text" id="vod-actor" class="field-input"
-            placeholder="Who is in this video? (optional)"
+          <input type="text" id="vod-actor" class="field-input" required
+            placeholder="Who is in this video?…"
             autocomplete="off">
         </div>
 
@@ -704,6 +705,7 @@
       const description = document.getElementById('vod-desc').value.trim();
 
       if (!title) { showToast('Please enter a video title.'); return; }
+      if (!actor) { showToast('Please enter the name of the model, actor, or actress.'); return; }
 
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
