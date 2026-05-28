@@ -1084,7 +1084,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
 });
 
 // Update Video Metadata (Edit)
-app.put('/api/videos/:id', requireAdmin, upload.none(), async (req, res) => {
+app.put('/api/videos/:id', requireAdmin, async (req, res) => {
   try {
     const { title, genre, description, thumbnailUrl, bunnyId, dl720, dl1080, published } = req.body;
     const videos = loadVideos();

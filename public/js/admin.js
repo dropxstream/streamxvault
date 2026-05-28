@@ -748,21 +748,22 @@ function closeEditModal() {
 
 async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
-  const formData = new FormData();
-    formData.append('title', document.getElementById('edit-title').value.trim());
-    formData.append('genre', document.getElementById('edit-genre').value);
-    formData.append('description', document.getElementById('edit-desc').value.trim());
-    formData.append('thumbnailUrl', document.getElementById('edit-thumb-url').value.trim());
-    formData.append('bunnyId', document.getElementById('edit-bunny-id').value.trim());
-    formData.append('dl720', document.getElementById('edit-dl-720').value.trim());
-    formData.append('dl1080', document.getElementById('edit-dl-1080').value.trim());
-    formData.append('published', document.getElementById('edit-published').checked);
+  const payload = {
+    title: document.getElementById('edit-title').value.trim(),
+    genre: document.getElementById('edit-genre').value,
+    description: document.getElementById('edit-desc').value.trim(),
+    thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
+    bunnyId: document.getElementById('edit-bunny-id').value.trim(),
+    dl720: document.getElementById('edit-dl-720').value.trim(),
+    dl1080: document.getElementById('edit-dl-1080').value.trim(),
+    published: document.getElementById('edit-published').checked
+  };
 
   try {
     const res = await fetch(`/api/videos/${videoId}`, {
       method: 'PUT',
-      headers: authHeaders(),
-      body: formData
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(payload)
     });
 
     if (res.status === 401) { clearToken(); location.reload(); return; }
