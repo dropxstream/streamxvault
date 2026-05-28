@@ -726,6 +726,47 @@ app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
     });
   }
 
+  // Trigger automated rejection email
+  if (status === 'Rejected' && oldStatus !== 'Rejected' && reqItem.email) {
+    const rejectionHtml = `
+      <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+          <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Video on Demand Request</p>
+        </div>
+        <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+          <h2 style="color: #ef4444; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Request Not Approved ⚠️</h2>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Thank you for your video request. We regret to inform you that your request could not be approved at this time:</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold; width: 35%;">Category / Genre:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${reqItem.genre}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Video Title:</td>
+               <td style="padding: 0.5rem 0; color: #f1f5f9; font-weight: 600;">${reqItem.title}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Actor / Actress Name:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${reqItem.actor}</td>
+            </tr>
+          </table>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1; margin-top: 1.25rem;">This can occur due to content licensing restrictions, lack of quality sources, or availability. You are welcome to submit another request in the future.</p>
+        </div>
+        <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+          Thank you for your understanding.<br>
+          © 2026 StreamXvault. All rights reserved.
+        </p>
+      </div>
+    `;
+    sendMail({
+      to: reqItem.email,
+      subject: 'VOD Request Status Update — StreamXvault',
+      text: `Hello,\n\nThank you for your video request. We regret to inform you that your request could not be approved at this time:\n\n- Video Title: ${reqItem.title}\n- Genre: ${reqItem.genre}\n- Model / Actor / Actress Name: ${reqItem.actor}\n\nThis can occur due to licensing or source availability restrictions. You are welcome to submit another request in the future.\n\nBest regards,\nThe StreamXvault Team`,
+      html: rejectionHtml
+    });
+  }
+
   res.json({ success: true });
 });
 
@@ -879,7 +920,7 @@ app.get('/api/videos/:id', async (req, res) => {
 });
 
 // Bunny Embed Proxy — hides library ID from client
-const BUNNY_LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '636087';
+const BUNNY_LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '400619';
 app.get('/api/embed/:videoId', async (req, res) => {
   const videos = loadVideos();
   const video = videos.find(v => v.id === req.params.videoId);
