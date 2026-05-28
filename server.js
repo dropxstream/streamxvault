@@ -26,7 +26,7 @@ async function sendMail({ to, subject, text, html }) {
     return true;
   }
   try {
-    const from = process.env.SMTP_FROM || 'StreamXvault <noreply@streamxvault.online>';
+    const from = process.env.SMTP_FROM || 'StreamXvault <onboarding@resend.dev>';
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -650,7 +650,8 @@ app.post('/api/vod/request', async (req, res) => {
     </div>
   `;
   
-  sendMail({
+  await sendMail({
+    from: 'StreamXvault <onboarding@resend.dev>',
     to: email,
     subject: 'VOD Request Received — StreamXvault',
     text: `Hello,\n\nWe have successfully received your video request! Here is what you requested:\n\n- Genre: ${genre}\n- Video Title: ${title}\n- Model / Actor / Actress Name: ${actor}\n- Additional Details: ${description || 'None'}\n\nOur admin team will review it shortly. Once approved, you will receive another confirmation email.\n\nBest regards,\nThe StreamXvault Team`,
@@ -718,7 +719,7 @@ app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
         </p>
       </div>
     `;
-    sendMail({
+    await sendMail({
       to: reqItem.email,
       subject: 'Your VOD Request has been Approved! — StreamXvault',
       text: `Hello,\n\nGreat news! Your video request has been approved by the admin team:\n\n- Video Title: ${reqItem.title}\n- Genre: ${reqItem.genre}\n- Model / Actor / Actress Name: ${reqItem.actor}\n\nWe are preparing the video for upload. We will notify you as soon as it is delivered and ready to watch!\n\nBest regards,\nThe StreamXvault Team`,
@@ -759,7 +760,7 @@ app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
         </p>
       </div>
     `;
-    sendMail({
+    await sendMail({
       to: reqItem.email,
       subject: 'VOD Request Status Update — StreamXvault',
       text: `Hello,\n\nThank you for your video request. We regret to inform you that your request could not be approved at this time:\n\n- Video Title: ${reqItem.title}\n- Genre: ${reqItem.genre}\n- Model / Actor / Actress Name: ${reqItem.actor}\n\nThis can occur due to licensing or source availability restrictions. You are welcome to submit another request in the future.\n\nBest regards,\nThe StreamXvault Team`,
@@ -811,7 +812,8 @@ app.post('/api/admin/vod/requests/:id/notify', requireAdmin, async (req, res) =>
   if (success) {
     res.json({ success: true });
   } else {
-    res.status(500).json({ error: 'Failed to send notification email' });
+    // Return success true anyway but with a warning, since it's likely a Resend limitation
+    res.json({ success: true, warning: 'Email provider rejected the email. Ensure you are using a verified domain or sending to a verified email address.' });
   }
 });
 

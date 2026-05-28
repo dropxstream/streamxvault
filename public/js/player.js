@@ -46,11 +46,7 @@ async function initPlayer() {
     // 🚀 MASTER INTEGRATION: BUNNY STREAM DETECTION
     // ==========================================
     let bId = video.bunnyId;
-    // Auto-detect Bunny ID if it's hidden in the URL
-    if (!bId && video.videoUrl && video.videoUrl.includes('mediadelivery.net')) {
-      const parts = video.videoUrl.split('/');
-      bId = parts[parts.length - 1].split('?')[0];
-    }
+
 
     if (bId) {
       // Professional Bunny Stream Player (Prioritized)
