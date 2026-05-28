@@ -583,6 +583,18 @@
       <form id="vod-form">
         <div class="field-group">
           <div class="field-label">
+            <span class="label-icon">🏢</span>
+            Production Company
+            <span class="field-required">* Required</span>
+          </div>
+          <select id="vod-company" class="field-input" required>
+            <option value="" disabled selected>Loading allowed companies…</option>
+          </select>
+          <div class="field-hint">Select the company that produces this content. Only whitelisted companies are selectable.</div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">
             <span class="label-icon">🎬</span>
             Video Title
             <span class="field-required">* Required</span>
@@ -696,13 +708,41 @@
       }, 3500);
     }
 
+    // === Load allowed companies ===
+    async function loadCompanies() {
+      try {
+        const res = await fetch('/api/vod/rules');
+        if (res.ok) {
+          const companies = await res.json();
+          const select = document.getElementById('vod-company');
+          select.innerHTML = '<option value="" disabled selected>Select a production company</option>';
+          companies.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            select.appendChild(opt);
+          });
+          if (companies.length === 0) {
+            select.innerHTML = '<option value="" disabled selected>No companies currently allowed.</option>';
+            document.getElementById('submit-btn').disabled = true;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load companies');
+      }
+    }
+
+    loadCompanies();
+
     // === Form submit ===
     document.getElementById('vod-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const company     = document.getElementById('vod-company').value;
       const title       = document.getElementById('vod-title').value.trim();
       const actor       = document.getElementById('vod-actor').value.trim();
       const description = document.getElementById('vod-desc').value.trim();
 
+      if (!company) { showToast('Please select a production company.'); return; }
       if (!title) { showToast('Please enter a video title.'); return; }
 
       const btn = document.getElementById('submit-btn');
@@ -713,7 +753,7 @@
         const res = await fetch('/api/vod/request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ genre, title, actor, description })
+          body: JSON.stringify({ genre, company, title, actor, description })
         });
 
         if (res.ok) {
