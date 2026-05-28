@@ -195,7 +195,7 @@ class R2Storage {
 }
 
 function createStorage() {
-  const mode = process.env.STORAGE_MODE || 'local';
+  const mode = (process.env.STORAGE_MODE || 'local').toLowerCase();
 
   if (mode === 'r2') {
     console.log('📦 Using Cloudflare R2 storage');
