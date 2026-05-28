@@ -886,11 +886,8 @@ app.get('/api/auth/status', (req, res) => {
 
 // Sanitize video data for public API (strip sensitive fields)
 function sanitizeVideoForPublic(video) {
-  // Determine correct library ID (Legacy dummy videos must use 636087)
+  // Use explicit library ID or fallback to global configuration
   let libId = video.bunnyLibraryId || BUNNY_LIBRARY_ID;
-  if (!video.bunnyLibraryId && video.thumbnailUrl && video.thumbnailUrl.includes('vz-507eee72')) {
-    libId = '636087';
-  }
 
   return {
     id: video.id,
@@ -972,11 +969,8 @@ app.get('/api/embed/:videoId', async (req, res) => {
   const bId = video.bunnyId;
   if (!bId) return res.status(404).json({ error: 'No embed available' });
   
-  // Determine correct library ID
+  // Use explicit library ID or fallback to global configuration
   let libId = video.bunnyLibraryId || BUNNY_LIBRARY_ID;
-  if (!video.bunnyLibraryId && video.thumbnailUrl && video.thumbnailUrl.includes('vz-507eee72')) {
-    libId = '636087';
-  }
   
   // Redirect to Bunny embed
   res.redirect(`https://iframe.mediadelivery.net/embed/${libId}/${bId}?autoplay=true`);
