@@ -91,6 +91,26 @@ async function initPlayer() {
           hls.attachMedia(videoElement);
           window.hls = hls;
 
+          // Hls.js robust error recovery
+          hls.on(Hls.Events.ERROR, function (event, data) {
+            console.warn('HLS Warning/Error:', data);
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  console.error('Fatal network error, attempting recovery...');
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  console.error('Fatal media error, attempting recovery...');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  console.error('Fatal HLS error, unable to recover.');
+                  break;
+              }
+            }
+          });
+
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             const availableQualities = hls.levels.map(l => l.height);
             const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
@@ -126,6 +146,17 @@ async function initPlayer() {
             if (typeof Plyr !== 'undefined') {
               const player = new Plyr(videoElement, plyrOptions);
               window.player = player;
+
+              // Ad Fail-Safe: bypass ad blocker or CSP load issues and force video playback
+              player.on('adserror', () => {
+                console.warn('Ad error occurred. Bypassing and playing video directly.');
+                player.play().catch(() => {});
+              });
+
+              player.on('adsadblocked', () => {
+                console.warn('Ad blocked. Bypassing and playing video directly.');
+                player.play().catch(() => {});
+              });
             }
           });
         } else {
