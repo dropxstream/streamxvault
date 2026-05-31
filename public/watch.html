@@ -21,6 +21,25 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <!-- Plyr Player -->
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  <style>
+    /* Prevent Plyr from collapsing during HLS load */
+    .plyr {
+      height: 100% !important;
+      width: 100% !important;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .plyr__video-wrapper {
+      height: 100% !important;
+      width: 100% !important;
+      background: #000;
+    }
+    .plyr video {
+      object-fit: contain !important;
+      height: 100% !important;
+      width: 100% !important;
+    }
+  </style>
 
 </head>
 <body>
