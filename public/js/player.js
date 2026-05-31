@@ -77,25 +77,83 @@ async function initPlayer() {
         wrapper.textContent = 'Invalid video source';
       }
     } else {
-      // Standard Video.js for Direct Files
-      wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto" width="640" height="264"><source src="${video.videoUrl}"></video>`;
+      // Standard/HLS Player using Plyr
+      const isHls = video.videoUrl && video.videoUrl.includes('.m3u8');
+      const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
       
-      if (typeof videojs !== 'undefined') {
-        const vPlayer = videojs('video-js-player', {
-          autoplay: true,
-          controls: true,
-          responsive: true,
-          fluid: true,
-          sources: [{ src: video.videoUrl }]
-        });
+      if (isHls) {
+        wrapper.innerHTML = `<video id="plyr-player" controls playsinline style="width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"></video>`;
+        const videoElement = document.getElementById('plyr-player');
+        
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(video.videoUrl);
+          hls.attachMedia(videoElement);
+          window.hls = hls;
 
-        // VAST Video Ads Integration
-        const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
-        if (typeof vPlayer.ima === 'function') {
-          vPlayer.ima({
-            id: 'video-js-player',
-            adTagUrl: vastAdTag
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            const availableQualities = hls.levels.map(l => l.height);
+            const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
+
+            const plyrOptions = {
+              autoplay: true,
+              quality: {
+                default: 0, // Auto
+                options: [0, ...uniqueQualities],
+                forced: true,
+                onChange: (q) => {
+                  if (q === 0) {
+                    window.hls.currentLevel = -1; // Auto
+                  } else {
+                    window.hls.levels.forEach((level, idx) => {
+                      if (level.height === q) {
+                        window.hls.currentLevel = idx;
+                      }
+                    });
+                  }
+                }
+              },
+              controls: [
+                'play-large', 'play', 'fast-forward', 'progress', 'current-time', 
+                'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
+              ],
+              ads: {
+                enabled: true,
+                tagUrl: vastAdTag
+              }
+            };
+
+            if (typeof Plyr !== 'undefined') {
+              const player = new Plyr(videoElement, plyrOptions);
+              window.player = player;
+            }
           });
+        } else {
+          // Native HLS support fallback (e.g. Safari)
+          videoElement.innerHTML = `<source src="${video.videoUrl}" type="application/x-mpegURL">`;
+          if (typeof Plyr !== 'undefined') {
+            const player = new Plyr(videoElement, {
+              autoplay: true,
+              ads: {
+                enabled: true,
+                tagUrl: vastAdTag
+              }
+            });
+            window.player = player;
+          }
+        }
+      } else {
+        // Direct MP4 / other formats file playback with Plyr
+        wrapper.innerHTML = `<video id="plyr-player" controls playsinline style="width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"><source src="${video.videoUrl}" type="video/mp4"></video>`;
+        if (typeof Plyr !== 'undefined') {
+          const player = new Plyr(document.getElementById('plyr-player'), {
+            autoplay: true,
+            ads: {
+              enabled: true,
+              tagUrl: vastAdTag
+            }
+          });
+          window.player = player;
         }
       }
     }

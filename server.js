@@ -193,12 +193,12 @@ app.use((req, res, next) => {
   // Allows Adcash ad network while blocking unauthorized sources
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
-    "script-src 'self' *.acscdn.com acscdn.com vjs.zencdn.net imasdk.googleapis.com cdnjs.cloudflare.com *.googlesyndication.com *.doubleclick.net 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' fonts.googleapis.com vjs.zencdn.net cdnjs.cloudflare.com 'unsafe-inline'",
+    "script-src 'self' cdn.plyr.io cdn.jsdelivr.net *.acscdn.com acscdn.com vjs.zencdn.net imasdk.googleapis.com cdnjs.cloudflare.com *.googlesyndication.com *.doubleclick.net 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' cdn.plyr.io fonts.googleapis.com vjs.zencdn.net cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' fonts.gstatic.com",
     "img-src 'self' *.b-cdn.net *.r2.dev *.acscdn.com *.doubleclick.net *.googlesyndication.com data: blob: *",
     "frame-src iframe.mediadelivery.net *.acscdn.com *.doubleclick.net *.googlesyndication.com *",
-    "media-src 'self' *.b-cdn.net *.r2.dev blob:",
+    "media-src 'self' *.b-cdn.net *.r2.dev *.cloudflarestorage.com blob: *",
     "connect-src 'self' *.acscdn.com imasdk.googleapis.com *.doubleclick.net *.googlesyndication.com *",
   ].join('; '));
   
@@ -1086,7 +1086,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
 // Update Video Metadata (Edit)
 app.put('/api/videos/:id', requireAdmin, async (req, res) => {
   try {
-    const { title, genre, description, thumbnailUrl, bunnyId, dl720, dl1080, published } = req.body;
+    const { title, genre, description, thumbnailUrl, bunnyId, videoUrl, dl720, dl1080, published } = req.body;
     const videos = loadVideos();
     const video = videos.find(v => v.id === req.params.id);
     
@@ -1096,7 +1096,8 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
     video.genre = genre || video.genre;
     video.description = description || video.description;
     video.thumbnailUrl = thumbnailUrl !== undefined ? thumbnailUrl : video.thumbnailUrl;
-    video.bunnyId = bunnyId || video.bunnyId;
+    video.bunnyId = bunnyId !== undefined ? bunnyId : video.bunnyId;
+    video.videoUrl = videoUrl !== undefined ? videoUrl : video.videoUrl;
     video.published = published === 'true' || published === true;
     
     video.downloads = {

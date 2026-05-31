@@ -486,21 +486,23 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  // Handle Bunny Stream Submission
+  // Handle HLS / Bunny Stream Submission
   if (currentUploadSource === 'bunny') {
-    const bunnyVideoId = document.getElementById('bunny-video-id').value.trim();
+    const inputVal = document.getElementById('bunny-video-id').value.trim();
     const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
     const dl720 = document.getElementById('dl-720').value.trim();
     const dl1080 = document.getElementById('dl-1080').value.trim();
 
-    if (!bunnyVideoId) {
-      showToast('Please enter a Bunny Video ID', 'error');
+    if (!inputVal) {
+      showToast('Please enter an HLS Stream URL or Bunny ID', 'error');
       return;
     }
 
+    const isHls = inputVal.startsWith('http') || inputVal.includes('.m3u8');
+
     const submitBtn = document.getElementById('upload-submit-btn');
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Linking Bunny Stream...';
+    submitBtn.textContent = isHls ? '⏳ Linking HLS Stream...' : '⏳ Linking Bunny Stream...';
 
     try {
       const res = await fetch('/api/admin/videos/external', {
@@ -508,23 +510,23 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ 
           title, genre, description, 
-          videoUrl: '', // Will be handled by player
+          videoUrl: isHls ? inputVal : '',
           thumbnailUrl: bunnyThumbUrl,
-          bunnyId: bunnyVideoId,
+          bunnyId: isHls ? null : inputVal,
           dl720, dl1080
         })
       });
 
-      if (!res.ok) throw new Error('Failed to link Bunny stream');
+      if (!res.ok) throw new Error('Failed to link stream');
       
-      showToast(`"${title}" linked from Bunny! 🐰`, 'success');
+      showToast(isHls ? `"${title}" linked successfully! ☁️` : `"${title}" linked from Bunny! 🐰`, 'success');
       document.getElementById('upload-form').reset();
       updateFileLabel('video');
       updateFileLabel('thumb');
       loadDashboard();
       switchTab('manage', document.querySelector('[data-tab=manage]'));
     } catch (err) {
-      showToast('Error linking Bunny stream', 'error');
+      showToast('Error linking stream', 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '⬆️ Upload Video';
@@ -681,6 +683,7 @@ function renderAdminVideoList(videosToRender) {
       ? `<span class="badge" style="background:var(--accent-purple);color:white;">🏷️ ${escapeHtml(video.genre)}</span>`
       : '';
 
+    const isHlsVideo = video.videoUrl && video.videoUrl.includes('.m3u8');
     item.innerHTML = `
       <div class="item-thumb">${thumbnailContent}</div>
       <div class="item-info">
@@ -689,6 +692,7 @@ function renderAdminVideoList(videosToRender) {
           ${statusBadge}
           ${genreBadge}
           ${video.bunnyId ? '<span class="badge" style="background: rgba(255, 153, 0, 0.1); color: #ff9900;">🐰 Bunny</span>' : ''}
+          ${isHlsVideo ? '<span class="badge" style="background: rgba(34, 211, 238, 0.1); color: #22d3ee;">☁️ Cloudflare HLS</span>' : ''}
           ${(video.downloads && (video.downloads.p720 || video.downloads.p1080)) ? '<span class="badge" style="background: rgba(46, 204, 113, 0.1); color: #2ecc71;" title="Download links set">📥 Simple DL</span>' : ''}
           <span>👁️ ${formatViews(video.views || 0)} views</span>
           <span>❤️ ${formatViews(video.likes || 0)} likes</span>
@@ -729,12 +733,14 @@ function openEditModal(videoId) {
   const video = adminVideos.find(v => v.id === videoId);
   if (!video) return;
 
+  const isHls = video.videoUrl && video.videoUrl.includes('.m3u8');
+
   document.getElementById('edit-id').value = video.id;
   document.getElementById('edit-title').value = video.title;
   document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
-  document.getElementById('edit-bunny-id').value = video.bunnyId || '';
+  document.getElementById('edit-bunny-id').value = isHls ? video.videoUrl : (video.bunnyId || '');
   document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
   document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
   document.getElementById('edit-published').checked = video.published !== false;
@@ -748,12 +754,16 @@ function closeEditModal() {
 
 async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
+  const editBunnyVal = document.getElementById('edit-bunny-id').value.trim();
+  const isHls = editBunnyVal.startsWith('http') || editBunnyVal.includes('.m3u8');
+
   const payload = {
     title: document.getElementById('edit-title').value.trim(),
     genre: document.getElementById('edit-genre').value,
     description: document.getElementById('edit-desc').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
-    bunnyId: document.getElementById('edit-bunny-id').value.trim(),
+    bunnyId: isHls ? '' : editBunnyVal,
+    videoUrl: isHls ? editBunnyVal : '',
     dl720: document.getElementById('edit-dl-720').value.trim(),
     dl1080: document.getElementById('edit-dl-1080').value.trim(),
     published: document.getElementById('edit-published').checked

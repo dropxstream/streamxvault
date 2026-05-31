@@ -124,7 +124,7 @@
             </label>
             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
               <input type="radio" name="upload-source" value="bunny" onchange="toggleUploadSource()"> 
-              <span style="font-weight: 600;">🐰 Bunny Stream</span>
+              <span style="font-weight: 600;">☁️ Cloudflare HLS</span>
             </label>
           </div>
 
@@ -170,18 +170,17 @@
               </div>
             </div>
 
-            <!-- Bunny Stream Mode Inputs -->
+            <!-- Cloudflare HLS Stream Mode Inputs -->
             <div id="bunny-link-mode" style="display: none;">
               <div class="form-group">
-                <label for="bunny-video-id">Bunny Video ID *</label>
-                <input type="text" id="bunny-video-id" placeholder="e.g. 52627-abc-123">
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Found in your Bunny Stream dashboard</p>
+                <label for="bunny-video-id">HLS Stream URL (.m3u8) / Bunny ID *</label>
+                <input type="text" id="bunny-video-id" placeholder="e.g. https://pub-your-id.r2.dev/video/master.m3u8">
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Enter public Cloudflare R2 / CDN .m3u8 URL, or legacy Bunny ID</p>
               </div>
               <div class="form-group">
-                <label for="bunny-thumb-url">Bunny Poster/Thumb URL (Optional)</label>
-                <input type="url" id="bunny-thumb-url" placeholder="https://vz-abc.xyz/poster.jpg">
+                <label for="bunny-thumb-url">Poster/Thumbnail URL (Optional)</label>
+                <input type="url" id="bunny-thumb-url" placeholder="https://pub-your-id.r2.dev/video/thumb.jpg">
               </div>
-
             </div>
 
             <div class="form-group" style="margin-top: 1.5rem; border: 1px dashed var(--border-color); padding: 1rem; border-radius: 8px;">
@@ -333,8 +332,8 @@
           </div>
 
           <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
-            <label for="edit-bunny-id">Bunny Video ID</label>
-            <input type="text" id="edit-bunny-id" placeholder="Optional">
+            <label for="edit-bunny-id">HLS Stream URL (.m3u8) / Bunny ID</label>
+            <input type="text" id="edit-bunny-id" placeholder="Optional URL or Bunny ID">
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
