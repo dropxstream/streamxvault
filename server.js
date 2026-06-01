@@ -204,10 +204,10 @@ app.use((req, res, next) => {
     "script-src 'self' cdn.plyr.io cdn.jsdelivr.net *.acscdn.com acscdn.com vjs.zencdn.net imasdk.googleapis.com cdnjs.cloudflare.com *.googlesyndication.com *.doubleclick.net 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' cdn.plyr.io fonts.googleapis.com vjs.zencdn.net cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' fonts.gstatic.com",
-    "img-src 'self' *.b-cdn.net *.r2.dev *.acscdn.com *.doubleclick.net *.googlesyndication.com data: blob:",
-    "frame-src iframe.mediadelivery.net *.acscdn.com *.doubleclick.net *.googlesyndication.com",
-    "media-src 'self' *.b-cdn.net *.r2.dev *.cloudflarestorage.com blob:",
-    "connect-src 'self' *.acscdn.com imasdk.googleapis.com *.doubleclick.net *.googlesyndication.com",
+    "img-src 'self' https: data: blob:",
+    "frame-src 'self' https:",
+    "media-src 'self' https: blob:",
+    "connect-src 'self' https:",
   ].join('; '));
   
   // 5. XSS Protection
