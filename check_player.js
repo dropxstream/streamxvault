@@ -115,17 +115,6 @@ async function loadVideo() {
 
     // ====== PLAYER LOGIC: Hybrid Switch ======
     const wrapper = document.getElementById('player-wrapper');
-    
-    if (video.bunnyId) {
-      // PRO: Bunny Stream Player (Adaptive Quality + Skip Transcoding)
-      wrapper.innerHTML = `
-        <div style="position:relative; padding-top:56.25%;">
-            <iframe src="https://iframe.mediadelivery.net/embed/400619/${video.bunnyId}?autoplay=true" 
-                    loading="lazy" style="border:0;position:absolute;top:0;height:100%;width:100%; border-radius:12px; overflow:hidden;" 
-                    allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
-                    allowfullscreen="true"></iframe>
-        </div>`;
-    } else {
       // POWER: Video.js (Supports VAST Ads + Custom Skinning)
       wrapper.innerHTML = `<video id="video-js-player" class="video-js vjs-big-play-centered vjs-16-9" controls preload="auto"></video>`;
       const vPlayer = videojs('video-js-player', {
@@ -138,7 +127,6 @@ async function loadVideo() {
 
       // Simulation of Preroll Ad (User can put actual VAST tag here)
       console.log('Video.js initialized for local file. Pre-roll ready.');
-    }
 
     // ====== DOWNLOADS LOGIC ======
     const dlMenu = document.getElementById('download-menu');

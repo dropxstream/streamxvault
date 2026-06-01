@@ -41,21 +41,7 @@ async function initPlayer() {
     document.getElementById('like-count').textContent = video.likes || 0;
 
     const wrapper = document.getElementById('player-wrapper');
-    // ==========================================
-    // 🚀 MASTER INTEGRATION: BUNNY STREAM DETECTION
-    // ==========================================
-    if (video.hasBunnyVideo) {
-      // Professional Bunny Stream Player via server-side embed proxy
-      // The proxy (/api/embed/:id) hides the library ID and bunny ID from the client
-      wrapper.innerHTML = `
-        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <iframe src="/api/embed/${video.id}" 
-                    loading="lazy" 
-                    style="border:0;position:absolute;top:0;height:100%;width:100%;" 
-                    allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 
-                    allowfullscreen="true"></iframe>
-        </div>`;
-    } else if (video.videoUrl && (video.videoUrl.includes('<iframe') || video.videoUrl.includes('embed'))) {
+    if (video.videoUrl && (video.videoUrl.includes('<iframe') || video.videoUrl.includes('embed'))) {
       // Fallback for External Embeds
       const embedSrc = video.videoUrl.includes('<iframe') 
         ? video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl 

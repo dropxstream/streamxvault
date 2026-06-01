@@ -900,7 +900,6 @@ function sanitizeVideoForPublic(video, includePlaybackInfo = false) {
     genre: video.genre,
     description: video.description,
     thumbnailUrl: video.thumbnailUrl,
-    hasBunnyVideo: !!video.bunnyId,
     views: video.views || 0,
     likes: video.likes || 0,
     uploadedAt: video.uploadedAt,
@@ -909,12 +908,12 @@ function sanitizeVideoForPublic(video, includePlaybackInfo = false) {
   };
 
   // Only include playback info for the single-video endpoint (player needs it)
-  if (includePlaybackInfo && !video.bunnyId && video.videoUrl) {
+  if (includePlaybackInfo && video.videoUrl) {
     safe.videoUrl = video.videoUrl;
   }
 
   return safe;
-  // NEVER expose: bunnyId, bunnyLibraryId, downloads, videoFilename, thumbnailFilename
+  // NEVER expose: downloads, videoFilename, thumbnailFilename
 }
 
 // Get Videos (public — sensitive fields stripped)
@@ -969,22 +968,7 @@ app.get('/api/videos/:id', async (req, res) => {
   }
 });
 
-// Bunny Embed Proxy — hides library ID from client (Legacy Support for Cached Browsers)
-const BUNNY_LIBRARY_ID = process.env.BUNNY_LIBRARY_ID || '636087';
-app.get('/api/embed/:videoId', async (req, res) => {
-  const videos = loadVideos();
-  const video = videos.find(v => v.id === req.params.videoId);
-  if (!video) return res.status(404).json({ error: 'Not found' });
-  
-  const bId = video.bunnyId;
-  if (!bId) return res.status(404).json({ error: 'No embed available' });
-  
-  // Use explicit library ID or fallback to global configuration
-  let libId = video.bunnyLibraryId || BUNNY_LIBRARY_ID;
-  
-  // Redirect to Bunny embed
-  res.redirect(`https://iframe.mediadelivery.net/embed/${libId}/${bId}?autoplay=true`);
-});
+
 
 // Download links endpoint (authenticated or with rate limiting)
 app.get('/api/videos/:id/downloads', async (req, res) => {
@@ -1058,10 +1042,10 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
   }
 });
 
-// Create external video (Bunny/Embed)
+// Create external video (R2 HLS / Embed)
 app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
   try {
-    const { title, genre, description, videoUrl, thumbnailUrl, bunnyId, dl720, dl1080 } = req.body;
+    const { title, genre, description, videoUrl, thumbnailUrl, dl720, dl1080 } = req.body;
     const vId = require('crypto').randomUUID();
     
     const videoData = {
@@ -1071,8 +1055,6 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       description: description.trim(),
       videoUrl: videoUrl ? videoUrl.trim() : '',
       thumbnailUrl: thumbnailUrl ? thumbnailUrl.trim() : '',
-      bunnyId: bunnyId ? bunnyId.trim() : null,
-      bunnyLibraryId: BUNNY_LIBRARY_ID,
       views: 0,
       likes: 0,
       published: true,
@@ -1096,7 +1078,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
 // Update Video Metadata (Edit)
 app.put('/api/videos/:id', requireAdmin, async (req, res) => {
   try {
-    const { title, genre, description, thumbnailUrl, bunnyId, videoUrl, dl720, dl1080, published } = req.body;
+    const { title, genre, description, thumbnailUrl, videoUrl, dl720, dl1080, published } = req.body;
     const videos = loadVideos();
     const video = videos.find(v => v.id === req.params.id);
     
@@ -1106,7 +1088,6 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
     video.genre = genre || video.genre;
     video.description = description || video.description;
     video.thumbnailUrl = thumbnailUrl !== undefined ? thumbnailUrl : video.thumbnailUrl;
-    video.bunnyId = bunnyId !== undefined ? bunnyId : video.bunnyId;
     video.videoUrl = videoUrl !== undefined ? videoUrl : video.videoUrl;
     video.published = published === 'true' || published === true;
     

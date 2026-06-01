@@ -421,7 +421,7 @@ window.toggleUploadSource = function() {
   currentUploadSource = source;
   document.getElementById('file-upload-mode').style.display = source === 'file' ? 'block' : 'none';
   document.getElementById('external-link-mode').style.display = source === 'external' ? 'block' : 'none';
-  document.getElementById('bunny-link-mode').style.display = source === 'bunny' ? 'block' : 'none';
+  document.getElementById('r2-link-mode').style.display = source === 'r2hls' ? 'block' : 'none';
 };
 
 // Upload form submission
@@ -486,15 +486,15 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  // Handle HLS / Bunny Stream Submission
-  if (currentUploadSource === 'bunny') {
-    const inputVal = document.getElementById('bunny-video-id').value.trim();
-    const bunnyThumbUrl = document.getElementById('bunny-thumb-url').value.trim();
+  // Handle Cloudflare R2 HLS Submission
+  if (currentUploadSource === 'r2hls') {
+    const inputVal = document.getElementById('r2-video-url').value.trim();
+    const r2ThumbUrl = document.getElementById('r2-thumb-url').value.trim();
     const dl720 = document.getElementById('dl-720').value.trim();
     const dl1080 = document.getElementById('dl-1080').value.trim();
 
     if (!inputVal) {
-      showToast('Please enter an HLS Stream URL or Bunny ID', 'error');
+      showToast('Please enter an HLS Stream URL', 'error');
       return;
     }
 
@@ -502,7 +502,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
 
     const submitBtn = document.getElementById('upload-submit-btn');
     submitBtn.disabled = true;
-    submitBtn.textContent = isHls ? '⏳ Linking HLS Stream...' : '⏳ Linking Bunny Stream...';
+    submitBtn.textContent = '⏳ Linking HLS Stream...';
 
     try {
       const res = await fetch('/api/admin/videos/external', {
@@ -511,15 +511,14 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         body: JSON.stringify({ 
           title, genre, description, 
           videoUrl: isHls ? inputVal : '',
-          thumbnailUrl: bunnyThumbUrl,
-          bunnyId: isHls ? null : inputVal,
+          thumbnailUrl: r2ThumbUrl,
           dl720, dl1080
         })
       });
 
       if (!res.ok) throw new Error('Failed to link stream');
       
-      showToast(isHls ? `"${title}" linked successfully! ☁️` : `"${title}" linked from Bunny! 🐰`, 'success');
+      showToast(`"${title}" linked successfully! ☁️`, 'success');
       document.getElementById('upload-form').reset();
       updateFileLabel('video');
       updateFileLabel('thumb');
@@ -691,7 +690,6 @@ function renderAdminVideoList(videosToRender) {
         <div class="item-meta">
           ${statusBadge}
           ${genreBadge}
-          ${video.bunnyId ? '<span class="badge" style="background: rgba(255, 153, 0, 0.1); color: #ff9900;">🐰 Bunny</span>' : ''}
           ${isHlsVideo ? '<span class="badge" style="background: rgba(34, 211, 238, 0.1); color: #22d3ee;">☁️ Cloudflare HLS</span>' : ''}
           ${(video.downloads && (video.downloads.p720 || video.downloads.p1080)) ? '<span class="badge" style="background: rgba(46, 204, 113, 0.1); color: #2ecc71;" title="Download links set">📥 Simple DL</span>' : ''}
           <span>👁️ ${formatViews(video.views || 0)} views</span>
@@ -740,7 +738,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
-  document.getElementById('edit-bunny-id').value = isHls ? video.videoUrl : (video.bunnyId || '');
+  document.getElementById('edit-r2-url').value = isHls ? video.videoUrl : '';
   document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
   document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
   document.getElementById('edit-published').checked = video.published !== false;
@@ -754,16 +752,15 @@ function closeEditModal() {
 
 async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
-  const editBunnyVal = document.getElementById('edit-bunny-id').value.trim();
-  const isHls = editBunnyVal.startsWith('http') || editBunnyVal.includes('.m3u8');
+  const editR2Val = document.getElementById('edit-r2-url').value.trim();
+  const isHls = editR2Val.startsWith('http') || editR2Val.includes('.m3u8');
 
   const payload = {
     title: document.getElementById('edit-title').value.trim(),
     genre: document.getElementById('edit-genre').value,
     description: document.getElementById('edit-desc').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
-    bunnyId: isHls ? '' : editBunnyVal,
-    videoUrl: isHls ? editBunnyVal : '',
+    videoUrl: isHls ? editR2Val : '',
     dl720: document.getElementById('edit-dl-720').value.trim(),
     dl1080: document.getElementById('edit-dl-1080').value.trim(),
     published: document.getElementById('edit-published').checked

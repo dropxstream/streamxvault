@@ -123,7 +123,7 @@
               <span style="font-weight: 600;">🔗 Link External URL</span>
             </label>
             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-              <input type="radio" name="upload-source" value="bunny" onchange="toggleUploadSource()"> 
+              <input type="radio" name="upload-source" value="r2hls" onchange="toggleUploadSource()"> 
               <span style="font-weight: 600;">☁️ Cloudflare HLS</span>
             </label>
           </div>
@@ -170,16 +170,16 @@
               </div>
             </div>
 
-            <!-- Cloudflare HLS Stream Mode Inputs -->
-            <div id="bunny-link-mode" style="display: none;">
+            <!-- Cloudflare R2 HLS Stream Mode Inputs -->
+            <div id="r2-link-mode" style="display: none;">
               <div class="form-group">
-                <label for="bunny-video-id">HLS Stream URL (.m3u8) / Bunny ID *</label>
-                <input type="text" id="bunny-video-id" placeholder="e.g. https://pub-your-id.r2.dev/video/master.m3u8">
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Enter public Cloudflare R2 / CDN .m3u8 URL, or legacy Bunny ID</p>
+                <label for="r2-video-url">Cloudflare R2 HLS URL (.m3u8) *</label>
+                <input type="url" id="r2-video-url" placeholder="e.g. https://pub-your-id.r2.dev/video/master.m3u8">
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Enter public Cloudflare R2 .m3u8 URL</p>
               </div>
               <div class="form-group">
-                <label for="bunny-thumb-url">Poster/Thumbnail URL (Optional)</label>
-                <input type="url" id="bunny-thumb-url" placeholder="https://pub-your-id.r2.dev/video/thumb.jpg">
+                <label for="r2-thumb-url">Poster/Thumbnail URL (Optional)</label>
+                <input type="url" id="r2-thumb-url" placeholder="https://pub-your-id.r2.dev/video/thumb.jpg">
               </div>
             </div>
 
@@ -332,8 +332,8 @@
           </div>
 
           <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
-            <label for="edit-bunny-id">HLS Stream URL (.m3u8) / Bunny ID</label>
-            <input type="text" id="edit-bunny-id" placeholder="Optional URL or Bunny ID">
+            <label for="edit-r2-url">Cloudflare R2 HLS URL (.m3u8)</label>
+            <input type="url" id="edit-r2-url" placeholder="Optional R2 HLS URL">
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
