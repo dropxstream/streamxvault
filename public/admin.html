@@ -106,6 +106,16 @@
             <button class="btn btn-secondary" onclick="switchTab('manage', document.querySelector('[data-tab=manage]'))">📁 Manage Videos</button>
             <a href="/" class="btn btn-secondary">🌐 View Site</a>
           </div>
+
+          <!-- Migration Actions -->
+          <div style="margin-top: 2rem; padding: 1.5rem; background: var(--bg-card); border-radius: var(--radius-md); border: 1px dashed var(--accent-pink);">
+            <h3 style="margin-bottom: 0.5rem; color: var(--accent-pink);">☁️ Migrate Legacy Bunny Videos</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Automatically convert existing videos using Bunny IDs to Cloudflare R2 HLS links. This action cannot be undone.</p>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <input type="url" id="migrate-r2-domain" placeholder="e.g. https://pub-your-id.r2.dev" style="flex: 1; min-width: 250px; padding: 0.75rem; background: var(--bg-body); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;">
+              <button class="btn btn-primary" onclick="migrateBunnyVideos()" id="migrate-bunny-btn">🚀 Migrate to R2</button>
+            </div>
+          </div>
         </div>
 
         <!-- Upload Tab -->

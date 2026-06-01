@@ -1071,3 +1071,46 @@ window.sendNotification = async function() {
 document.addEventListener('DOMContentLoaded', () => {
   checkAuth();
 });
+
+// ==================== Migration ====================
+window.migrateBunnyVideos = async function() {
+  const domain = document.getElementById('migrate-r2-domain').value.trim();
+  if (!domain || !domain.startsWith('http')) {
+    showToast('Please enter a valid R2 domain starting with http/https', 'error');
+    return;
+  }
+
+  if (!confirm('Are you sure you want to migrate all Bunny IDs to R2 links?')) return;
+
+  const btn = document.getElementById('migrate-bunny-btn');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Migrating...';
+
+  try {
+    const res = await fetch('/api/admin/migrate-bunny', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ r2Domain: domain })
+    });
+
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+
+    const data = await res.json();
+    if (res.ok) {
+      if (data.migratedCount > 0) {
+        showToast(`Successfully migrated ${data.migratedCount} video(s)! 🎉`, 'success');
+        loadAdminVideos();
+      } else {
+        showToast('No legacy Bunny videos found to migrate.', 'info');
+      }
+    } else {
+      showToast(data.error || 'Migration failed', 'error');
+    }
+  } catch (err) {
+    showToast('Migration failed', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+};

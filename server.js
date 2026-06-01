@@ -1096,11 +1096,48 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
       p1080: dl1080 || (video.downloads ? video.downloads.p1080 : null)
     };
 
+    // Clean up legacy bunny fields on edit if they exist
+    delete video.bunnyId;
+    delete video.bunnyLibraryId;
+
     await saveVideos(videos);
     submitToIndexNow(req.params.id); // 🔥 Auto-Index
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update video' });
+    res.status(500).json({ error: 'Failed to update video metadata' });
+  }
+});
+
+// Bulk Migrate Bunny IDs to R2 HLS
+app.post('/api/admin/migrate-bunny', requireAdmin, async (req, res) => {
+  try {
+    const { r2Domain } = req.body;
+    if (!r2Domain) return res.status(400).json({ error: 'R2 domain is required' });
+    
+    // Ensure domain doesn't end with slash
+    const baseDomain = r2Domain.replace(/\/$/, '');
+
+    const videos = loadVideos();
+    let migratedCount = 0;
+
+    for (let video of videos) {
+      if (video.bunnyId) {
+        if (!video.videoUrl || !video.videoUrl.includes('.m3u8')) {
+           video.videoUrl = `${baseDomain}/${video.bunnyId}/master.m3u8`;
+        }
+        delete video.bunnyId;
+        delete video.bunnyLibraryId;
+        migratedCount++;
+      }
+    }
+
+    if (migratedCount > 0) {
+      await saveVideos(videos);
+    }
+
+    res.json({ success: true, migratedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
