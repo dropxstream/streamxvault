@@ -41,19 +41,15 @@ async function initPlayer() {
     document.getElementById('like-count').textContent = video.likes || 0;
 
     const wrapper = document.getElementById('player-wrapper');
-    
     // ==========================================
     // 🚀 MASTER INTEGRATION: BUNNY STREAM DETECTION
     // ==========================================
-    let bId = video.bunnyId || video.hasBunnyVideo;
-
-    if (bId) {
-      // Professional Bunny Stream Player (Prioritized)
-      // Uses direct iframe embed because API proxying breaks Bunny Stream's Referer/Allowed Domains security
-      const libraryId = video.bunnyLibraryId || '636087';
+    if (video.hasBunnyVideo) {
+      // Professional Bunny Stream Player via server-side embed proxy
+      // The proxy (/api/embed/:id) hides the library ID and bunny ID from the client
       wrapper.innerHTML = `
         <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <iframe src="https://iframe.mediadelivery.net/embed/${libraryId}/${bId}?autoplay=true" 
+            <iframe src="/api/embed/${video.id}" 
                     loading="lazy" 
                     style="border:0;position:absolute;top:0;height:100%;width:100%;" 
                     allow="accelerometer;gyroscope;autoplay;clipboard-write;encrypted-media;picture-in-picture;" 

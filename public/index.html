@@ -50,10 +50,12 @@
     
     <!-- Top Leaderboard Ad (728x90) -->
     <div class="ad-banner-wrapper ad-banner-top">
-      <script type="text/javascript">
-        aclib.runBanner({
-            zoneId: '11262238',
-        });
+    <script type="text/javascript">
+        (function() {
+          function runAd() { if (typeof aclib !== 'undefined') aclib.runBanner({ zoneId: '11262238' }); }
+          if (typeof aclib !== 'undefined') runAd();
+          else document.getElementById('aclib')?.addEventListener('load', runAd);
+        })();
       </script>
     </div>
     <!-- Hero Section -->
@@ -95,10 +97,12 @@
 
       <!-- Banner Ad Spot -->
       <div class="ad-banner-wrapper" style="margin: 2rem 0; display: flex; justify-content: center;">
-        <script type="text/javascript">
-          aclib.runBanner({
-              zoneId: '11262194',
-          });
+      <script type="text/javascript">
+          (function() {
+            function runAd() { if (typeof aclib !== 'undefined') aclib.runBanner({ zoneId: '11262194' }); }
+            if (typeof aclib !== 'undefined') runAd();
+            else document.getElementById('aclib')?.addEventListener('load', runAd);
+          })();
         </script>
       </div>
 

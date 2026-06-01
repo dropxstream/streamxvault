@@ -9,6 +9,7 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 
 const app = express();
+app.disable('x-powered-by');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -179,9 +180,17 @@ async function saveVodRequests(requests) {
 }
 
 // Security Headers Middleware
+// www → non-www redirect (fixes GSC "Page with redirect" for www variant)
 app.use((req, res, next) => {
-  // 1. Strict Transport Security (HSTS)
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (req.hostname && req.hostname.startsWith('www.')) {
+    return res.redirect(301, `https://streamxvault.online${req.originalUrl}`);
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  // 1. Strict Transport Security (HSTS) with preload
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   
   // 2. Click-jacking defense
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -189,17 +198,16 @@ app.use((req, res, next) => {
   // 3. MIME type sniffing defense
   res.setHeader('X-Content-Type-Options', 'nosniff');
   
-  // 4. Content Security Policy (Ad-compatible but secure)
-  // Allows Adcash ad network while blocking unauthorized sources
+  // 4. Content Security Policy (Ad-compatible but secure — no wildcards)
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
     "script-src 'self' cdn.plyr.io cdn.jsdelivr.net *.acscdn.com acscdn.com vjs.zencdn.net imasdk.googleapis.com cdnjs.cloudflare.com *.googlesyndication.com *.doubleclick.net 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' cdn.plyr.io fonts.googleapis.com vjs.zencdn.net cdnjs.cloudflare.com 'unsafe-inline'",
     "font-src 'self' fonts.gstatic.com",
-    "img-src 'self' *.b-cdn.net *.r2.dev *.acscdn.com *.doubleclick.net *.googlesyndication.com data: blob: *",
-    "frame-src iframe.mediadelivery.net *.acscdn.com *.doubleclick.net *.googlesyndication.com *",
-    "media-src 'self' *.b-cdn.net *.r2.dev *.cloudflarestorage.com blob: *",
-    "connect-src 'self' *.acscdn.com imasdk.googleapis.com *.doubleclick.net *.googlesyndication.com *",
+    "img-src 'self' *.b-cdn.net *.r2.dev *.acscdn.com *.doubleclick.net *.googlesyndication.com data: blob:",
+    "frame-src iframe.mediadelivery.net *.acscdn.com *.doubleclick.net *.googlesyndication.com",
+    "media-src 'self' *.b-cdn.net *.r2.dev *.cloudflarestorage.com blob:",
+    "connect-src 'self' *.acscdn.com imasdk.googleapis.com *.doubleclick.net *.googlesyndication.com",
   ].join('; '));
   
   // 5. XSS Protection
@@ -884,27 +892,29 @@ app.get('/api/auth/status', (req, res) => {
   }
 });
 
-// Sanitize video data for public API (strip sensitive fields)
-function sanitizeVideoForPublic(video) {
-  // Use explicit library ID or fallback to global configuration
-  let libId = video.bunnyLibraryId || BUNNY_LIBRARY_ID;
-
-  return {
+// Sanitize video data for public API (strip ALL sensitive fields)
+function sanitizeVideoForPublic(video, includePlaybackInfo = false) {
+  const safe = {
     id: video.id,
     title: video.title,
     genre: video.genre,
     description: video.description,
     thumbnailUrl: video.thumbnailUrl,
     hasBunnyVideo: !!video.bunnyId,
-    bunnyId: video.bunnyId,
-    bunnyLibraryId: libId,
-    videoUrl: video.bunnyId ? null : video.videoUrl,
     views: video.views || 0,
     likes: video.likes || 0,
     uploadedAt: video.uploadedAt,
     published: video.published,
     duration: video.duration || null
   };
+
+  // Only include playback info for the single-video endpoint (player needs it)
+  if (includePlaybackInfo && !video.bunnyId && video.videoUrl) {
+    safe.videoUrl = video.videoUrl;
+  }
+
+  return safe;
+  // NEVER expose: bunnyId, bunnyLibraryId, downloads, videoFilename, thumbnailFilename
 }
 
 // Get Videos (public — sensitive fields stripped)
@@ -955,7 +965,7 @@ app.get('/api/videos/:id', async (req, res) => {
   if (isAdmin) {
     res.json(video);
   } else {
-    res.json(sanitizeVideoForPublic(video));
+    res.json(sanitizeVideoForPublic(video, true));
   }
 });
 
@@ -1206,7 +1216,7 @@ function escapeXml(unsafe) {
 
 // ==================== SEO: Sitemap ====================
 app.get('/sitemap.xml', (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const baseUrl = `https://streamxvault.online`;
   const videos = loadVideos().filter(v => v.published !== false);
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
