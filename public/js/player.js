@@ -146,6 +146,11 @@ async function initPlayer() {
                   }
                 }
               },
+              i18n: {
+                qualityLabel: {
+                  0: 'Auto'
+                }
+              },
               controls: [
                 'play-large', 'play', 'fast-forward', 'progress', 'current-time', 
                 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
