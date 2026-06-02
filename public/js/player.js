@@ -129,7 +129,7 @@ async function initPlayer() {
             const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
 
             const plyrOptions = {
-              autoplay: true,
+              autoplay: false, // Disabled to prevent main video playing behind ads
               quality: {
                 default: 0, // Auto
                 options: [0, ...uniqueQualities],
@@ -182,7 +182,7 @@ async function initPlayer() {
           videoElement.innerHTML = `<source src="${video.videoUrl}" type="application/x-mpegURL">`;
           if (typeof Plyr !== 'undefined') {
             const player = new Plyr(videoElement, {
-              autoplay: true,
+              autoplay: false, // Disabled to prevent main video playing behind ads
               ads: {
                 enabled: true,
                 tagUrl: vastAdTag
@@ -196,7 +196,7 @@ async function initPlayer() {
         wrapper.innerHTML = `<video id="plyr-player" controls playsinline style="width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"><source src="${video.videoUrl}" type="video/mp4"></video>`;
         if (typeof Plyr !== 'undefined') {
           const player = new Plyr(document.getElementById('plyr-player'), {
-            autoplay: true,
+            autoplay: false, // Disabled to prevent main video playing behind ads
             ads: {
               enabled: true,
               tagUrl: vastAdTag
