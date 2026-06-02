@@ -74,13 +74,25 @@ async function initPlayer() {
           window.hls = hls;
 
           // Hls.js robust error recovery
+          let hlsRetryCount = 0;
           hls.on(Hls.Events.ERROR, function (event, data) {
             console.warn('HLS Warning/Error:', data);
             if (data.fatal) {
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                  console.error('Fatal network error, attempting recovery...');
-                  hls.startLoad();
+                  if (data.response && data.response.code === 404) {
+                    console.error('HLS 404 Not Found.');
+                    hls.destroy();
+                    showPlayerError('Error 404: Video file not found.');
+                  } else if (hlsRetryCount < 3) {
+                    hlsRetryCount++;
+                    console.error('Fatal network error, attempting recovery...');
+                    hls.startLoad();
+                  } else {
+                    console.error('Too many network errors. Destroying HLS.');
+                    hls.destroy();
+                    showPlayerError('Network Error: Unable to load video stream.');
+                  }
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                   console.error('Fatal media error, attempting recovery...');
@@ -88,10 +100,22 @@ async function initPlayer() {
                   break;
                 default:
                   console.error('Fatal HLS error, unable to recover.');
+                  hls.destroy();
+                  showPlayerError('Error: Video stream is unplayable.');
                   break;
               }
             }
           });
+
+          function showPlayerError(msg) {
+             const wrapper = document.getElementById('player-wrapper');
+             if (wrapper) {
+               wrapper.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio: 16/9; background: #111; color: #fff; border-radius: 12px; font-family: sans-serif; text-align: center; padding: 2rem;">
+                 <h3 style="color: #ef4444; margin-bottom: 0.5rem;">${msg}</h3>
+                 <p style="color: #9ca3af; font-size: 0.9rem;">Please check if the R2 URL is correct and public.</p>
+               </div>`;
+             }
+          }
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             const availableQualities = hls.levels.map(l => l.height);
