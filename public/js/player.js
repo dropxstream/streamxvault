@@ -95,8 +95,15 @@ async function initPlayer() {
                   }
                   break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
-                  console.error('Fatal media error, attempting recovery...');
-                  hls.recoverMediaError();
+                  if (hlsRetryCount < 3) {
+                    hlsRetryCount++;
+                    console.error('Fatal media error, attempting recovery...');
+                    hls.recoverMediaError();
+                  } else {
+                    console.error('Too many media errors. Destroying HLS.');
+                    hls.destroy();
+                    showPlayerError('Error: Video encoding is incompatible or blocked by an extension (like IDM).');
+                  }
                   break;
                 default:
                   console.error('Fatal HLS error, unable to recover.');
