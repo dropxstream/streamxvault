@@ -1092,8 +1092,8 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
     video.published = published === 'true' || published === true;
     
     video.downloads = {
-      p720: dl720 || (video.downloads ? video.downloads.p720 : null),
-      p1080: dl1080 || (video.downloads ? video.downloads.p1080 : null)
+      p720: dl720 !== undefined ? dl720 : (video.downloads ? video.downloads.p720 : null),
+      p1080: dl1080 !== undefined ? dl1080 : (video.downloads ? video.downloads.p1080 : null)
     };
 
     // Clean up legacy bunny fields on edit if they exist
