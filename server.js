@@ -929,7 +929,7 @@ app.get('/api/videos', (req, res) => {
     const q = search.toLowerCase();
     filtered = filtered.filter(v => v.title.toLowerCase().includes(q) || v.description?.toLowerCase().includes(q));
   }
-  res.json(filtered.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).map(sanitizeVideoForPublic));
+  res.json(filtered.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)).map(v => sanitizeVideoForPublic(v, true)));
 });
 
 app.get('/api/admin/videos', requireAdmin, (req, res) => {
