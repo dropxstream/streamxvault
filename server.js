@@ -1090,6 +1090,7 @@ app.put('/api/videos/:id', requireAdmin, async (req, res) => {
     video.title = title || video.title;
     video.genre = genre || video.genre;
     video.description = description || video.description;
+    if (displayViews !== undefined) video.displayViews = displayViews.trim();
     video.thumbnailUrl = thumbnailUrl !== undefined ? thumbnailUrl : video.thumbnailUrl;
     video.videoUrl = videoUrl !== undefined ? videoUrl : video.videoUrl;
     video.published = published === 'true' || published === true;
