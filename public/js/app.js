@@ -25,7 +25,7 @@ function createVideoCard(video) {
     : `<div class="thumb-placeholder"><span aria-hidden="true">🎥</span></div>`;
 
   const timeAgo = getTimeAgo(video.uploadedAt);
-  const views = formatViews(video.views || 0);
+  const views = formatViews(video.displayViews || video.views || 0);
 
   card.innerHTML = `
     <div class="thumbnail" style="position:relative; overflow:hidden;">

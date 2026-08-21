@@ -40,7 +40,7 @@ async function initPlayer() {
     document.getElementById('video-description').textContent = video.description || 'No description available.';
     
     const viewsElem = document.getElementById('video-views');
-    if (viewsElem) viewsElem.textContent = formatViews(video.views || 0) + ' views';
+    if (viewsElem) viewsElem.textContent = formatViews(video.displayViews || video.views || 0) + ' views';
     
     const dateElem = document.getElementById('video-date');
     if (dateElem && video.uploadedAt) dateElem.textContent = new Date(video.uploadedAt).toLocaleDateString();
@@ -276,7 +276,7 @@ function createVideoCard(video) {
   card.setAttribute('aria-label', escapeHtml(video.title));
   
   const thumbUrl = video.thumbnailUrl || '/images/placeholder.jpg';
-  const views = formatViews(video.views || 0);
+  const views = formatViews(video.displayViews || video.views || 0);
   const timeAgo = getTimeAgo(video.uploadedAt);
   
   card.innerHTML = `
