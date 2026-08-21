@@ -53,6 +53,11 @@ function createVideoCard(video) {
     if (!video.videoUrl) return;
     const container = card.querySelector('.preview-container');
     
+    // Add loading state instantly
+    container.innerHTML = '<div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; z-index:10;"><span aria-hidden="true">⏳</span></div>';
+    container.style.opacity = '1';
+    container.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    
     previewVideo = document.createElement('video');
     previewVideo.muted = true;
     previewVideo.loop = true;
@@ -60,9 +65,20 @@ function createVideoCard(video) {
     previewVideo.style.width = '100%';
     previewVideo.style.height = '100%';
     previewVideo.style.objectFit = 'cover';
-    previewVideo.style.backgroundColor = '#000';
+    previewVideo.style.position = 'absolute';
+    previewVideo.style.top = '0';
+    previewVideo.style.left = '0';
+    previewVideo.style.opacity = '0';
+    previewVideo.style.transition = 'opacity 0.3s ease';
     
     container.appendChild(previewVideo);
+
+    previewVideo.addEventListener('playing', () => {
+      previewVideo.style.opacity = '1';
+      container.style.backgroundColor = 'transparent';
+      const spinner = container.querySelector('div');
+      if (spinner) spinner.remove();
+    });
 
     if (video.videoUrl.includes('.m3u8')) {
       if (typeof Hls !== 'undefined' && Hls.isSupported()) {
@@ -70,15 +86,15 @@ function createVideoCard(video) {
         hlsInstance.loadSource(video.videoUrl);
         hlsInstance.attachMedia(previewVideo);
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          previewVideo.play().then(() => { container.style.opacity = '1'; }).catch(()=>{});
+          previewVideo.play().catch(e => console.error('Play failed:', e));
         });
       } else if (previewVideo.canPlayType('application/vnd.apple.mpegurl')) {
         previewVideo.src = video.videoUrl;
-        previewVideo.play().then(() => { container.style.opacity = '1'; }).catch(()=>{});
+        previewVideo.play().catch(e => console.error('Play failed:', e));
       }
     } else {
       previewVideo.src = video.videoUrl;
-      previewVideo.play().then(() => { container.style.opacity = '1'; }).catch(()=>{});
+      previewVideo.play().catch(e => console.error('Play failed:', e));
     }
   };
 
