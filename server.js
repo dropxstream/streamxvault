@@ -900,7 +900,7 @@ function sanitizeVideoForPublic(video, includePlaybackInfo = false) {
     genre: video.genre,
     description: video.description,
     thumbnailUrl: video.thumbnailUrl,
-    views: video.views || 0,
+    views: (video.displayViews && video.displayViews.trim() !== '') ? video.displayViews.trim() : (video.views || 0),
     likes: video.likes || 0,
     uploadedAt: video.uploadedAt,
     published: video.published,
@@ -1028,6 +1028,7 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
     const videos = loadVideos();
     const videoData = {
       ...req.body,
+      displayViews: req.body.displayViews ? req.body.displayViews.trim() : '',
       views: 0,
       likes: 0,
       published: req.body.published !== false,
@@ -1045,7 +1046,7 @@ app.post('/api/upload/complete', requireAdmin, async (req, res) => {
 // Create external video (R2 HLS / Embed)
 app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
   try {
-    const { title, genre, description, videoUrl, thumbnailUrl, dl720, dl1080 } = req.body;
+    const { title, genre, description, videoUrl, thumbnailUrl, dl720, dl1080, displayViews } = req.body;
     const vId = require('crypto').randomUUID();
     
     const videoData = {
@@ -1053,6 +1054,8 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       title: title.trim(),
       genre: genre.trim(),
       description: description.trim(),
+      displayViews: displayViews ? displayViews.trim() : '',
+      displayViews: displayViews ? displayViews.trim() : '',
       videoUrl: videoUrl ? videoUrl.trim() : '',
       thumbnailUrl: thumbnailUrl ? thumbnailUrl.trim() : '',
       views: 0,
@@ -1078,7 +1081,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
 // Update Video Metadata (Edit)
 app.put('/api/videos/:id', requireAdmin, async (req, res) => {
   try {
-    const { title, genre, description, thumbnailUrl, videoUrl, dl720, dl1080, published } = req.body;
+    const { title, genre, description, thumbnailUrl, videoUrl, dl720, dl1080, published, displayViews } = req.body;
     const videos = loadVideos();
     const video = videos.find(v => v.id === req.params.id);
     

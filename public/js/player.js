@@ -38,6 +38,13 @@ async function initPlayer() {
     // Fill video details
     document.getElementById('video-title').textContent = video.title;
     document.getElementById('video-description').textContent = video.description || 'No description available.';
+    
+    const viewsElem = document.getElementById('video-views');
+    if (viewsElem) viewsElem.textContent = formatViews(video.views || 0) + ' views';
+    
+    const dateElem = document.getElementById('video-date');
+    if (dateElem && video.uploadedAt) dateElem.textContent = new Date(video.uploadedAt).toLocaleDateString();
+
     document.getElementById('like-count').textContent = video.likes || 0;
 
     const wrapper = document.getElementById('player-wrapper');
