@@ -22,15 +22,16 @@ function createVideoCard(video) {
 
   const thumbnailContent = video.thumbnailUrl
     ? `<img src="${video.thumbnailUrl}" alt="${escapeHtml(video.title)}" loading="lazy" decoding="async">`
-    : `<div class="thumb-placeholder"><span aria-hidden="true">🎬</span></div>`;
+    : `<div class="thumb-placeholder"><span aria-hidden="true">🎥</span></div>`;
 
   const timeAgo = getTimeAgo(video.uploadedAt);
   const views = formatViews(video.views || 0);
 
   card.innerHTML = `
-    <div class="thumbnail">
+    <div class="thumbnail" style="position:relative; overflow:hidden;">
       ${thumbnailContent}
-      <div class="play-overlay">
+      <div class="preview-container" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; transition: opacity 0.3s ease; z-index: 1; pointer-events: none;"></div>
+      <div class="play-overlay" style="z-index: 2;">
         <div class="play-btn">▶</div>
       </div>
     </div>
@@ -39,10 +40,73 @@ function createVideoCard(video) {
       ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
         <span><span aria-hidden="true">👁️</span> ${views}</span>
-        <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>
+        <span><span aria-hidden="true">🕒</span> ${timeAgo}</span>
       </div>
     </div>
   `;
+
+  let hoverTimeout;
+  let hlsInstance = null;
+  let previewVideo = null;
+
+  const startPreview = () => {
+    if (!video.videoUrl) return;
+    const container = card.querySelector('.preview-container');
+    
+    previewVideo = document.createElement('video');
+    previewVideo.muted = true;
+    previewVideo.loop = true;
+    previewVideo.playsInline = true;
+    previewVideo.style.width = '100%';
+    previewVideo.style.height = '100%';
+    previewVideo.style.objectFit = 'cover';
+    previewVideo.style.backgroundColor = '#000';
+    
+    container.appendChild(previewVideo);
+
+    if (video.videoUrl.includes('.m3u8')) {
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        hlsInstance = new Hls({ startLevel: -1, capLevelToPlayerSize: true, autoStartLoad: true });
+        hlsInstance.loadSource(video.videoUrl);
+        hlsInstance.attachMedia(previewVideo);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          previewVideo.play().then(() => { container.style.opacity = '1'; }).catch(()=>{});
+        });
+      } else if (previewVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        previewVideo.src = video.videoUrl;
+        previewVideo.play().then(() => { container.style.opacity = '1'; }).catch(()=>{});
+      }
+    } else {
+      previewVideo.src = video.videoUrl;
+      previewVideo.play().then(() => { container.style.opacity = '1'; }).catch(()=>{});
+    }
+  };
+
+  const stopPreview = () => {
+    const container = card.querySelector('.preview-container');
+    container.style.opacity = '0';
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
+    }
+    if (previewVideo) {
+      previewVideo.pause();
+      previewVideo.src = '';
+      previewVideo.load();
+      previewVideo.remove();
+      previewVideo = null;
+    }
+    container.innerHTML = '';
+  };
+
+  card.addEventListener('mouseenter', () => {
+    hoverTimeout = setTimeout(startPreview, 400); // 400ms delay before preview starts
+  });
+
+  card.addEventListener('mouseleave', () => {
+    clearTimeout(hoverTimeout);
+    stopPreview();
+  });
 
   return card;
 }
