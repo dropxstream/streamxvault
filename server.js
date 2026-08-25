@@ -1051,9 +1051,9 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
     
     const videoData = {
       id: vId,
-      title: title.trim(),
-      genre: genre.trim(),
-      description: description.trim(),
+      title: title ? title.trim() : '',
+      genre: genre ? genre.trim() : '',
+      description: description ? description.trim() : '',
       displayViews: displayViews ? displayViews.trim() : '',
       displayViews: displayViews ? displayViews.trim() : '',
       videoUrl: videoUrl ? videoUrl.trim() : '',
@@ -1074,7 +1074,7 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
     submitToIndexNow(vId); // 🔥 Auto-Index
     res.json({ success: true, id: vId });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create external video' });
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
