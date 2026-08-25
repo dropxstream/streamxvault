@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Panel — StreamXvault</title>
   <meta name="description" content="StreamXvault Admin Panel — Upload and manage streaming content.">
-  <link rel="stylesheet" href="/css/style.css?v=5">
+  <link rel="stylesheet" href="/css/style.css?v=6">
   <link rel="icon" type="image/png" href="/favicon.png">
 </head>
 <body>
@@ -93,9 +93,20 @@
               <div class="stat-label">Total Likes</div>
             </div>
             <div class="stat-card">
-              <div class="stat-icon purple" style="background: rgba(168, 85, 247, 0.1); color: #a855f7;">👥</div>
+              <div class="stat-icon purple" style="background: rgba(168, 85, 247, 0.1); color: #a855f7;">👤</div>
               <div class="stat-value" id="stat-visitors">0</div>
               <div class="stat-label">Total Visitors</div>
+            </div>
+            <!-- ADCASH WIDGETS -->
+            <div class="stat-card">
+              <div class="stat-icon cyan" style="background: rgba(34, 211, 238, 0.1); color: #22d3ee;">💵</div>
+              <div class="stat-value" id="stat-adcash-balance">...</div>
+              <div class="stat-label">Adcash Balance</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon cyan" style="background: rgba(34, 211, 238, 0.1); color: #22d3ee;">📈</div>
+              <div class="stat-value" id="stat-adcash-today">...</div>
+              <div class="stat-label">Adcash Earnings Today</div>
             </div>
           </div>
 
@@ -424,6 +435,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=5"></script>
+  <script src="/js/admin.js?v=6"></script>
 </body>
 </html>

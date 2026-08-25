@@ -1330,7 +1330,76 @@ const startServer = async () => {
   }
 
   // 2. Start Listening
-  app.listen(PORT, () => {
+  // --- Adcash Integration ---
+const ADCASH_API_TOKEN = process.env.ADCASH_API_TOKEN || 'mXwVmvs95GnOPIR85DA3tsnH6QqlHXo57wgKjG+RINXX246rltQmlfAGg/FYuPB755ydq5x572DXuOtc2H/opNpKxk+WjcDT9G7YiWjRMeiBXrhHRuPGUuLzxo2nkdN8QXtn8Ea1Injy2g205sBuXw==';
+let adcashAccessToken = null;
+let adcashTokenExpiresAt = 0;
+
+async function getAdcashAccessToken() {
+  if (adcashAccessToken && Date.now() < adcashTokenExpiresAt) {
+    return adcashAccessToken;
+  }
+  
+  const res = await fetch('https://adcash.myadcash.com/api/v2/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_token: ADCASH_API_TOKEN })
+  });
+  
+  if (!res.ok) throw new Error('Failed to fetch Adcash token');
+  const data = await res.json();
+  
+  adcashAccessToken = data.data.access_token;
+  // Expire 1 minute before actual expiration to be safe
+  adcashTokenExpiresAt = Date.now() + ((data.data.expires_in - 60) * 1000);
+  
+  return adcashAccessToken;
+}
+
+app.get('/api/admin/adcash', requireAdmin, async (req, res) => {
+  try {
+    const token = await getAdcashAccessToken();
+    
+    // Fetch Balance
+    const balRes = await fetch('https://adcash.myadcash.com/api/v2/publishers/balance', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const balData = await balRes.json();
+    
+    // Fetch Reports (Today)
+    const today = new Date().toISOString().split('T')[0];
+    const repRes = await fetch(`https://adcash.myadcash.com/api/v2/publishers/reports?start_date=${today}&end_date=${today}`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const repData = await repRes.json();
+    
+    // Summarize Today's Report
+    let todayEarnings = 0;
+    let todayImpressions = 0;
+    
+    if (repData.data && repData.data.rows) {
+      for (const row of repData.data.rows) {
+        todayEarnings += parseFloat(row.earnings || 0);
+        todayImpressions += parseInt(row.impressions || row.unique_users || 0);
+      }
+    }
+    
+    res.json({
+      success: true,
+      balance: balData.data ? balData.data.balance : 0,
+      currency: balData.data ? balData.data.currency : 'USD',
+      todayEarnings: todayEarnings.toFixed(2),
+      todayImpressions: todayImpressions
+    });
+    
+  } catch (err) {
+    console.error('Adcash API Error:', err);
+    res.status(500).json({ error: 'Failed to fetch Adcash data' });
+  }
+});
+// --------------------------
+
+app.listen(PORT, () => {
     console.log(`🚀 StreamXvault Server running on port ${PORT}`);
   });
 };
