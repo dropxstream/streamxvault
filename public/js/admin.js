@@ -441,6 +441,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   }
 
   const description = document.getElementById('video-desc').value.trim();
+  const displayViews = document.getElementById('video-display-views').value.trim();
 
   // Handle External Link Submission
   if (currentUploadSource === 'external') {
@@ -466,7 +467,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title, genre, description, 
           videoUrl: extVideoUrl, 
           thumbnailUrl: extThumbUrl,
-          dl720, dl1080
+          dl720, dl1080, displayViews
         })
       });
 
@@ -512,7 +513,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title, genre, description, 
           videoUrl: isHls ? inputVal : '',
           thumbnailUrl: r2ThumbUrl,
-          dl720, dl1080
+          dl720, dl1080, displayViews
         })
       });
 
@@ -692,7 +693,7 @@ function renderAdminVideoList(videosToRender) {
           ${genreBadge}
           ${isHlsVideo ? '<span class="badge" style="background: rgba(34, 211, 238, 0.1); color: #22d3ee;">☁️ Cloudflare HLS</span>' : ''}
           ${(video.downloads && (video.downloads.p720 || video.downloads.p1080)) ? '<span class="badge" style="background: rgba(46, 204, 113, 0.1); color: #2ecc71;" title="Download links set">📥 Simple DL</span>' : ''}
-          <span>👁️ ${formatViews(video.views || 0)} views</span>
+          <span>👁️ Real: ${formatViews(video.views || 0)} ${video.displayViews ? `(Fake: ${video.displayViews})` : ''}</span>
           <span>❤️ ${formatViews(video.likes || 0)} likes</span>
           <span>🕐 ${getTimeAgo(video.uploadedAt)}</span>
         </div>
@@ -737,6 +738,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-title').value = video.title;
   document.getElementById('edit-genre').value = video.genre || '';
   document.getElementById('edit-desc').value = video.description || '';
+  document.getElementById('edit-display-views').value = video.displayViews || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
   document.getElementById('edit-r2-url').value = isHls ? video.videoUrl : '';
   document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
@@ -759,6 +761,7 @@ async function saveEdit() {
     title: document.getElementById('edit-title').value.trim(),
     genre: document.getElementById('edit-genre').value,
     description: document.getElementById('edit-desc').value.trim(),
+    displayViews: document.getElementById('edit-display-views').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
     videoUrl: isHls ? editR2Val : '',
     dl720: document.getElementById('edit-dl-720').value.trim(),

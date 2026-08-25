@@ -1055,7 +1055,6 @@ app.post('/api/admin/videos/external', requireAdmin, async (req, res) => {
       genre: genre ? genre.trim() : '',
       description: description ? description.trim() : '',
       displayViews: displayViews ? displayViews.trim() : '',
-      displayViews: displayViews ? displayViews.trim() : '',
       videoUrl: videoUrl ? videoUrl.trim() : '',
       thumbnailUrl: thumbnailUrl ? thumbnailUrl.trim() : '',
       views: 0,
