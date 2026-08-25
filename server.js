@@ -1,4 +1,6 @@
+const fetch = global.fetch || require('node-fetch');
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 const upload = multer({ limits: { fileSize: 50 * 1024 * 1024 } }); // Small limit for metadata-only multipart forms
 const path = require('path');
@@ -1368,7 +1370,7 @@ app.get('/api/admin/adcash', requireAdmin, async (req, res) => {
     
     // Fetch Reports (Today)
     const today = new Date().toISOString().split('T')[0];
-    const repRes = await fetch(`https://adcash.myadcash.com/api/v2/publishers/reports?start_date=${today}&end_date=${today}`, {
+    const repRes = await fetch(`https://adcash.myadcash.com/api/v2/publishers/reports?start_date=${today}&end_date=${today}&group_by=date`, {
       headers: { 'Authorization': 'Bearer ' + token }
     });
     const repData = await repRes.json();
