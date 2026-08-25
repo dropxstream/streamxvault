@@ -1,6 +1,5 @@
 const fetch = global.fetch || require('node-fetch');
 const express = require('express');
-const cors = require('cors');
 const multer = require('multer');
 const upload = multer({ limits: { fileSize: 50 * 1024 * 1024 } }); // Small limit for metadata-only multipart forms
 const path = require('path');
