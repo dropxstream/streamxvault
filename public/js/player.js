@@ -172,13 +172,10 @@ function createVideoCard(video) {
   card.innerHTML = `
     <div class="thumbnail">
       <img src="${thumbUrl}" alt="${escapeHtml(video.title)}" loading="lazy">
-      <div class="play-overlay">
-        <div class="play-btn">▶</div>
-      </div>
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
-      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(229, 9, 20, 0.3);">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
         <span><span aria-hidden="true">👁️</span> ${views}</span>
         <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>

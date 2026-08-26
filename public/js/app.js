@@ -31,13 +31,10 @@ function createVideoCard(video) {
     <div class="thumbnail" style="position:relative; overflow:hidden;">
       ${thumbnailContent}
       <div class="preview-container" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; transition: opacity 0.3s ease; z-index: 1; pointer-events: none;"></div>
-      <div class="play-overlay" style="z-index: 2;">
-        <div class="play-btn">▶</div>
-      </div>
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
-      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(236,72,153,0.3);">${escapeHtml(video.genre)}</div>` : ''}
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(229, 9, 20, 0.3);">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
         <span><span aria-hidden="true">👁️</span> ${views}</span>
         <span><span aria-hidden="true">🕒</span> ${timeAgo}</span>

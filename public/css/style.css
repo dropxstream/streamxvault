@@ -18,18 +18,20 @@
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
-  --text-accent: #7c3aed;
+  --text-accent: #e50914;
 
-  --accent-purple: #7C3AED;
-  --accent-purple-light: #a78bfa;
+  --accent-purple: #e50914;
+  --accent-purple-light: #ff4d4d;
+  --primary-color: #e50914; /* Netflix Red */
+  --secondary-color: #b81d24; /* Darker Red */
   --accent-cyan: #06B6D4;
-  --accent-pink: #ec4899;
-  --accent-gradient: linear-gradient(135deg, #7C3AED 0%, #06B6D4 100%);
-  --accent-gradient-hover: linear-gradient(135deg, #8B5CF6 0%, #22D3EE 100%);
-  --accent-gradient-pink: linear-gradient(135deg, #7C3AED 0%, #ec4899 100%);
+  --accent-pink: #e50914;
+  --accent-gradient: linear-gradient(135deg, #e50914 0%, #b81d24 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #ff4d4d 0%, #e50914 100%);
+  --accent-gradient-pink: linear-gradient(135deg, #e50914 0%, #b81d24 100%);
 
   --border-color: #e2e8f0;
-  --border-glow: rgba(124, 58, 237, 0.1);
+  --border-glow: rgba(229, 9, 20, 0.1);
 
   --danger: #ef4444;
   --success: #22c55e;
@@ -1755,7 +1757,7 @@ img, video {
 
 .action-btn.liked {
   color: var(--accent-pink);
-  background: rgba(236, 72, 153, 0.1);
+  background: rgba(229, 9, 20, 0.1);
   border-color: rgba(236, 72, 153, 0.4);
 }
 
@@ -2110,7 +2112,7 @@ img, video {
   border-radius: 6px;
 }
 .social-link:hover {
-  color: var(--accent-primary, #ec4899);
-  background: rgba(236, 72, 153, 0.1);
+  color: var(--accent-primary, #e50914);
+  background: rgba(229, 9, 20, 0.1);
 }
 
