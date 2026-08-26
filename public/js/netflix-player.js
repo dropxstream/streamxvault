@@ -79,10 +79,20 @@ window.initNetflixPlayer = function(videoSrc) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
+  let adPlayed = false;
+  const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
+
   // Play / Pause Logic
   function togglePlay() {
     if (video.paused) {
-      video.play();
+      if (!adPlayed && typeof window.playVastAd === 'function') {
+        adPlayed = true;
+        window.playVastAd(container, vastAdTag, () => {
+          video.play().catch(e => console.error("Playback failed after ad:", e));
+        });
+      } else {
+        video.play();
+      }
     } else {
       video.pause();
     }
