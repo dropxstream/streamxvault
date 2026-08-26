@@ -324,4 +324,4 @@ window.initNetflixPlayer = function(videoSrc) {
   // Initial State Setup
   updatePlayBtn();
   updateVolumeIcon();
-});
+};
