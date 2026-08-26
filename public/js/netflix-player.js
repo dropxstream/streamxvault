@@ -28,11 +28,26 @@ window.initNetflixPlayer = function(videoSrc) {
   // Stream URL: Replace this with any HLS (.m3u8) or MP4 URL
   
 
-  // Initialize Video (HLS or Native)
-  if (videoSrc.includes('.m3u8') && Hls.isSupported()) {
+  if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
     const hls = new Hls();
     hls.loadSource(videoSrc);
     hls.attachMedia(video);
+
+    hls.on(Hls.Events.ERROR, function (event, data) {
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            hls.startLoad();
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            hls.recoverMediaError();
+            break;
+          default:
+            hls.destroy();
+            break;
+        }
+      }
+    });
     
     // Setup hidden video for preview extraction
     if (hiddenVideo) {
@@ -94,6 +109,8 @@ window.initNetflixPlayer = function(videoSrc) {
   // Time and Progress Updates
   video.addEventListener('loadedmetadata', () => {
     durationDisplay.textContent = formatTime(video.duration);
+    const spinner = document.getElementById('spinner');
+    if (spinner) spinner.style.display = 'none';
   });
 
   video.addEventListener('timeupdate', () => {
@@ -221,6 +238,17 @@ window.initNetflixPlayer = function(videoSrc) {
 
   fullscreenBtn.addEventListener('click', toggleFullscreen);
   video.addEventListener('dblclick', toggleFullscreen);
+  video.addEventListener('loadeddata', () => {
+    updatePlayBtn();
+    const spinner = document.getElementById('spinner');
+    if (spinner) spinner.style.display = 'none';
+  });
+  video.addEventListener('canplay', () => {
+    updatePlayBtn();
+    const spinner = document.getElementById('spinner');
+    if (spinner) spinner.style.display = 'none';
+  });
+  updatePlayBtn();
 
   // Playback Speed
   const speeds = [1, 1.25, 1.5, 2, 0.5];
