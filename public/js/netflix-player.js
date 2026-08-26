@@ -114,9 +114,11 @@ window.initNetflixPlayer = function(videoSrc) {
   });
 
   video.addEventListener('timeupdate', () => {
-    currentTimeDisplay.textContent = formatTime(video.currentTime);
-    const progressPercent = (video.currentTime / video.duration) * 100;
-    progressFilled.style.width = `${progressPercent}%`;
+    if (typeof isScrubbing !== 'undefined' && !isScrubbing) {
+      currentTimeDisplay.textContent = formatTime(video.currentTime);
+      const progressPercent = (video.currentTime / video.duration) * 100;
+      progressFilled.style.width = `${progressPercent}%`;
+    }
   });
 
   const previewTooltip = document.getElementById('preview-tooltip');
@@ -162,26 +164,35 @@ window.initNetflixPlayer = function(videoSrc) {
 
   let isScrubbing = false;
 
-  function scrub(e) {
+  function scrub(e, updateVideo = false) {
     const rect = progressContainer.getBoundingClientRect();
     let pos = (e.clientX - rect.left) / rect.width;
     pos = Math.max(0, Math.min(1, pos));
-    if (video.duration) {
+    
+    if (isScrubbing) {
+      progressFilled.style.width = `${pos * 100}%`;
+      currentTimeDisplay.textContent = formatTime(pos * video.duration);
+    }
+    
+    if (video.duration && updateVideo) {
       video.currentTime = pos * video.duration;
     }
   }
 
   progressContainer.addEventListener('mousedown', (e) => {
     isScrubbing = true;
-    scrub(e);
+    scrub(e, true);
   });
 
   document.addEventListener('mousemove', (e) => {
-    if (isScrubbing) scrub(e);
+    if (isScrubbing) scrub(e, false);
   });
 
-  document.addEventListener('mouseup', () => {
-    isScrubbing = false;
+  document.addEventListener('mouseup', (e) => {
+    if (isScrubbing) {
+      scrub(e, true);
+      isScrubbing = false;
+    }
   });
 
   // Rewind and Forward (10s)

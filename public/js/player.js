@@ -78,10 +78,10 @@ async function initPlayer() {
         "</div>" +
         "<div class='video-controls' id='video-controls'>" +
           "<div class='progress-bar-container' id='progress-container'>" +
+            "<video id='preview-hidden-video' style='position:absolute; width:1px; height:1px; opacity:0.01; pointer-events:none; z-index:-1;' muted playsinline autoplay></video>" +
             "<div class='preview-tooltip' id='preview-tooltip'><canvas class='preview-image' id='preview-canvas' width='160' height='90'></canvas><span class='preview-time' id='preview-time'>0:00</span></div>" +
             "<div class='progress-bar' id='progress-bar'><div class='progress-filled' id='progress-filled'></div><div class='progress-thumb'></div></div>" +
           "</div>" +
-          "<video id='preview-hidden-video' style='display: none;' muted playsinline></video>" +
           "<div class='controls-main'>" +
             "<div class='controls-left'>" +
               "<button class='control-btn' id='play-pause-btn' title='Play (k)'><svg id='play-icon' viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg><svg id='pause-icon' class='hidden' viewBox='0 0 24 24' fill='currentColor'><path d='M6 19h4V5H6v14zm8-14v14h4V5h-4z'/></svg></button>" +
