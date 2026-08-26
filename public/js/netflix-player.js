@@ -160,11 +160,28 @@ window.initNetflixPlayer = function(videoSrc) {
     }
   });
 
-  progressContainer.addEventListener('click', (e) => {
+  let isScrubbing = false;
+
+  function scrub(e) {
     const rect = progressContainer.getBoundingClientRect();
     let pos = (e.clientX - rect.left) / rect.width;
     pos = Math.max(0, Math.min(1, pos));
-    video.currentTime = pos * video.duration;
+    if (video.duration) {
+      video.currentTime = pos * video.duration;
+    }
+  }
+
+  progressContainer.addEventListener('mousedown', (e) => {
+    isScrubbing = true;
+    scrub(e);
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (isScrubbing) scrub(e);
+  });
+
+  document.addEventListener('mouseup', () => {
+    isScrubbing = false;
   });
 
   // Rewind and Forward (10s)
