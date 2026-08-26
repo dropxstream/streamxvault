@@ -1,0 +1,242 @@
+
+
+.video-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%; width: 100%; border-radius: 16px;
+  aspect-ratio: 16 / 9;
+  background-color: #000;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+}
+
+.video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* Hardware acceleration hint */
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.big-play-btn {
+  width: 80px;
+  height: 80px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: scale(0.9);
+}
+
+.big-play-btn:hover {
+  background: rgba(0,0,0,0.7);
+  transform: scale(1);
+}
+
+.big-play-btn svg {
+  width: 40px;
+  height: 40px;
+  fill: white;
+}
+
+.video-container.paused .big-play-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+  padding: 20px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.video-container:hover .video-controls,
+.video-container.paused .video-controls,
+.video-container.active .video-controls {
+  opacity: 1;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.preview-tooltip {
+  position: absolute;
+  bottom: 30px; /* Above the progress bar */
+  left: 0;
+  transform: translateX(-50%) translateZ(0); /* GPU acceleration */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s ease, left 0.1s ease-out; /* Smooth glide */
+  pointer-events: none;
+  background-color: #000;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 5px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+  will-change: left, opacity;
+}
+
+.progress-bar-container:hover .preview-tooltip {
+  opacity: 1;
+}
+
+.preview-image {
+  width: 160px;
+  height: 90px;
+  background-color: #222;
+  /* Background image will be set by JS if thumbnails are available */
+  background-size: cover;
+  background-position: center;
+  margin-bottom: 5px;
+  border-radius: 2px;
+}
+
+.preview-time {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.progress-bar {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255,255,255,0.3);
+  border-radius: 2px;
+  transition: height 0.1s ease;
+}
+
+.progress-bar-container:hover .progress-bar {
+  height: 8px;
+}
+
+.progress-filled {
+  height: 100%;
+  background-color: #e50914;
+  border-radius: 2px;
+  width: 0%;
+  position: relative;
+}
+
+.progress-thumb {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  background-color: #e50914;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.progress-bar-container:hover .progress-thumb {
+  opacity: 1;
+}
+
+.controls-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.controls-left, .controls-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.control-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.2s;
+}
+
+.control-btn:hover {
+  transform: scale(1.1);
+}
+
+.control-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.volume-container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.volume-slider {
+  width: 0;
+  opacity: 0;
+  transition: width 0.3s ease, opacity 0.3s ease;
+  accent-color: #e50914;
+  cursor: pointer;
+}
+
+.volume-container:hover .volume-slider {
+  width: 80px;
+  opacity: 1;
+}
+
+.time-display {
+  font-size: 14px;
+  font-weight: 400;
+  user-select: none;
+}
+
+.text-btn {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+@media (max-width: 600px) {
+  .volume-container, .time-display { display: none !important; }
+  .control-btn svg { width: 24px; height: 24px; }
+}

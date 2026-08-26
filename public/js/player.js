@@ -66,155 +66,44 @@ async function initPlayer() {
         wrapper.textContent = 'Invalid video source';
       }
     } else {
-      // Standard/HLS Player using Plyr
+      // Standard/HLS Player using Netflix
+
       const isHls = video.videoUrl && video.videoUrl.includes('.m3u8');
-      const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
       
-      if (isHls) {
-        wrapper.innerHTML = `<video id="plyr-player" controls playsinline style="width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"></video>`;
-        const videoElement = document.getElementById('plyr-player');
-        
-        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-          const hls = new Hls();
-          hls.loadSource(video.videoUrl);
-          hls.attachMedia(videoElement);
-          window.hls = hls;
-
-          // Hls.js robust error recovery
-          let hlsRetryCount = 0;
-          hls.on(Hls.Events.ERROR, function (event, data) {
-            console.warn('HLS Warning/Error:', data);
-            if (data.fatal) {
-              switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
-                  if (data.response && data.response.code === 404) {
-                    console.error('HLS 404 Not Found.');
-                    hls.destroy();
-                    showPlayerError('Error 404: Video file not found.');
-                  } else if (hlsRetryCount < 3) {
-                    hlsRetryCount++;
-                    console.error('Fatal network error, attempting recovery...');
-                    hls.startLoad();
-                  } else {
-                    console.error('Too many network errors. Destroying HLS.');
-                    hls.destroy();
-                    showPlayerError('Network Error: Unable to load video stream.');
-                  }
-                  break;
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                  if (hlsRetryCount < 3) {
-                    hlsRetryCount++;
-                    console.error('Fatal media error, attempting recovery...');
-                    hls.recoverMediaError();
-                  } else {
-                    console.error('Too many media errors. Destroying HLS.');
-                    hls.destroy();
-                    showPlayerError('Error: Video encoding is incompatible or blocked by an extension (like IDM).');
-                  }
-                  break;
-                default:
-                  console.error('Fatal HLS error, unable to recover.');
-                  hls.destroy();
-                  showPlayerError('Error: Video stream is unplayable.');
-                  break;
-              }
-            }
-          });
-
-          function showPlayerError(msg) {
-             const wrapper = document.getElementById('player-wrapper');
-             if (wrapper) {
-               wrapper.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio: 16/9; background: #111; color: #fff; border-radius: 12px; font-family: sans-serif; text-align: center; padding: 2rem;">
-                 <h3 style="color: #ef4444; margin-bottom: 0.5rem;">${msg}</h3>
-                 <p style="color: #9ca3af; font-size: 0.9rem;">Please check if the R2 URL is correct and public.</p>
-               </div>`;
-             }
-          }
-
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            const availableQualities = hls.levels.map(l => l.height);
-            const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
-
-            const plyrOptions = {
-              autoplay: false, // Disabled to prevent main video playing behind ads
-              quality: {
-                default: 0, // Auto
-                options: [0, ...uniqueQualities],
-                forced: true,
-                onChange: (q) => {
-                  if (q === 0) {
-                    window.hls.currentLevel = -1; // Auto
-                  } else {
-                    window.hls.levels.forEach((level, idx) => {
-                      if (level.height === q) {
-                        window.hls.currentLevel = idx;
-                      }
-                    });
-                  }
-                }
-              },
-              i18n: {
-                qualityLabel: {
-                  0: 'Auto'
-                }
-              },
-              controls: [
-                'play-large', 'play', 'fast-forward', 'progress', 'current-time', 
-                'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
-              ],
-              ads: {
-                enabled: true,
-                tagUrl: vastAdTag
-              }
-            };
-
-            if (typeof Plyr !== 'undefined') {
-              const player = new Plyr(videoElement, plyrOptions);
-              window.player = player;
-
-              // Ad Fail-Safe: bypass ad blocker or CSP load issues and force video playback
-              player.on('adserror', () => {
-                console.warn('Ad error occurred. Bypassing and playing video directly.');
-                player.play().catch(() => {});
-              });
-
-              player.on('adsadblocked', () => {
-                console.warn('Ad blocked. Bypassing and playing video directly.');
-                player.play().catch(() => {});
-              });
-            }
-          });
-        } else {
-          // Native HLS support fallback (e.g. Safari)
-          videoElement.innerHTML = `<source src="${video.videoUrl}" type="application/x-mpegURL">`;
-          if (typeof Plyr !== 'undefined') {
-            const player = new Plyr(videoElement, {
-              autoplay: false, // Disabled to prevent main video playing behind ads
-              ads: {
-                enabled: true,
-                tagUrl: vastAdTag
-              }
-            });
-            window.player = player;
-          }
-        }
-      } else {
-        // Direct MP4 / other formats file playback with Plyr
-        wrapper.innerHTML = `<video id="plyr-player" controls playsinline style="width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);"><source src="${video.videoUrl}" type="video/mp4"></video>`;
-        if (typeof Plyr !== 'undefined') {
-          const player = new Plyr(document.getElementById('plyr-player'), {
-            autoplay: false, // Disabled to prevent main video playing behind ads
-            ads: {
-              enabled: true,
-              tagUrl: vastAdTag
-            }
-          });
-          window.player = player;
-        }
+      wrapper.innerHTML = "<div class='video-container' id='video-container'>" +
+        "<video id='video-player' class='video-player'></video>" +
+        "<div class='video-overlay' id='video-overlay'>" +
+          "<div class='spinner' id='spinner'></div>" +
+          "<div class='big-play-btn' id='big-play-btn'><svg viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg></div>" +
+        "</div>" +
+        "<div class='video-controls' id='video-controls'>" +
+          "<div class='progress-bar-container' id='progress-container'>" +
+            "<div class='preview-tooltip' id='preview-tooltip'><canvas class='preview-image' id='preview-canvas' width='160' height='90'></canvas><span class='preview-time' id='preview-time'>0:00</span></div>" +
+            "<div class='progress-bar' id='progress-bar'><div class='progress-filled' id='progress-filled'></div><div class='progress-thumb'></div></div>" +
+          "</div>" +
+          "<video id='preview-hidden-video' style='display: none;' muted playsinline></video>" +
+          "<div class='controls-main'>" +
+            "<div class='controls-left'>" +
+              "<button class='control-btn' id='play-pause-btn' title='Play (k)'><svg id='play-icon' viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg><svg id='pause-icon' class='hidden' viewBox='0 0 24 24' fill='currentColor'><path d='M6 19h4V5H6v14zm8-14v14h4V5h-4z'/></svg></button>" +
+              "<button class='control-btn' id='rewind-btn' title='Rewind 10s'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M11 17l-5-5 5-5M18 17l-5-5 5-5'/></svg></button>" +
+              "<button class='control-btn' id='forward-btn' title='Forward 10s'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M13 17l5-5-5-5M6 17l5-5-5-5'/></svg></button>" +
+              "<div class='volume-container'><button class='control-btn' id='mute-btn' title='Mute (m)'><svg id='volume-icon' viewBox='0 0 24 24' fill='currentColor'><path d='M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z'/></svg><svg id='mute-icon' class='hidden' viewBox='0 0 24 24' fill='currentColor'><path d='M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z'/></svg></button><input type='range' class='volume-slider' id='volume-slider' min='0' max='1' step='0.05' value='1'></div>" +
+              "<div class='time-display'><span id='current-time'>0:00</span> / <span id='duration'>0:00</span></div>" +
+            "</div>" +
+            "<div class='controls-right'>" +
+              "<button class='control-btn text-btn' id='speed-btn'>1x</button>" +
+              "<button class='control-btn' id='fullscreen-btn' title='Fullscreen (f)'><svg id='fullscreen-icon' viewBox='0 0 24 24' fill='currentColor'><path d='M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z'/></svg><svg id='exit-fullscreen-icon' class='hidden' viewBox='0 0 24 24' fill='currentColor'><path d='M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z'/></svg></button>" +
+            "</div>" +
+          "</div>" +
+        "</div>" +
+      "</div>";
+      
+      if (typeof window.initNetflixPlayer === 'function') {
+        window.initNetflixPlayer(video.videoUrl);
       }
-    }
 
-    // ====== DOWNLOADS LOGIC ======
+
+      // ====== DOWNLOADS LOGIC ======
     const dlMenu = document.getElementById('download-menu');
     if (dlMenu) {
       dlMenu.innerHTML = '';
