@@ -74,7 +74,6 @@ async function initPlayer() {
       wrapper.innerHTML = "<div class='video-container' id='video-container'>" +
         "<video id='video-player' class='video-player' poster='" + safeThumbnail + "'></video>" +
         "<div class='video-overlay' id='video-overlay'>" +
-          "<div class='spinner' id='spinner'></div>" +
           "<div class='big-play-btn' id='big-play-btn'><svg viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg></div>" +
         "</div>" +
         "<div class='video-controls' id='video-controls'>" +
