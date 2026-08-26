@@ -343,7 +343,7 @@ input, textarea, select {
   aspect-ratio: 16 / 9;
   background-size: cover; /* Cover inside exactly 16:9 box = NO CROPPING! */
   background-position: center;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 30px rgba(124, 58, 237, 0.15);
   border: 1px solid rgba(255,255,255,0.05);
   background-color: var(--bg-tertiary);
@@ -475,7 +475,7 @@ input, textarea, select {
   height: 100%;
   text-decoration: none;
   color: inherit;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -607,9 +607,9 @@ input, textarea, select {
 
 /* ==================== Video Player Page ==================== */
 .player-container {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 2rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 .video-player-wrapper {
@@ -617,7 +617,7 @@ input, textarea, select {
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #000;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   margin-bottom: 2rem;
@@ -629,9 +629,7 @@ input, textarea, select {
   object-fit: contain;
 }
 
-.video-info {
-  margin-bottom: 2rem;
-}
+.video-info { max-width: 1400px; margin: 0 auto 2rem; padding: 0 1rem; }
 
 .video-info h1 {
   font-size: 1.75rem;
@@ -756,7 +754,7 @@ input, textarea, select {
   width: 64px;
   height: 64px;
   background: var(--accent-gradient);
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -843,7 +841,7 @@ input, textarea, select {
 .stat-card {
   background: var(--bg-glass);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   padding: 1.5rem;
   transition: all var(--transition-normal);
 }
@@ -894,7 +892,7 @@ input, textarea, select {
 /* Upload Area */
 .upload-area {
   border: 2px dashed var(--border-color);
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   padding: 3rem;
   text-align: center;
   transition: all var(--transition-normal);
@@ -1230,7 +1228,7 @@ input, textarea, select {
 }
 
 .skeleton-card {
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -1438,14 +1436,9 @@ html, body {
     max-width: 200px;
   }
 
-  .player-container {
-    padding: 0.75rem;
-  }
+  .player-container { padding: 0; }
 
-  .video-player-wrapper {
-    border-radius: var(--radius-sm);
-    margin-bottom: 1rem;
-  }
+  .video-player-wrapper { border-radius: 0; margin-bottom: 1rem; }
 
   .video-info h1 {
     font-size: 1.15rem;
@@ -1824,7 +1817,7 @@ img, video {
 /* Video.js Overrides */
 .video-js {
   width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   font-family: inherit;
@@ -1991,12 +1984,7 @@ img, video {
   }
 
   /* Watch Page */
-  .player-container {
-    padding: 1rem;
-    margin: 0;
-    width: 100%;
-    overflow: hidden; /* Prevent ad iframes from stretching width */
-  }
+  .player-container { padding: 0; margin: 0; width: 100%; overflow: hidden; }
 
   .ad-banner-wrapper {
     max-width: 100%;
