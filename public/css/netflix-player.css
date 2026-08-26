@@ -82,7 +82,11 @@
   opacity: 1;
 }
 
-.video-container .progress-bar-container {\n  background: transparent !important;\n  overflow: visible !important;\n  margin-bottom: 0 !important;\n  border-radius: 0 !important;
+.video-container .progress-bar-container {
+  background: transparent !important;
+  overflow: visible !important;
+  margin-bottom: 0 !important;
+  border-radius: 0 !important;
   width: 100%;
   height: 20px;
   display: flex;
