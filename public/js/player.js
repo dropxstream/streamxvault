@@ -101,6 +101,7 @@ async function initPlayer() {
       if (typeof window.initNetflixPlayer === 'function') {
         window.initNetflixPlayer(video.videoUrl);
       }
+    }
 
 
       // ====== DOWNLOADS LOGIC ======
