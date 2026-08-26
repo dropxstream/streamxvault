@@ -600,7 +600,7 @@ app.get('/', (req, res) => {
 
 // Support for .html extensions and clean URLs
 // Placed after dynamic routes so SEO injection works
-app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'], dotfiles: 'allow' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Trust proxy for production (correct IP detection)
