@@ -2097,3 +2097,20 @@ img, video {
     margin-top: 1rem;
   }
 }
+
+.social-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+}
+.social-link:hover {
+  color: var(--accent-primary, #ec4899);
+  background: rgba(236, 72, 153, 0.1);
+}
+
