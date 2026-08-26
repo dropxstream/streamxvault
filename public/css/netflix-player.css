@@ -237,11 +237,7 @@
   opacity: 1;
 }
 
-.time-display {
-  font-size: 14px;
-  font-weight: 400;
-  user-select: none;
-}
+.time-display { font-size: 14px; font-weight: 400; user-select: none; color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
 
 .text-btn {
   font-size: 16px;

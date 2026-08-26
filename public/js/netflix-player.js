@@ -29,7 +29,7 @@ window.initNetflixPlayer = function(videoSrc) {
   
 
   if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
-    const hls = new Hls();
+    const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, maxBufferLength: 60, maxMaxBufferLength: 600 });
     hls.loadSource(videoSrc);
     hls.attachMedia(video);
 
