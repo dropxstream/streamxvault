@@ -248,13 +248,19 @@ async function loadVideos() {
 }
 
 // ==================== Hero Section ====================
+let heroHoverTimeout;
+let heroHlsInstance = null;
+let heroPreviewVideo = null;
+
 function updateHero(video) {
   const heroTitle = document.getElementById('hero-title');
   const heroDesc = document.getElementById('hero-desc');
   const heroBg = document.getElementById('hero-bg');
+  const heroThumb = document.getElementById('hero-thumb');
   const heroPlayBtn = document.getElementById('hero-play-btn');
   const heroBadge = document.getElementById('hero-badge');
   const heroGenreBadge = document.getElementById('hero-genre-badge');
+  const heroPreviewContainer = document.getElementById('hero-preview-container');
 
   heroTitle.textContent = video.title;
   heroDesc.textContent = video.description || 'Watch the latest content on StreamXvault.';
@@ -266,25 +272,109 @@ function updateHero(video) {
     heroGenreBadge.style.display = 'none';
   }
 
-  if (video.thumbnailUrl) {
-    heroBg.style.backgroundImage = `url(${video.thumbnailUrl})`;
+  const watchUrl = `/watch?v=${video.id}`;
+  if (heroBg) {
+    heroBg.href = watchUrl;
+  }
+  if (heroThumb && video.thumbnailUrl) {
+    heroThumb.src = video.thumbnailUrl;
+    heroThumb.alt = video.title;
+    heroThumb.style.display = 'block';
+  } else if (heroThumb) {
+    heroThumb.style.display = 'none';
   }
 
   heroPlayBtn.style.display = 'inline-flex';
-  heroPlayBtn.href = `/watch?v=${video.id}`;
+  heroPlayBtn.href = watchUrl;
   heroBadge.innerHTML = '🔴 Latest Upload';
+
+  // Attach hover video preview for hero viewer
+  if (heroBg && video.videoUrl) {
+    const startHeroPreview = () => {
+      if (!heroPreviewContainer) return;
+      heroPreviewContainer.innerHTML = '<div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; z-index:10;"><span aria-hidden="true">⏳</span></div>';
+      heroPreviewContainer.style.opacity = '1';
+      heroPreviewContainer.style.backgroundColor = 'rgba(0,0,0,0.5)';
+
+      heroPreviewVideo = document.createElement('video');
+      heroPreviewVideo.muted = true;
+      heroPreviewVideo.loop = true;
+      heroPreviewVideo.playsInline = true;
+      heroPreviewVideo.style.width = '100%';
+      heroPreviewVideo.style.height = '100%';
+      heroPreviewVideo.style.objectFit = 'cover';
+      heroPreviewVideo.style.position = 'absolute';
+      heroPreviewVideo.style.top = '0';
+      heroPreviewVideo.style.left = '0';
+      heroPreviewVideo.style.opacity = '0';
+      heroPreviewVideo.style.transition = 'opacity 0.3s ease';
+
+      heroPreviewContainer.appendChild(heroPreviewVideo);
+
+      heroPreviewVideo.addEventListener('playing', () => {
+        heroPreviewVideo.style.opacity = '1';
+        heroPreviewContainer.style.backgroundColor = 'transparent';
+        const spinner = heroPreviewContainer.querySelector('div');
+        if (spinner) spinner.remove();
+      });
+
+      if (video.videoUrl.includes('.m3u8')) {
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+          heroHlsInstance = new Hls({ startLevel: -1, capLevelToPlayerSize: true, autoStartLoad: true });
+          heroHlsInstance.loadSource(video.videoUrl);
+          heroHlsInstance.attachMedia(heroPreviewVideo);
+          heroHlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            heroPreviewVideo.play().catch(e => console.error('Hero play failed:', e));
+          });
+        } else if (heroPreviewVideo.canPlayType('application/vnd.apple.mpegurl')) {
+          heroPreviewVideo.src = video.videoUrl;
+          heroPreviewVideo.play().catch(e => console.error('Hero play failed:', e));
+        }
+      } else {
+        heroPreviewVideo.src = video.videoUrl;
+        heroPreviewVideo.play().catch(e => console.error('Hero play failed:', e));
+      }
+    };
+
+    const stopHeroPreview = () => {
+      if (!heroPreviewContainer) return;
+      heroPreviewContainer.style.opacity = '0';
+      if (heroHlsInstance) {
+        heroHlsInstance.destroy();
+        heroHlsInstance = null;
+      }
+      if (heroPreviewVideo) {
+        heroPreviewVideo.pause();
+        heroPreviewVideo.src = '';
+        heroPreviewVideo.load();
+        heroPreviewVideo.remove();
+        heroPreviewVideo = null;
+      }
+      heroPreviewContainer.innerHTML = '';
+    };
+
+    heroBg.onmouseenter = () => {
+      heroHoverTimeout = setTimeout(startHeroPreview, 300);
+    };
+    heroBg.onmouseleave = () => {
+      clearTimeout(heroHoverTimeout);
+      stopHeroPreview();
+    };
+  }
 }
 
 function updateHeroDefault() {
   const heroTitle = document.getElementById('hero-title');
   const heroDesc = document.getElementById('hero-desc');
+  const heroThumb = document.getElementById('hero-thumb');
   const heroPlayBtn = document.getElementById('hero-play-btn');
   const heroGenreBadge = document.getElementById('hero-genre-badge');
 
   heroTitle.textContent = 'Welcome to StreamXvault';
   heroDesc.textContent = 'Your premium streaming platform. Watch curated video content shared by the admin — always fresh, always exciting.';
   heroPlayBtn.style.display = 'none';
-  if(heroGenreBadge) heroGenreBadge.style.display = 'none';
+  if (heroThumb) heroThumb.style.display = 'none';
+  if (heroGenreBadge) heroGenreBadge.style.display = 'none';
 }
 
 // ==================== Search & Filter ====================
