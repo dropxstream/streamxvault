@@ -14,10 +14,10 @@
   <!-- Resource Hints -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" href="/css/style.css?v=15" as="style">
+  <link rel="preload" href="/css/style.css?v=25" as="style">
   
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap">
-  <link rel="stylesheet" href="/css/style.css?v=15">
+  <link rel="stylesheet" href="/css/style.css?v=25">
   <link rel="icon" type="image/png" href="/favicon.png">
   <!-- Plyr Player -->
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
@@ -41,120 +41,7 @@
     }
   </style>
 
-  <link rel="stylesheet" href="/css/netflix-player.css?v=15">
-</head>
-<body>
-  <!-- Navbar -->
-  <nav class="navbar" id="navbar">
-    <a href="/" class="nav-brand" id="nav-brand">
-      <img src="/images/logo.png" alt="StreamXvault Logo" class="brand-logo">
-      StreamXvault
-    </a>
-    <div class="nav-center">
-      <div class="nav-search">
-        <span class="search-icon" aria-hidden="true">🔍</span>
-        <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off" aria-label="Search videos">
-      </div>
-    </div>
-    <div class="nav-right">
-      <div class="nav-social" style="display: flex; gap: 0.5rem; margin-right: 1rem;">
-        <a href="https://x.com/analaddict8" target="_blank" rel="noopener" class="nav-link" aria-label="@analaddict8 on X" style="padding: 0.4rem;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-        </a>
-        <a href="https://x.com/butterflyadd23" target="_blank" rel="noopener" class="nav-link" aria-label="@butterflyadd23 on X" style="padding: 0.4rem;">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-        </a>
-        <a href="https://bsky.app/profile/streamxvault.online" target="_blank" rel="noopener" class="nav-link" aria-label="Bluesky" style="padding: 0.4rem;">
-          <svg viewBox="0 0 320 286" width="18" height="18" fill="currentColor"><path d="M69.364 19.146c36.687 27.806 76.148 74.453 90.636 102.818 14.488-28.365 53.949-75.012 90.636-102.818 29.585-22.422 69.364-28.98 69.364 24.854 0 26.697-9.458 66.864-13.801 81.332-6.52 21.684-25.042 27.675-47.544 26.155-29.215-1.975-58.423-14.86-88.655-32.96 48.066 38.647 88.085 79.52 88.085 119.539 0 46.103-34.904 46.666-51.275 32.535-24.37-21.042-45.696-60.778-46.81-63.558-1.114 2.78-22.44 42.516-46.81 63.558-16.37 14.131-51.275 13.568-51.275-32.535 0-40.019 40.019-80.892 88.085-119.539-30.232 18.1-59.44 30.985-88.655 32.96-22.502 1.52-41.023-4.471-47.544-26.155C9.458 110.854 0 70.687 0 44c0-53.834 39.779-47.276 69.364-24.854z" /></svg>
-        </a>
-      </div>
-      <a href="/" class="nav-link" id="nav-home">Home</a>
-      <a href="/demand.html" class="nav-link" id="nav-demand">Demand Video</a>
-    </div>
-  </nav>
-
-  <!-- Main Content -->
-  <main class="main-content">
-    
-    <!-- Top Leaderboard Ad (728x90) -->
-    <div class="ad-banner-wrapper ad-banner-top">
-      <script type="text/javascript">
-        aclib.runBanner({
-            zoneId: '11262238',
-        });
-      </script>
-    </div>
-    <div class="player-container animate-fade-in">
-      <!-- Video Player -->
-      <div class="video-player-wrapper" id="player-wrapper">
-        <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 0; overflow: hidden;">
-          <div style="position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#888;font-size:1rem;">Loading player...</div>
-        </div>
-      </div>
-
-      <!-- Video Info -->
-      <div class="video-info" id="video-info">
-        <h1 id="video-title">Loading...</h1>
-        <div class="video-meta" id="video-meta">
-          <span id="video-views">— views</span>
-          <span id="video-date">—</span>
-        </div>
-
-        <div class="video-actions">
-          <button id="like-btn" class="action-btn" onclick="likeVideo()" aria-label="Like this video">
-            <span class="icon" aria-hidden="true">❤️</span> <span id="like-count">0</span>
-          </button>
-          
-          <div class="download-dropdown" role="group" aria-label="Download options">
-            <button class="action-btn" onclick="toggleDownloadMenu(event)" aria-haspopup="true" aria-label="Download options">
-              <span class="icon" aria-hidden="true">📥</span> Download
-            </button>
-            <div class="download-menu" id="download-menu" role="menu">
-              <!-- Populated by JS -->
-              <div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links available</div>
-            </div>
-          </div>
-        </div>
-        <div class="video-description" id="video-description">—</div>
-
-        <!-- Banner Ad Spot -->
-        <div class="ad-banner-wrapper" style="margin: 2rem 0; display: flex; justify-content: center;">
-          <script type="text/javascript">
-            aclib.runBanner({
-                zoneId: '11262194',
-            });
-          </script>
-        </div>
-      </div>
-
-      <!-- Related Videos -->
-      <section class="section">
-        <div class="section-header">
-          <div style="display: flex; align-items: center; gap: 0.5rem;"><span class="icon" aria-hidden="true">📺</span><h2 class="section-title" style="margin:0;">More Videos</h2></div>
-        </div>
-        <div class="video-grid" id="related-grid"></div>
-      </section>
-    </div>
-
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="container">
-        <div class="footer-content">
-          <span class="footer-brand">StreamXvault</span>
-          <div class="footer-social" style="display: flex; gap: 1.5rem; align-items: center;">
-            <a href="https://x.com/analaddict8" target="_blank" rel="noopener"  class='social-link' >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              @analaddict8
-            </a>
-            <a href="https://x.com/butterflyadd23" target="_blank" rel="noopener"  class='social-link' >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              @butterflyadd23
-            </a>
-            <a href="https://bsky.app/profile/streamxvault.online" target="_blank" rel="noopener" class="social-link">
-              <svg viewBox="0 0 320 286" width="16" height="16" fill="currentColor"><path d="M69.364 19.146c36.687 27.806 76.148 74.453 90.636 102.818 14.488-28.365 53.949-75.012 90.636-102.818 29.585-22.422 69.364-28.98 69.364 24.854 0 26.697-9.458 66.864-13.801 81.332-6.52 21.684-25.042 27.675-47.544 26.155-29.215-1.975-58.423-14.86-88.655-32.96 48.066 38.647 88.085 79.52 88.085 119.539 0 46.103-34.904 46.666-51.275 32.535-24.37-21.042-45.696-60.778-46.81-63.558-1.114 2.78-22.44 42.516-46.81 63.558-16.37 14.131-51.275 13.568-51.275-32.535 0-40.019 40.019-80.892 88.085-119.539-30.232 18.1-59.44 30.985-88.655 32.96-22.502 1.52-41.023-4.471-47.544-26.155C9.458 110.854 0 70.687 0 44c0-53.834 39.779-47.276 69.364-24.854z" /></svg>
-              @streamxvault.online
-            </a>
-          </div>
+  <link rel="stylesheet" href="/css/netflix-player.css?v=25">
 </head>
 <body>
   <!-- Navbar -->
@@ -279,11 +166,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
   <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-  <script src="/js/ima-ads.js?v=15"></script>
-  <script src="/js/netflix-player.js?v=15"></script>
+  <script src="/js/ima-ads.js?v=25"></script>
+  <script src="/js/netflix-player.js?v=25"></script>
   <script src="https://imasdk.googleapis.com/js/sdkloader/ima3.js" defer></script>
   <script src="/js/utils.js"></script>
-  <script src="/js/player.js?v=15"></script>
+  <script src="/js/player.js?v=25"></script>
   
 </body>
 </html>
