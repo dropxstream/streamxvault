@@ -399,6 +399,16 @@ function getIndexableVideoUrl(video) {
   return candidate;
 }
 
+// Helper: Strip ad scripts for search engine bots (prevents ad-injected duplicate <h1> tags)
+function stripAdsForBots(html, req) {
+  if (!isRequestBot(req)) return html;
+  // Remove the aclib loader script tag
+  html = html.replace(/<script[^>]*src="[^"]*acscdn\.com[^"]*"[^>]*><\/script>/gi, '');
+  // Remove inline script blocks that call aclib (runBanner, runVideoSlider, etc.)
+  html = html.replace(/<script[^>]*>[\s\S]*?aclib[\s\S]*?<\/script>/gi, '');
+  return html;
+}
+
 // Robots.txt
 app.get('/robots.txt', (req, res) => {
   const baseUrl = `https://${req.get('host')}`;
@@ -539,6 +549,7 @@ app.get('/watch', (req, res) => {
   }).join('');
   html = html.replace('<div class="video-grid" id="related-grid"></div>', `<div class="video-grid" id="related-grid">${ssrCards}</div>`);
 
+  html = stripAdsForBots(html, req);
   res.send(html);
 });
 
@@ -607,6 +618,7 @@ app.get('/', (req, res) => {
     html = html.replace('<div class="video-grid" id="videos-grid" style="display: none;"></div>', `<div class="video-grid" id="videos-grid">${seoVideoLinks}</div>`);
   }
 
+  html = stripAdsForBots(html, req);
   res.send(html);
 });
 
