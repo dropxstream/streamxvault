@@ -7,6 +7,13 @@ Disallow: /api/
 
 Sitemap: https://streamxvault.online/sitemap.xml
 
+# Allow Google Ad crawlers
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
 # Block AI Crawlers
 User-agent: GPTBot
 Disallow: /
