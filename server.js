@@ -391,7 +391,13 @@ function escapeJsonStr(text) {
   return normalized.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '');
 }
 
-
+// Only expose real media URLs to search engines. HTML iframe snippets and missing URLs
+// cannot be used as VideoObject contentUrl or video sitemap content_loc values.
+function getIndexableVideoUrl(video) {
+  const candidate = typeof video?.videoUrl === 'string' ? video.videoUrl.trim() : '';
+  if (!(candidate.startsWith('http://') || candidate.startsWith('https://')) || candidate.toLowerCase().includes('<iframe')) return '';
+  return candidate;
+}
 
 // Robots.txt
 app.get('/robots.txt', (req, res) => {
@@ -512,7 +518,7 @@ app.get('/watch', (req, res) => {
     "uploadDate": "${video.uploadedAt || new Date().toISOString()}",
     ${video.duration ? `"duration": "${video.duration}",` : ''}
     "embedUrl": "${baseUrl}/api/embed/${video.id}",
-    "contentUrl": "${url}",
+    ${(() => { const contentUrl = getIndexableVideoUrl(video); return contentUrl ? `"contentUrl": "${escapeJsonStr(contentUrl)}",` : ''; })()}
     "interactionStatistic": {
       "@type": "InteractionCounter",
       "interactionType": "https://schema.org/WatchAction",
@@ -548,6 +554,10 @@ app.get('/', (req, res) => {
   
   let html = fs.readFileSync(indexPath, 'utf8');
   const videos = loadVideos().filter(v => v.published !== false);
+  const seoVideoLinks = videos.slice(0, 24).map(v => {
+    const title = escapeMeta(v.title || 'Watch video');
+    return `<a href="/watch?v=${encodeURIComponent(v.id)}" class="video-card" aria-label="${title}"><span class="card-title">${title}</span></a>`;
+  }).join('');
   
   if (videos.length > 0) {
     const latest = videos[0];
@@ -591,6 +601,10 @@ app.get('/', (req, res) => {
 `;
     html = html.replace(headEnd, homeSeo + headEnd);
 
+  }
+
+  if (seoVideoLinks) {
+    html = html.replace('<div class="video-grid" id="videos-grid" style="display: none;"></div>', `<div class="video-grid" id="videos-grid">${seoVideoLinks}</div>`);
   }
 
   res.send(html);
@@ -1245,15 +1259,17 @@ app.get('/sitemap.xml', (req, res) => {
   <url><loc>${baseUrl}/</loc><priority>1.0</priority></url>`;
 
   videos.forEach(v => {
+    const contentUrl = getIndexableVideoUrl(v);
     xml += `
   <url>
-    <loc>${baseUrl}/watch?v=${v.id}</loc>
+    <loc>${baseUrl}/watch?v=${encodeURIComponent(v.id)}</loc>
+    ${v.uploadedAt ? `<lastmod>${escapeXml(v.uploadedAt)}</lastmod>` : ''}
     <video:video>
       <video:thumbnail_loc>${v.thumbnailUrl || baseUrl + '/images/logo.png'}</video:thumbnail_loc>
       <video:title>${escapeXml(v.title)}</video:title>
       <video:description>${escapeXml(v.description || 'Watch on StreamXvault')}</video:description>
-      <video:publication_date>${v.uploadedAt}</video:publication_date>
-      <video:player_loc>${baseUrl}/api/embed/${v.id}</video:player_loc>
+      ${v.uploadedAt ? `<video:publication_date>${v.uploadedAt}</video:publication_date>` : ''}
+      ${contentUrl ? `<video:content_loc>${escapeXml(contentUrl)}</video:content_loc>` : `<video:player_loc>${baseUrl}/api/embed/${v.id}</video:player_loc>`}
     </video:video>
   </url>`;
   });

@@ -4,7 +4,7 @@
   "description": "StreamXvault — Admin-Powered Streaming Platform",
   "main": "server.js",
   "scripts": {
-    "start": "node seo-runtime-patch.js && node server.js",
+    "start": "node server.js",
     "dev": "node server.js"
   },
   "dependencies": {
