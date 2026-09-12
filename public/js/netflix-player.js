@@ -1,5 +1,5 @@
 
-window.initNetflixPlayer = function(videoSrc) {
+window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   const container = document.getElementById('video-container');
   const video = document.getElementById('video-player');
   const playPauseBtn = document.getElementById('play-pause-btn');
@@ -20,73 +20,31 @@ window.initNetflixPlayer = function(videoSrc) {
   const rewindBtn = document.getElementById('rewind-btn');
   const forwardBtn = document.getElementById('forward-btn');
   const speedBtn = document.getElementById('speed-btn');
-  const previewCanvas = document.getElementById('preview-canvas');
+  let previewCanvas = document.getElementById('preview-canvas');
   const hiddenVideo = document.getElementById('preview-hidden-video');
   const previewTooltip = document.getElementById('preview-tooltip');
   const previewTimeDisplay = document.getElementById('preview-time');
+  const poster = thumbUrl || (video && video.getAttribute('poster')) || '';
 
-  if (!document.getElementById('preview-hover-style')) {
-    const style = document.createElement('style');
-    style.id = 'preview-hover-style';
-    style.textContent = `
-      .progress-bar-container { position: relative; }
-      .preview-tooltip {
-        position: absolute;
-        bottom: 18px;
-        left: 0;
-        transform: translateX(-50%);
-        display: none;
-        flex-direction: column;
-        align-items: center;
-        pointer-events: none;
-        z-index: 40;
-        will-change: left;
-      }
-      .preview-tooltip.is-visible { display: flex; }
-      .preview-tooltip .preview-video,
-      .preview-tooltip #preview-hidden-video,
-      .preview-tooltip .preview-image {
-        width: 168px;
-        height: 94px;
-        object-fit: cover;
-        background: #111;
-        border-radius: 6px;
-        border: 2px solid #fff;
-        box-shadow: 0 8px 24px rgba(0,0,0,.45);
-        display: block;
-      }
-      .preview-tooltip .preview-time {
-        margin-top: 4px;
-        padding: 2px 8px;
-        background: rgba(0,0,0,.85);
-        color: #fff;
-        font-size: 12px;
-        font-weight: 600;
-        border-radius: 4px;
-      }
-    `;
-    document.head.appendChild(style);
-  }
+  if (hiddenVideo) hiddenVideo.remove();
 
-  if (hiddenVideo) {
-    hiddenVideo.classList.add('preview-video');
-    hiddenVideo.removeAttribute('style');
-    hiddenVideo.muted = true;
-    hiddenVideo.playsInline = true;
-    hiddenVideo.preload = 'auto';
-    if (previewTooltip && hiddenVideo.parentElement !== previewTooltip) {
-      previewTooltip.insertBefore(hiddenVideo, previewTooltip.firstChild);
-    }
+  if (previewCanvas && previewCanvas.tagName === 'CANVAS') {
+    const img = document.createElement('img');
+    img.id = 'preview-canvas';
+    img.className = 'preview-image';
+    img.alt = '';
+    previewCanvas.replaceWith(img);
+    previewCanvas = img;
   }
-  if (previewCanvas && previewCanvas.parentElement) {
-    previewCanvas.style.display = 'none';
+  if (previewCanvas && poster) {
+    if (previewCanvas.tagName === 'IMG') previewCanvas.src = poster;
+    previewCanvas.style.backgroundImage = 'url("' + poster.replace(/"/g, '') + '")';
   }
 
   if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
     const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, maxBufferLength: 60, maxMaxBufferLength: 600 });
     hls.loadSource(videoSrc);
     hls.attachMedia(video);
-
     hls.on(Hls.Events.ERROR, function (event, data) {
       if (data.fatal) {
         switch (data.type) {
@@ -102,28 +60,8 @@ window.initNetflixPlayer = function(videoSrc) {
         }
       }
     });
-
-    if (hiddenVideo) {
-      const hlsPreview = new Hls({
-        autoStartLoad: true,
-        startLevel: 0,
-        capLevelToPlayerSize: true,
-        maxBufferLength: 8,
-        maxMaxBufferLength: 12,
-        maxBufferSize: 2 * 1000 * 1000,
-        enableWorker: true
-      });
-      hlsPreview.loadSource(videoSrc);
-      hlsPreview.attachMedia(hiddenVideo);
-      hlsPreview.on(Hls.Events.MANIFEST_PARSED, () => {
-        try { hlsPreview.currentLevel = 0; } catch (e) {}
-      });
-    }
-  } else if (video.canPlayType('application/vnd.apple.mpegurl') || videoSrc.includes('.mp4') || true) {
-    video.src = videoSrc;
-    if (hiddenVideo) hiddenVideo.src = videoSrc;
   } else {
-    console.error("Video format not supported.");
+    video.src = videoSrc;
   }
 
   function formatTime(seconds) {
@@ -179,48 +117,15 @@ window.initNetflixPlayer = function(videoSrc) {
     if (spinner) spinner.style.display = 'none';
   });
 
+  let isScrubbing = false;
+
   video.addEventListener('timeupdate', () => {
-    if (typeof isScrubbing !== 'undefined' && !isScrubbing) {
+    if (!isScrubbing) {
       currentTimeDisplay.textContent = formatTime(video.currentTime);
       const progressPercent = (video.currentTime / video.duration) * 100;
       progressFilled.style.width = `${progressPercent}%`;
     }
   });
-
-  let isScrubbing = false;
-  let previewSeeking = false;
-  let pendingPreviewTime = null;
-  let lastPreviewTime = -1;
-
-  function seekPreview(time) {
-    if (!hiddenVideo || !isFinite(time)) return;
-    if (Math.abs(time - lastPreviewTime) < 0.35) return;
-    if (previewSeeking) {
-      pendingPreviewTime = time;
-      return;
-    }
-    previewSeeking = true;
-    lastPreviewTime = time;
-    try {
-      hiddenVideo.currentTime = time;
-    } catch (e) {
-      previewSeeking = false;
-    }
-  }
-
-  if (hiddenVideo) {
-    hiddenVideo.addEventListener('seeked', () => {
-      previewSeeking = false;
-      if (pendingPreviewTime !== null) {
-        const next = pendingPreviewTime;
-        pendingPreviewTime = null;
-        seekPreview(next);
-      }
-    });
-    hiddenVideo.addEventListener('error', () => {
-      previewSeeking = false;
-    });
-  }
 
   function hoverPos(e) {
     const rect = progressContainer.getBoundingClientRect();
@@ -237,7 +142,6 @@ window.initNetflixPlayer = function(videoSrc) {
     }
     const hoverTime = (video.duration || 0) * pos;
     if (previewTimeDisplay) previewTimeDisplay.textContent = formatTime(hoverTime);
-    seekPreview(hoverTime);
   });
 
   progressContainer.addEventListener('mouseenter', () => {
@@ -313,21 +217,12 @@ window.initNetflixPlayer = function(videoSrc) {
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      } else if (container.msRequestFullscreen) {
-        container.msRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      }
+      if (container.requestFullscreen) container.requestFullscreen();
+      else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
     }
   }
 
@@ -343,16 +238,8 @@ window.initNetflixPlayer = function(videoSrc) {
 
   fullscreenBtn.addEventListener('click', toggleFullscreen);
   video.addEventListener('dblclick', toggleFullscreen);
-  video.addEventListener('loadeddata', () => {
-    updatePlayBtn();
-    const spinner = document.getElementById('spinner');
-    if (spinner) spinner.style.display = 'none';
-  });
-  video.addEventListener('canplay', () => {
-    updatePlayBtn();
-    const spinner = document.getElementById('spinner');
-    if (spinner) spinner.style.display = 'none';
-  });
+  video.addEventListener('loadeddata', updatePlayBtn);
+  video.addEventListener('canplay', updatePlayBtn);
   updatePlayBtn();
 
   const speeds = [1, 1.25, 1.5, 2, 0.5];
@@ -409,17 +296,13 @@ window.initNetflixPlayer = function(videoSrc) {
     container.classList.add('active');
     clearTimeout(hideTimeout);
     hideTimeout = setTimeout(() => {
-      if (!video.paused) {
-        container.classList.remove('active');
-      }
+      if (!video.paused) container.classList.remove('active');
     }, 3000);
   }
 
   container.addEventListener('mousemove', resetHideTimer);
   container.addEventListener('mouseleave', () => {
-    if (!video.paused) {
-      container.classList.remove('active');
-    }
+    if (!video.paused) container.classList.remove('active');
   });
 
   updatePlayBtn();
