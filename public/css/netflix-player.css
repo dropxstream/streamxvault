@@ -14,7 +14,6 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* Hardware acceleration hint */
   transform: translateZ(0);
   will-change: transform;
 }
@@ -97,36 +96,37 @@
 
 .preview-tooltip {
   position: absolute;
-  bottom: 30px; /* Above the progress bar */
+  bottom: 22px;
   left: 0;
-  transform: translateX(-50%) translateZ(0); /* GPU acceleration */
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   opacity: 0;
-  transition: opacity 0.2s ease, left 0.1s ease-out; /* Smooth glide */
   pointer-events: none;
   background-color: #000;
-  border: 1px solid #333;
-  border-radius: 4px;
-  padding: 5px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.8);
-  will-change: left, opacity;
+  border: 2px solid #fff;
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+  z-index: 50;
 }
 
-.video-container .progress-bar-container:hover .preview-tooltip {
+.video-container .progress-bar-container:hover .preview-tooltip,
+.preview-tooltip.is-visible {
   opacity: 1;
 }
 
 .preview-image {
-  width: 160px;
-  height: 90px;
-  background-color: #222;
-  /* Background image will be set by JS if thumbnails are available */
+  width: 168px;
+  height: 94px;
+  background-color: #111;
   background-size: cover;
   background-position: center;
-  margin-bottom: 5px;
-  border-radius: 2px;
+  margin-bottom: 4px;
+  border-radius: 3px;
+  display: block;
+  object-fit: cover;
 }
 
 .preview-time {
@@ -139,28 +139,20 @@
   position: relative;
   width: 100%;
   height: 4px;
-  background-color: rgba(255,255,255,0.3);
   border-radius: 2px;
   transition: height 0.1s ease;
-
   background: rgba(255,255,255,0.3) !important;
-  width: 100% !important;
 }
 
-.video-container .progress-bar-container:hover .video-container .progress-bar {
+.video-container .progress-bar-container:hover .progress-bar {
   height: 8px;
-
-  background: rgba(255,255,255,0.3) !important;
-  width: 100% !important;
 }
 
 .video-container .progress-filled {
   height: 100%;
-  background-color: #e50914;
   border-radius: 2px;
   width: 0%;
   position: relative;
-
   background: #e50914 !important;
 }
 
