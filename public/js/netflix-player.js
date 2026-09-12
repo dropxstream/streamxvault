@@ -26,42 +26,106 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   const previewTimeDisplay = document.getElementById('preview-time');
   const poster = thumbUrl || (video && video.getAttribute('poster')) || '';
 
-  if (hiddenVideo) hiddenVideo.remove();
+  const qualityIndicator = document.getElementById('quality-indicator');
+  let mainHls = null;
+  let previewHls = null;
+  let previewTimer = null;
+  let previewSeekHandler = null;
+  let pendingPreviewTime = null;
+  const previewContext = previewCanvas && previewCanvas.getContext ? previewCanvas.getContext('2d') : null;
 
-  if (previewCanvas && previewCanvas.tagName === 'CANVAS') {
-    const img = document.createElement('img');
-    img.id = 'preview-canvas';
-    img.className = 'preview-image';
-    img.alt = '';
-    previewCanvas.replaceWith(img);
-    previewCanvas = img;
+  function setQualityLabel(label) {
+    if (qualityIndicator) qualityIndicator.textContent = 'Auto · ' + label;
   }
-  if (previewCanvas && poster) {
-    if (previewCanvas.tagName === 'IMG') previewCanvas.src = poster;
-    previewCanvas.style.backgroundImage = 'url("' + poster.replace(/"/g, '') + '")';
+
+  function levelLabel(level) {
+    const height = level && (level.height || (level.attrs && level.attrs.RESOLUTION && level.attrs.RESOLUTION.height));
+    if (height) return height + 'p';
+    if (level && level.bitrate) return Math.round(level.bitrate / 1000) + ' kbps';
+    return 'detecting…';
+  }
+
+  function drawPosterPreview() {
+    if (!previewContext || !poster) return;
+    const image = new Image();
+    image.onload = () => {
+      try { previewContext.drawImage(image, 0, 0, previewCanvas.width, previewCanvas.height); } catch (error) {}
+    };
+    image.src = poster;
+  }
+
+  function drawPreviewFrame() {
+    if (!previewContext || !hiddenVideo || hiddenVideo.readyState < 2) return;
+    try { previewContext.drawImage(hiddenVideo, 0, 0, previewCanvas.width, previewCanvas.height); } catch (error) {}
+  }
+
+  function requestPreviewFrame(time) {
+    if (!hiddenVideo || !Number.isFinite(time)) return;
+    pendingPreviewTime = time;
+    if (hiddenVideo.readyState < 1) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      if (previewSeekHandler) hiddenVideo.removeEventListener('seeked', previewSeekHandler);
+      previewSeekHandler = () => {
+        drawPreviewFrame();
+        previewSeekHandler = null;
+      };
+      hiddenVideo.addEventListener('seeked', previewSeekHandler, { once: true });
+      try { hiddenVideo.currentTime = time; } catch (error) {}
+    }, 80);
+  }
+
+  if (previewCanvas && previewContext) {
+    previewCanvas.width = 160;
+    previewCanvas.height = 90;
+    drawPosterPreview();
+  }
+  if (hiddenVideo) {
+    hiddenVideo.removeAttribute('autoplay');
+    hiddenVideo.preload = 'metadata';
+    hiddenVideo.muted = true;
+    hiddenVideo.addEventListener('loadedmetadata', () => {
+      if (pendingPreviewTime !== null) requestPreviewFrame(pendingPreviewTime);
+    });
   }
 
   if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
-    const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, maxBufferLength: 60, maxMaxBufferLength: 600 });
-    hls.loadSource(videoSrc);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.ERROR, function (event, data) {
+    mainHls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, maxBufferLength: 60, maxMaxBufferLength: 600 });
+    mainHls.loadSource(videoSrc);
+    mainHls.attachMedia(video);
+    mainHls.on(Hls.Events.MANIFEST_PARSED, () => setQualityLabel('detecting…'));
+    mainHls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+      const level = mainHls.levels[data.level];
+      setQualityLabel(levelLabel(level));
+    });
+    mainHls.on(Hls.Events.ERROR, function (event, data) {
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            hls.startLoad();
+            mainHls.startLoad();
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
-            hls.recoverMediaError();
+            mainHls.recoverMediaError();
             break;
           default:
-            hls.destroy();
+            mainHls.destroy();
             break;
         }
       }
     });
   } else {
     video.src = videoSrc;
+    setQualityLabel('source');
+  }
+
+  if (hiddenVideo) {
+    if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
+      previewHls = new Hls({ enableWorker: true, maxBufferLength: 3, maxMaxBufferLength: 6 });
+      previewHls.loadSource(videoSrc);
+      previewHls.attachMedia(hiddenVideo);
+    } else {
+      hiddenVideo.src = videoSrc;
+    }
   }
 
   function formatTime(seconds) {
@@ -142,6 +206,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     }
     const hoverTime = (video.duration || 0) * pos;
     if (previewTimeDisplay) previewTimeDisplay.textContent = formatTime(hoverTime);
+    if (video.duration) requestPreviewFrame(hoverTime);
   });
 
   progressContainer.addEventListener('mouseenter', () => {
