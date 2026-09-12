@@ -105,6 +105,14 @@ async function initPlayer() {
     }
 
 
+      if (!document.querySelector('.quality-notice')) {
+        const qualityNotice = document.createElement('p');
+        qualityNotice.className = 'quality-notice';
+        qualityNotice.setAttribute('role', 'note');
+        qualityNotice.innerHTML = '<strong>Quality is automatic.</strong> For smooth 4K playback, use a strong, fast internet connection.';
+        wrapper.insertAdjacentElement('afterend', qualityNotice);
+      }
+
       // ====== DOWNLOADS LOGIC ======
     const dlMenu = document.getElementById('download-menu');
     if (dlMenu) {
