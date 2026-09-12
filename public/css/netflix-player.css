@@ -240,3 +240,33 @@
   .volume-container, .time-display { display: none !important; }
   .control-btn svg { width: 24px; height: 24px; }
 }
+
+
+/* Adaptive quality and timeline preview */
+.quality-indicator {
+  color: rgba(255,255,255,0.82);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.quality-notice {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.preview-image {
+  width: 160px;
+  height: 90px;
+  display: block;
+  background: #111;
+  object-fit: cover;
+}
+
+@media (max-width: 600px) {
+  .quality-indicator { font-size: 0.65rem; }
+  .preview-image { width: 140px; height: 79px; }
+}
