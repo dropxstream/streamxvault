@@ -1,5 +1,4 @@
 
-
 window.initNetflixPlayer = function(videoSrc) {
   const container = document.getElementById('video-container');
   const video = document.getElementById('video-player');
@@ -22,11 +21,66 @@ window.initNetflixPlayer = function(videoSrc) {
   const forwardBtn = document.getElementById('forward-btn');
   const speedBtn = document.getElementById('speed-btn');
   const previewCanvas = document.getElementById('preview-canvas');
-  const previewCtx = previewCanvas ? previewCanvas.getContext('2d') : null;
   const hiddenVideo = document.getElementById('preview-hidden-video');
+  const previewTooltip = document.getElementById('preview-tooltip');
+  const previewTimeDisplay = document.getElementById('preview-time');
 
-  // Stream URL: Replace this with any HLS (.m3u8) or MP4 URL
-  
+  if (!document.getElementById('preview-hover-style')) {
+    const style = document.createElement('style');
+    style.id = 'preview-hover-style';
+    style.textContent = `
+      .progress-bar-container { position: relative; }
+      .preview-tooltip {
+        position: absolute;
+        bottom: 18px;
+        left: 0;
+        transform: translateX(-50%);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: none;
+        z-index: 40;
+        will-change: left;
+      }
+      .preview-tooltip.is-visible { display: flex; }
+      .preview-tooltip .preview-video,
+      .preview-tooltip #preview-hidden-video,
+      .preview-tooltip .preview-image {
+        width: 168px;
+        height: 94px;
+        object-fit: cover;
+        background: #111;
+        border-radius: 6px;
+        border: 2px solid #fff;
+        box-shadow: 0 8px 24px rgba(0,0,0,.45);
+        display: block;
+      }
+      .preview-tooltip .preview-time {
+        margin-top: 4px;
+        padding: 2px 8px;
+        background: rgba(0,0,0,.85);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 4px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  if (hiddenVideo) {
+    hiddenVideo.classList.add('preview-video');
+    hiddenVideo.removeAttribute('style');
+    hiddenVideo.muted = true;
+    hiddenVideo.playsInline = true;
+    hiddenVideo.preload = 'auto';
+    if (previewTooltip && hiddenVideo.parentElement !== previewTooltip) {
+      previewTooltip.insertBefore(hiddenVideo, previewTooltip.firstChild);
+    }
+  }
+  if (previewCanvas && previewCanvas.parentElement) {
+    previewCanvas.style.display = 'none';
+  }
 
   if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
     const hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, maxBufferLength: 60, maxMaxBufferLength: 600 });
@@ -48,26 +102,30 @@ window.initNetflixPlayer = function(videoSrc) {
         }
       }
     });
-    
-    // Setup hidden video for preview extraction
+
     if (hiddenVideo) {
       const hlsPreview = new Hls({
         autoStartLoad: true,
-        startPosition: -1,
-        capLevelToPlayerSize: true, // save bandwidth
+        startLevel: 0,
+        capLevelToPlayerSize: true,
+        maxBufferLength: 8,
+        maxMaxBufferLength: 12,
+        maxBufferSize: 2 * 1000 * 1000,
+        enableWorker: true
       });
       hlsPreview.loadSource(videoSrc);
       hlsPreview.attachMedia(hiddenVideo);
+      hlsPreview.on(Hls.Events.MANIFEST_PARSED, () => {
+        try { hlsPreview.currentLevel = 0; } catch (e) {}
+      });
     }
   } else if (video.canPlayType('application/vnd.apple.mpegurl') || videoSrc.includes('.mp4') || true) {
-    // Native support (Safari) or standard MP4 fallback
     video.src = videoSrc;
     if (hiddenVideo) hiddenVideo.src = videoSrc;
   } else {
     console.error("Video format not supported.");
   }
 
-  // Utility to format time (e.g., 1:23)
   function formatTime(seconds) {
     if (isNaN(seconds)) return '0:00';
     const h = Math.floor(seconds / 3600);
@@ -82,7 +140,6 @@ window.initNetflixPlayer = function(videoSrc) {
   let adPlayed = false;
   const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
 
-  // Play / Pause Logic
   function togglePlay() {
     if (video.paused) {
       if (!adPlayed && typeof window.playVastAd === 'function') {
@@ -116,7 +173,6 @@ window.initNetflixPlayer = function(videoSrc) {
   video.addEventListener('play', updatePlayBtn);
   video.addEventListener('pause', updatePlayBtn);
 
-  // Time and Progress Updates
   video.addEventListener('loadedmetadata', () => {
     durationDisplay.textContent = formatTime(video.duration);
     const spinner = document.getElementById('spinner');
@@ -131,59 +187,73 @@ window.initNetflixPlayer = function(videoSrc) {
     }
   });
 
-  const previewTooltip = document.getElementById('preview-tooltip');
-  const previewTimeDisplay = document.getElementById('preview-time');
+  let isScrubbing = false;
+  let previewSeeking = false;
+  let pendingPreviewTime = null;
+  let lastPreviewTime = -1;
 
-  let hoverTimeout;
+  function seekPreview(time) {
+    if (!hiddenVideo || !isFinite(time)) return;
+    if (Math.abs(time - lastPreviewTime) < 0.35) return;
+    if (previewSeeking) {
+      pendingPreviewTime = time;
+      return;
+    }
+    previewSeeking = true;
+    lastPreviewTime = time;
+    try {
+      hiddenVideo.currentTime = time;
+    } catch (e) {
+      previewSeeking = false;
+    }
+  }
 
-  if (hiddenVideo && previewCtx) {
+  if (hiddenVideo) {
     hiddenVideo.addEventListener('seeked', () => {
-      previewCtx.drawImage(hiddenVideo, 0, 0, previewCanvas.width, previewCanvas.height);
+      previewSeeking = false;
+      if (pendingPreviewTime !== null) {
+        const next = pendingPreviewTime;
+        pendingPreviewTime = null;
+        seekPreview(next);
+      }
+    });
+    hiddenVideo.addEventListener('error', () => {
+      previewSeeking = false;
     });
   }
 
-  progressContainer.addEventListener('mousemove', (e) => {
+  function hoverPos(e) {
     const rect = progressContainer.getBoundingClientRect();
     let pos = (e.clientX - rect.left) / rect.width;
-    
-    // Clamp pos between 0 and 1
-    pos = Math.max(0, Math.min(1, pos));
-    
-    // Update tooltip position (prevent overflowing the player bounds)
-    const tooltipWidth = 170; // approximate width of tooltip with padding
-    const containerWidth = rect.width;
-    let pixelPos = pos * containerWidth;
-    
-    // Clamp pixel pos so tooltip doesn't go off-screen
-    pixelPos = Math.max(tooltipWidth / 2, Math.min(containerWidth - tooltipWidth / 2, pixelPos));
-    
-    previewTooltip.style.left = `${pixelPos}px`;
-    
-    // Calculate and update time
-    const hoverTime = pos * video.duration;
-    previewTimeDisplay.textContent = formatTime(hoverTime);
-    
-    // Dynamically fetch frame using hidden video (debounced to avoid network spam)
-    if (hiddenVideo) {
-      clearTimeout(hoverTimeout);
-      hoverTimeout = setTimeout(() => {
-        hiddenVideo.currentTime = hoverTime;
-      }, 150); // wait 150ms before seeking to extract frame
+    return Math.max(0, Math.min(1, pos));
+  }
+
+  progressContainer.addEventListener('mousemove', (e) => {
+    const pos = hoverPos(e);
+    const rect = progressContainer.getBoundingClientRect();
+    if (previewTooltip) {
+      previewTooltip.style.left = `${pos * rect.width}px`;
+      previewTooltip.classList.add('is-visible');
     }
+    const hoverTime = (video.duration || 0) * pos;
+    if (previewTimeDisplay) previewTimeDisplay.textContent = formatTime(hoverTime);
+    seekPreview(hoverTime);
   });
 
-  let isScrubbing = false;
+  progressContainer.addEventListener('mouseenter', () => {
+    if (previewTooltip) previewTooltip.classList.add('is-visible');
+  });
+
+  progressContainer.addEventListener('mouseleave', () => {
+    if (previewTooltip) previewTooltip.classList.remove('is-visible');
+  });
 
   function scrub(e, updateVideo = false) {
-    const rect = progressContainer.getBoundingClientRect();
-    let pos = (e.clientX - rect.left) / rect.width;
-    pos = Math.max(0, Math.min(1, pos));
-    
+    const pos = hoverPos(e);
     if (isScrubbing) {
       progressFilled.style.width = `${pos * 100}%`;
       currentTimeDisplay.textContent = formatTime(pos * video.duration);
     }
-    
     if (video.duration && updateVideo) {
       video.currentTime = pos * video.duration;
     }
@@ -205,16 +275,14 @@ window.initNetflixPlayer = function(videoSrc) {
     }
   });
 
-  // Rewind and Forward (10s)
   rewindBtn.addEventListener('click', () => {
     video.currentTime = Math.max(0, video.currentTime - 10);
   });
-  
+
   forwardBtn.addEventListener('click', () => {
     video.currentTime = Math.min(video.duration, video.currentTime + 10);
   });
 
-  // Volume Logic
   function toggleMute() {
     video.muted = !video.muted;
     if (video.muted) {
@@ -243,7 +311,6 @@ window.initNetflixPlayer = function(videoSrc) {
     updateVolumeIcon();
   });
 
-  // Fullscreen Logic
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
       if (container.requestFullscreen) {
@@ -288,7 +355,6 @@ window.initNetflixPlayer = function(videoSrc) {
   });
   updatePlayBtn();
 
-  // Playback Speed
   const speeds = [1, 1.25, 1.5, 2, 0.5];
   let speedIndex = 0;
   speedBtn.addEventListener('click', () => {
@@ -297,10 +363,8 @@ window.initNetflixPlayer = function(videoSrc) {
     speedBtn.textContent = `${speeds[speedIndex]}x`;
   });
 
-  // Keyboard Shortcuts
   document.addEventListener('keydown', (e) => {
     if (document.activeElement.tagName === 'INPUT') return;
-    
     switch (e.key.toLowerCase()) {
       case ' ':
       case 'k':
@@ -340,7 +404,6 @@ window.initNetflixPlayer = function(videoSrc) {
     }
   });
 
-  // Auto-hide controls on inactivity
   let hideTimeout;
   function resetHideTimer() {
     container.classList.add('active');
@@ -359,7 +422,6 @@ window.initNetflixPlayer = function(videoSrc) {
     }
   });
 
-  // Initial State Setup
   updatePlayBtn();
   updateVolumeIcon();
 };
