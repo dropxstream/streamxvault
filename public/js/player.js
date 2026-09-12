@@ -1,9 +1,6 @@
 /**
  * player.js - Handles global video playback, likes, and downloads.
- * Restored to Official Bunny Stream Integration.
  */
-
-// Shared utilities loaded from /js/utils.js
 
 function toggleDownloadMenu(event) {
   if (event) event.stopPropagation();
@@ -32,16 +29,14 @@ async function initPlayer() {
     if (!res.ok) throw new Error('Video not found');
     const video = await res.json();
 
-    // Set page title
     document.title = `${video.title} - StreamXvault`;
-    
-    // Fill video details
+
     document.getElementById('video-title').textContent = video.title;
     document.getElementById('video-description').textContent = video.description || 'No description available.';
-    
+
     const viewsElem = document.getElementById('video-views');
     if (viewsElem) viewsElem.textContent = formatViews(video.displayViews || video.views || 0) + ' views';
-    
+
     const dateElem = document.getElementById('video-date');
     if (dateElem && video.uploadedAt) dateElem.textContent = new Date(video.uploadedAt).toLocaleDateString();
 
@@ -49,37 +44,35 @@ async function initPlayer() {
 
     const wrapper = document.getElementById('player-wrapper');
     if (video.videoUrl && (video.videoUrl.includes('<iframe') || video.videoUrl.includes('embed'))) {
-      // Fallback for External Embeds
-      const embedSrc = video.videoUrl.includes('<iframe') 
-        ? video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl 
+      const embedSrc = video.videoUrl.includes('<iframe')
+        ? video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl
         : video.videoUrl;
 
       if (embedSrc && embedSrc.startsWith('https://')) {
         wrapper.innerHTML = `
-          <div style="position:relative; padding-top:56.25%; background: #000; border-radius: 12px; overflow: hidden;">
-              <iframe src="${embedSrc}" 
-                      style="border:0;position:absolute;top:0;height:100%;width:100%;" 
-                      allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" 
+          <div style="position:relative; padding-top:56.25%; background: #000; overflow: hidden;">
+              <iframe src="${embedSrc}"
+                      style="border:0;position:absolute;top:0;height:100%;width:100%;"
+                      allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
                       allowfullscreen="true"></iframe>
           </div>`;
       } else {
         wrapper.textContent = 'Invalid video source';
       }
     } else {
-      // Standard/HLS Player using Netflix
-
-      const isHls = video.videoUrl && video.videoUrl.includes('.m3u8');
-      
-      const safeThumbnail = video.thumbnailUrl ? video.thumbnailUrl.replace(/'/g, "&apos;") : "";
-      wrapper.innerHTML = "<div class='video-container' id='video-container'>" +
+      const safeThumbnail = video.thumbnailUrl ? video.thumbnailUrl.replace(/'/g, "'") : "";
+      wrapper.innerHTML =
+        "<div class='video-container' id='video-container'>" +
         "<video id='video-player' class='video-player' poster='" + safeThumbnail + "'></video>" +
         "<div class='video-overlay' id='video-overlay'>" +
           "<div class='big-play-btn' id='big-play-btn'><svg viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg></div>" +
         "</div>" +
         "<div class='video-controls' id='video-controls'>" +
           "<div class='progress-bar-container' id='progress-container'>" +
-            "<video id='preview-hidden-video' style='position:absolute; width:1px; height:1px; opacity:0.01; pointer-events:none; z-index:-1;' muted playsinline autoplay></video>" +
-            "<div class='preview-tooltip' id='preview-tooltip'><canvas class='preview-image' id='preview-canvas' width='160' height='90'></canvas><span class='preview-time' id='preview-time'>0:00</span></div>" +
+            "<div class='preview-tooltip' id='preview-tooltip'>" +
+              "<img class='preview-image' id='preview-canvas' alt='' src='" + safeThumbnail + "'>" +
+              "<span class='preview-time' id='preview-time'>0:00</span>" +
+            "</div>" +
             "<div class='progress-bar' id='progress-bar'><div class='progress-filled' id='progress-filled'></div><div class='progress-thumb'></div></div>" +
           "</div>" +
           "<div class='controls-main'>" +
@@ -91,29 +84,27 @@ async function initPlayer() {
               "<div class='time-display'><span id='current-time'>0:00</span> / <span id='duration'>0:00</span></div>" +
             "</div>" +
             "<div class='controls-right'>" +
-               "<span class='quality-indicator' id='quality-indicator' title='Playback quality is selected automatically based on your connection'>Auto · detecting…</span>" +
+              "<span class='quality-indicator' id='quality-indicator' title='Quality is chosen automatically from your connection'>Auto</span>" +
               "<button class='control-btn text-btn' id='speed-btn'>1x</button>" +
               "<button class='control-btn' id='fullscreen-btn' title='Fullscreen (f)'><svg id='fullscreen-icon' viewBox='0 0 24 24' fill='currentColor'><path d='M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z'/></svg><svg id='exit-fullscreen-icon' class='hidden' viewBox='0 0 24 24' fill='currentColor'><path d='M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z'/></svg></button>" +
             "</div>" +
           "</div>" +
         "</div>" +
       "</div>";
-      
+
       if (typeof window.initNetflixPlayer === 'function') {
-        window.initNetflixPlayer(video.videoUrl);
+        window.initNetflixPlayer(video.videoUrl, video.thumbnailUrl);
       }
     }
 
+    if (!document.querySelector('.quality-notice')) {
+      const qualityNotice = document.createElement('p');
+      qualityNotice.className = 'quality-notice';
+      qualityNotice.setAttribute('role', 'note');
+      qualityNotice.textContent = 'Quality is automatic from your internet speed. 4K needs a strong, fast connection.';
+      wrapper.insertAdjacentElement('afterend', qualityNotice);
+    }
 
-      if (!document.querySelector('.quality-notice')) {
-        const qualityNotice = document.createElement('p');
-        qualityNotice.className = 'quality-notice';
-        qualityNotice.setAttribute('role', 'note');
-        qualityNotice.innerHTML = '<strong>Quality is automatic.</strong> For smooth 4K playback, use a strong, fast internet connection.';
-        wrapper.insertAdjacentElement('afterend', qualityNotice);
-      }
-
-      // ====== DOWNLOADS LOGIC ======
     const dlMenu = document.getElementById('download-menu');
     if (dlMenu) {
       dlMenu.innerHTML = '';
@@ -126,14 +117,10 @@ async function initPlayer() {
 
         if (hasDownloads) {
           if (downloads.p720) {
-            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p720)}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4">
-              <span>720p HD</span> <span class="quality">MP4</span>
-            </a>`;
+            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p720)}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4"><span>720p HD</span> <span class="quality">MP4</span></a>`;
           }
           if (downloads.p1080) {
-            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p1080)}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4">
-              <span>1080p FHD</span> <span class="quality">MP4</span>
-            </a>`;
+            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p1080)}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4"><span>1080p FHD</span> <span class="quality">MP4</span></a>`;
           }
         } else {
           dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';
@@ -143,7 +130,6 @@ async function initPlayer() {
       }
     }
 
-    // Load related videos
     const allRes = await fetch('/api/videos');
     const allVideos = await allRes.json();
     const relatedGrid = document.getElementById('related-grid');
@@ -173,18 +159,18 @@ function createVideoCard(video) {
   card.href = `/watch?v=${video.id}`;
   card.className = 'video-card';
   card.setAttribute('aria-label', escapeHtml(video.title));
-  
+
   const thumbUrl = video.thumbnailUrl || '/images/placeholder.jpg';
   const views = formatViews(video.displayViews || video.views || 0);
   const timeAgo = getTimeAgo(video.uploadedAt);
-  
+
   card.innerHTML = `
     <div class="thumbnail">
       <img src="${thumbUrl}" alt="${escapeHtml(video.title)}" loading="lazy">
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
-      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(229, 9, 20, 0.3);">${escapeHtml(video.genre)}</div>` : ''}
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeHtml(video.genre)}</div>` : ''}
       <div class="card-meta">
         <span><span aria-hidden="true">👁️</span> ${views}</span>
         <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>
