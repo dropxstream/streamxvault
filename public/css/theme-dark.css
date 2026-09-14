@@ -1,0 +1,105 @@
+.theme-toggle {
+  margin-right: 0.6rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+html[data-theme="light"] .theme-toggle {
+  border-color: rgba(255,255,255,0.35);
+  color: #fff;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+html[data-theme="dark"] body {
+  background: #080810;
+  color: #f5f5f7;
+}
+html[data-theme="dark"] .navbar {
+  background: rgba(8, 8, 16, 0.88) !important;
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+html[data-theme="dark"] .nav-brand,
+html[data-theme="dark"] .nav-link,
+html[data-theme="dark"] #nav-home {
+  color: #ffffff !important;
+}
+html[data-theme="dark"] .nav-search input {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+  color: #fff;
+}
+html[data-theme="dark"] .main-content,
+html[data-theme="dark"] .container,
+html[data-theme="dark"] .footer {
+  background: transparent;
+  color: #d4d4dc;
+}
+html[data-theme="dark"] .hero {
+  color: #fff;
+}
+html[data-theme="dark"] .hero h1,
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] .video-info h1,
+html[data-theme="dark"] .card-title {
+  color: #fff;
+}
+html[data-theme="dark"] .hero p,
+html[data-theme="dark"] .card-meta,
+html[data-theme="dark"] .section-action,
+html[data-theme="dark"] .video-meta,
+html[data-theme="dark"] .footer-text {
+  color: rgba(255,255,255,0.55);
+}
+html[data-theme="dark"] .video-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+}
+html[data-theme="dark"] .video-card:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(229, 9, 20, 0.35);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45), 0 0 24px rgba(229,9,20,0.18);
+}
+html[data-theme="dark"] .video-description {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+}
+html[data-theme="dark"] .btn-secondary {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border-color: rgba(255,255,255,0.14);
+}
+html[data-theme="dark"] .empty-state {
+  color: rgba(255,255,255,0.6);
+}
+html[data-theme="dark"] .footer {
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+html[data-theme="dark"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(139, 26, 26, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(124, 58, 237, 0.16) 0%, transparent 60%);
+}
+html[data-theme="dark"] .navbar,
+html[data-theme="dark"] .main-content,
+html[data-theme="dark"] .vod-hero,
+html[data-theme="dark"] .genres-section {
+  position: relative;
+  z-index: 1;
+}
