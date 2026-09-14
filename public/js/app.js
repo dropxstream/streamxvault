@@ -1,7 +1,6 @@
 /**
- * StreamXvault — Home catalog: search, sort, pagination
+ * StreamXvault — Home catalog: search, sort, pagination, recommendations
  */
-
 var PAGE_SIZE = 12;
 var allVideos = [];
 var currentSearch = '';
@@ -46,13 +45,11 @@ function sortVideos(list, sort) {
   else copy.sort(function (a, b) { return videoTime(b) - videoTime(a); });
   return copy;
 }
-
 function matchesSearch(video, q) {
   if (!q) return true;
   var hay = [(video.title || ''), (video.genre || ''), (video.description || ''), (video.shortDescription || '')].join(' ').toLowerCase();
   return hay.indexOf(q) !== -1;
 }
-
 function filteredList() {
   var list = allVideos.slice();
   var q = currentSearch.toLowerCase();
@@ -60,7 +57,6 @@ function filteredList() {
   if (currentGenre) list = list.filter(function (v) { return v.genre === currentGenre; });
   return sortVideos(list, currentSort);
 }
-
 function setSort(sort) {
   currentSort = sort || 'latest';
   currentPage = 1;
@@ -72,14 +68,12 @@ function setSort(sort) {
   });
   renderVideoList();
 }
-
 function setPage(page) {
   currentPage = Math.max(1, page);
   renderVideoList();
   var grid = document.getElementById('all-videos');
   if (grid && grid.scrollIntoView) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-
 function ensureToolbar() {
   var genres = document.getElementById('genre-filters');
   if (!genres) return;
@@ -120,28 +114,48 @@ function ensureToolbar() {
     if (grid && grid.parentNode) grid.parentNode.insertBefore(pager, grid.nextSibling);
   }
 }
-
 function renderPager(total, page, pages) {
   var pager = document.getElementById('video-pagination');
   if (!pager) return;
-  if (pages <= 1) {
-    pager.style.display = 'none';
-    pager.innerHTML = '';
-    return;
-  }
+  if (pages <= 1) { pager.style.display = 'none'; pager.innerHTML = ''; return; }
   pager.style.display = 'flex';
   var html = '<button type="button" class="btn btn-secondary" ' + (page <= 1 ? 'disabled' : '') + ' onclick="setPage(' + (page - 1) + ')">Prev</button>';
   var start = Math.max(1, page - 2);
   var end = Math.min(pages, start + 4);
   start = Math.max(1, end - 4);
-  for (var i = start; i <= end; i++) {
-    html += '<button type="button" class="btn ' + (i === page ? 'btn-primary' : 'btn-secondary') + '" onclick="setPage(' + i + ')">' + i + '</button>';
-  }
+  for (var i = start; i <= end; i++) html += '<button type="button" class="btn ' + (i === page ? 'btn-primary' : 'btn-secondary') + '" onclick="setPage(' + i + ')">' + i + '</button>';
   html += '<button type="button" class="btn btn-secondary" ' + (page >= pages ? 'disabled' : '') + ' onclick="setPage(' + (page + 1) + ')">Next</button>';
   html += '<span style="color:var(--text-muted);font-size:0.8rem;">Page ' + page + ' of ' + pages + ' · ' + total + ' videos</span>';
   pager.innerHTML = html;
 }
-
+function localRecommend(list) {
+  var hist = (window.sxvWatchHistory && window.sxvWatchHistory()) || [];
+  var seen = {};
+  var genres = {};
+  hist.forEach(function (item) {
+    seen[item.id] = true;
+    if (item.genre) genres[item.genre] = (genres[item.genre] || 0) + 2;
+  });
+  return list.slice().map(function (video) {
+    var score = 0;
+    if (seen[video.id]) score -= 50;
+    if (video.genre && genres[video.genre]) score += genres[video.genre] * 8;
+    score += Math.log(1 + (Number(video.views) || 0)) * 2;
+    var ageH = (Date.now() - videoTime(video)) / 3600000;
+    if (ageH < 72) score += 6;
+    return { video: video, score: score };
+  }).sort(function (a, b) { return b.score - a.score; }).map(function (row) { return row.video; });
+}
+function renderRecommended() {
+  var section = document.getElementById('recommended-section');
+  var carousel = document.getElementById('recommended-carousel');
+  if (!section || !carousel || !allVideos.length) return;
+  var picks = localRecommend(allVideos).slice(0, 8);
+  if (!picks.length) { section.style.display = 'none'; return; }
+  carousel.innerHTML = '';
+  picks.forEach(function (v) { carousel.appendChild(createVideoCard(v)); });
+  section.style.display = 'block';
+}
 function renderVideoList() {
   var gridEl = document.getElementById('videos-grid');
   var emptyEl = document.getElementById('empty-state');
@@ -149,10 +163,8 @@ function renderVideoList() {
   var recentSection = document.getElementById('recent-section');
   var countEl = document.getElementById('video-count');
   if (!gridEl) return;
-
   var newest = sortVideos(allVideos, 'latest');
   if (newest[0]) updateHero(newest[0]); else updateHeroDefault();
-
   if (recentSection) {
     if (!currentSearch && !currentGenre && newest.length > 1) {
       recentSection.style.display = 'block';
@@ -163,12 +175,10 @@ function renderVideoList() {
       }
     } else recentSection.style.display = 'none';
   }
-
+  renderRecommended();
   var list = filteredList();
   if (list.length === 0) {
-    gridEl.style.display = 'none';
-    gridEl.innerHTML = '';
-    renderPager(0, 1, 1);
+    gridEl.style.display = 'none'; gridEl.innerHTML = ''; renderPager(0, 1, 1);
     if ((currentSearch || currentGenre) && noResultsEl) noResultsEl.style.display = 'block';
     else if (emptyEl) emptyEl.style.display = 'block';
     if (countEl) countEl.textContent = '';
@@ -176,26 +186,21 @@ function renderVideoList() {
   }
   if (emptyEl) emptyEl.style.display = 'none';
   if (noResultsEl) noResultsEl.style.display = 'none';
-
   var pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   if (currentPage > pages) currentPage = pages;
   var start = (currentPage - 1) * PAGE_SIZE;
-  var pageItems = list.slice(start, start + PAGE_SIZE);
   gridEl.innerHTML = '';
   gridEl.style.display = 'grid';
-  pageItems.forEach(function (v) { gridEl.appendChild(createVideoCard(v)); });
+  list.slice(start, start + PAGE_SIZE).forEach(function (v) { gridEl.appendChild(createVideoCard(v)); });
   if (countEl) countEl.textContent = list.length + ' video' + (list.length !== 1 ? 's' : '') + ' · page ' + currentPage + '/' + pages;
   renderPager(list.length, currentPage, pages);
 }
-
 async function loadVideos() {
   var loadingEl = document.getElementById('videos-loading');
   var gridEl = document.getElementById('videos-grid');
   if (!gridEl) return;
   if (loadingEl) {
-    gridEl.style.display = 'none';
-    loadingEl.style.display = 'grid';
-    loadingEl.innerHTML = '';
+    gridEl.style.display = 'none'; loadingEl.style.display = 'grid'; loadingEl.innerHTML = '';
     for (var i = 0; i < 8; i++) {
       var s = document.createElement('div');
       s.className = 'skeleton-card';
@@ -204,17 +209,27 @@ async function loadVideos() {
     }
   }
   try {
-    var res = await fetch('/api/videos', { headers: typeof getAuthHeaders === 'function' ? getAuthHeaders() : {} });
+    var res = await fetch('/api/videos');
     var videos = await res.json();
     allVideos = Array.isArray(videos) ? videos : [];
     if (loadingEl) loadingEl.style.display = 'none';
     renderVideoList();
+    fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: ((window.sxvWatchHistory && window.sxvWatchHistory()) || []).map(function (i) { return i.id; }) }) })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.videos || !data.videos.length) return;
+        var section = document.getElementById('recommended-section');
+        var carousel = document.getElementById('recommended-carousel');
+        if (!section || !carousel) return;
+        carousel.innerHTML = '';
+        data.videos.forEach(function (v) { carousel.appendChild(createVideoCard(v)); });
+        section.style.display = 'block';
+      }).catch(function () {});
   } catch (err) {
     console.error('Failed to load videos:', err);
     if (loadingEl) loadingEl.style.display = 'none';
   }
 }
-
 function updateHero(video) {
   var heroTitle = document.getElementById('hero-title');
   var heroDesc = document.getElementById('hero-desc');
@@ -244,13 +259,10 @@ function updateHeroDefault() {
   if (heroDesc) heroDesc.textContent = 'Your premium streaming platform.';
   if (heroPlayBtn) heroPlayBtn.style.display = 'none';
 }
-
 function filterByGenre(genre) {
-  currentGenre = genre;
-  currentPage = 1;
+  currentGenre = genre; currentPage = 1;
   document.querySelectorAll('.genre-filters .btn').forEach(function (btn) {
-    btn.className = 'btn btn-secondary';
-    btn.setAttribute('aria-pressed', 'false');
+    btn.className = 'btn btn-secondary'; btn.setAttribute('aria-pressed', 'false');
   });
   var buttonId = 'filter-' + (genre ? genre.replace(/\s+/g, '-') : 'All');
   var activeBtn = document.getElementById(buttonId);
@@ -258,20 +270,17 @@ function filterByGenre(genre) {
   renderVideoList();
 }
 function clearSearch() {
-  currentSearch = '';
-  currentPage = 1;
+  currentSearch = ''; currentPage = 1;
   var nav = document.getElementById('search-input');
   var extra = document.getElementById('catalog-search');
   if (nav) nav.value = '';
   if (extra) extra.value = '';
   renderVideoList();
 }
-
 window.setSort = setSort;
 window.setPage = setPage;
 window.filterByGenre = filterByGenre;
 window.clearSearch = clearSearch;
-
 document.addEventListener('DOMContentLoaded', function () {
   ensureToolbar();
   try {
@@ -281,8 +290,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var nav = document.getElementById('search-input');
   var extra = document.getElementById('catalog-search');
   function onSearch(val) {
-    currentSearch = (val || '').trim();
-    currentPage = 1;
+    currentSearch = (val || '').trim(); currentPage = 1;
     if (nav && nav.value !== currentSearch) nav.value = currentSearch;
     if (extra && extra.value !== currentSearch) extra.value = currentSearch;
     renderVideoList();
