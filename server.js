@@ -36,16 +36,21 @@ app.use((req, res, next) => {
   next();
 });
 
-function withAgeGate(html) {
-  if (html.indexOf('/js/age-gate.js') !== -1) return html;
-  return html.replace(/<\/body>/i, '<script src="/js/age-gate.js?v=1"></script>\n</body>');
+function decorateHtml(html) {
+  if (html.indexOf('/css/nav-fx.css') === -1) {
+    html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=1">\n</head>');
+  }
+  if (html.indexOf('/js/age-gate.js') === -1) {
+    html = html.replace(/<\/body>/i, '<script src="/js/age-gate.js?v=1"></script>\n</body>');
+  }
+  return html;
 }
 
 app.get(['/demand.html', '/demand-form.html'], (req, res) => {
   const name = req.path === '/demand-form.html' ? 'demand-form.html' : 'demand.html';
   const file = path.join(__dirname, 'public', name);
   if (!fs.existsSync(file)) return res.status(404).end();
-  res.type('html').send(withAgeGate(fs.readFileSync(file, 'utf8')));
+  res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
 });
 
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
@@ -62,15 +67,11 @@ function loadVideos() {
 }
 
 async function syncVideosFromR2() {
-  if (!storage || storage.mode !== 'r2') {
-    console.log('Skip R2 catalog sync, mode=' + (storage && storage.mode));
-    return;
-  }
+  if (!storage || storage.mode !== 'r2') return;
   try {
     const remote = await storage.download(DB_KEY);
     if (remote && remote.length > 5) {
       fs.writeFileSync(DATA_FILE, remote);
-      console.log('Catalog synced bytes=' + remote.length);
       return;
     }
     const fallback = await storage.download('videos.json');
@@ -82,10 +83,10 @@ async function syncVideosFromR2() {
 
 function escapeHtml(text) {
   return String(text || '')
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 
@@ -132,7 +133,7 @@ function injectHead(html, { title, description, tags }) {
   html = html.replace(/\n\s*<meta property=["']og:[^>]*>/gi, '');
   html = html.replace(/\n\s*<meta name=["']twitter:[^>]*>/gi, '');
   html = html.replace(/<head[^>]*>/i, function (open) { return open + '\n  ' + tags; });
-  return withAgeGate(html);
+  return decorateHtml(html);
 }
 
 function sendLogo(res) {
