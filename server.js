@@ -36,6 +36,18 @@ app.use((req, res, next) => {
   next();
 });
 
+function withAgeGate(html) {
+  if (html.indexOf('/js/age-gate.js') !== -1) return html;
+  return html.replace(/<\/body>/i, '<script src="/js/age-gate.js?v=1"></script>\n</body>');
+}
+
+app.get(['/demand.html', '/demand-form.html'], (req, res) => {
+  const name = req.path === '/demand-form.html' ? 'demand-form.html' : 'demand.html';
+  const file = path.join(__dirname, 'public', name);
+  if (!fs.existsSync(file)) return res.status(404).end();
+  res.type('html').send(withAgeGate(fs.readFileSync(file, 'utf8')));
+});
+
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -55,7 +67,6 @@ async function syncVideosFromR2() {
     return;
   }
   try {
-    console.log('Syncing videos.json from R2');
     const remote = await storage.download(DB_KEY);
     if (remote && remote.length > 5) {
       fs.writeFileSync(DATA_FILE, remote);
@@ -63,10 +74,7 @@ async function syncVideosFromR2() {
       return;
     }
     const fallback = await storage.download('videos.json');
-    if (fallback && fallback.length > 5) {
-      fs.writeFileSync(DATA_FILE, fallback);
-      console.log('Catalog synced from root videos.json');
-    }
+    if (fallback && fallback.length > 5) fs.writeFileSync(DATA_FILE, fallback);
   } catch (err) {
     console.error('Catalog sync failed:', err.message);
   }
@@ -124,7 +132,7 @@ function injectHead(html, { title, description, tags }) {
   html = html.replace(/\n\s*<meta property=["']og:[^>]*>/gi, '');
   html = html.replace(/\n\s*<meta name=["']twitter:[^>]*>/gi, '');
   html = html.replace(/<head[^>]*>/i, function (open) { return open + '\n  ' + tags; });
-  return html;
+  return withAgeGate(html);
 }
 
 function sendLogo(res) {
@@ -195,8 +203,7 @@ app.get('/watch', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: url, id: video ? video.id : 'home' })
   });
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(html);
+  res.type('html').send(html);
 });
 
 app.get('/', (req, res) => {
@@ -211,8 +218,7 @@ app.get('/', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: SITE + '/', id: latest ? latest.id : 'home' })
   });
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(html);
+  res.type('html').send(html);
 });
 
 app.listen(PORT, '0.0.0.0', () => {
