@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const fetch = global.fetch || require('node-fetch');
 const { createStorage } = require('./storage');
@@ -9,6 +10,7 @@ const PORT = Number(process.env.PORT) || 8080;
 const SITE = 'https://streamxvault.online';
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'videos.json');
+const ANALYTICS_FILE = path.join(DATA_DIR, 'analytics.json');
 const DB_KEY = '_database/videos.json';
 const ALLOWED_THUMB_HOSTS = new Set([
   'pub-35e5e185c71b4d2292a6cae626c19d3d.r2.dev',
@@ -26,7 +28,7 @@ try { storage = createStorage(); } catch (err) {
 }
 
 app.disable('x-powered-by');
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
 
 app.use((req, res, next) => {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
@@ -36,24 +38,18 @@ app.use((req, res, next) => {
   next();
 });
 
-function decorateHtml(html) {
+function decorateHtml(html, extraScripts) {
   if (html.indexOf('sxv_theme') === -1) {
     html = html.replace(/<head[^>]*>/i, function (open) {
       return open + '\n  <script>try{var t=localStorage.getItem(\x27sxv_theme\x27)||\x27light\x27;document.documentElement.setAttribute(\x27data-theme\x27,t===\x27dark\x27?\x27dark\x27:\x27light\x27);}catch(e){}</script>';
     });
   }
-  if (html.indexOf('/css/nav-fx.css') === -1) {
-    html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=1">\n</head>');
-  }
-  if (html.indexOf('/css/theme-dark.css') === -1) {
-    html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/theme-dark.css?v=1">\n</head>');
-  }
-  if (html.indexOf('/js/theme.js') === -1) {
-    html = html.replace(/<\/body>/i, '<script src="/js/theme.js?v=1"></script>\n</body>');
-  }
-  if (html.indexOf('/js/age-gate.js') === -1) {
-    html = html.replace(/<\/body>/i, '<script src="/js/age-gate.js?v=1"></script>\n</body>');
-  }
+  if (html.indexOf('/css/nav-fx.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=1">\n</head>');
+  if (html.indexOf('/css/theme-dark.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/theme-dark.css?v=1">\n</head>');
+  var scripts = ['/js/theme.js?v=1', '/js/tracker.js?v=1', '/js/age-gate.js?v=1'].concat(extraScripts || []);
+  scripts.forEach(function (src) {
+    if (html.indexOf(src.split('?')[0]) === -1) html = html.replace(/<\/body>/i, '<script src="' + src + '"></script>\n</body>');
+  });
   return html;
 }
 
@@ -81,16 +77,199 @@ async function syncVideosFromR2() {
   if (!storage || storage.mode !== 'r2') return;
   try {
     const remote = await storage.download(DB_KEY);
-    if (remote && remote.length > 5) {
-      fs.writeFileSync(DATA_FILE, remote);
-      return;
-    }
+    if (remote && remote.length > 5) { fs.writeFileSync(DATA_FILE, remote); return; }
     const fallback = await storage.download('videos.json');
     if (fallback && fallback.length > 5) fs.writeFileSync(DATA_FILE, fallback);
   } catch (err) {
     console.error('Catalog sync failed:', err.message);
   }
 }
+
+function emptyAnalytics() {
+  return { visitors: 0, pageviewsToday: 0, watchesToday: 0, day: '', countries: {}, referrers: {}, videoViews: {}, videoRecent: [], seenUids: {} };
+}
+function loadAnalytics() {
+  try {
+    const data = JSON.parse(fs.readFileSync(ANALYTICS_FILE, 'utf8'));
+    return Object.assign(emptyAnalytics(), data);
+  } catch (err) {
+    return emptyAnalytics();
+  }
+}
+let analytics = loadAnalytics();
+const live = new Map();
+const adminTokens = new Set();
+const rate = new Map();
+
+function todayStamp() { return new Date().toISOString().slice(0, 10); }
+function rollDay() {
+  const day = todayStamp();
+  if (analytics.day !== day) {
+    analytics.day = day;
+    analytics.pageviewsToday = 0;
+    analytics.watchesToday = 0;
+  }
+}
+function saveAnalytics() {
+  try { fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(analytics)); } catch (err) {}
+}
+setInterval(saveAnalytics, 30000);
+
+function parseCookies(req) {
+  const out = {};
+  String(req.headers.cookie || '').split(';').forEach(function (part) {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  });
+  return out;
+}
+function isAdmin(req) {
+  return adminTokens.has(parseCookies(req).sxv_admin || '');
+}
+function countryOf(req) {
+  const raw = String(req.headers['cf-ipcountry'] || req.headers['x-country'] || req.headers['x-vercel-ip-country'] || '').toUpperCase();
+  if (/^[A-Z]{2}$/.test(raw) && raw !== 'XX' && raw !== 'T1') return raw;
+  return 'Unknown';
+}
+function safeRef(value) {
+  const raw = String(value || 'direct').toLowerCase().replace(/^www\./, '').slice(0, 80);
+  if (!raw || raw === 'direct') return 'direct';
+  if (raw.indexOf('streamxvault') !== -1) return 'direct';
+  if (!/^[a-z0-9.-]+$/.test(raw)) return 'other';
+  return raw;
+}
+function bump(map, key, by) {
+  map[key] = (map[key] || 0) + (by || 1);
+}
+
+app.post('/api/auth/login', (req, res) => {
+  const user = String((req.body && req.body.username) || '');
+  const pass = String((req.body && req.body.password) || '');
+  const expectUser = process.env.ADMIN_USERNAME || 'admin';
+  const expectPass = process.env.ADMIN_PASSWORD || '';
+  if (!expectPass || user !== expectUser || pass !== expectPass) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const token = crypto.randomBytes(24).toString('hex');
+  adminTokens.add(token);
+  res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400');
+  res.json({ ok: true });
+});
+app.post('/api/auth/logout', (req, res) => {
+  adminTokens.delete(parseCookies(req).sxv_admin || '');
+  res.setHeader('Set-Cookie', 'sxv_admin=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
+  res.json({ ok: true });
+});
+app.get('/api/auth/status', (req, res) => {
+  res.json({ isAdmin: isAdmin(req) });
+});
+
+app.post('/api/track', (req, res) => {
+  rollDay();
+  const body = req.body || {};
+  const uid = String(body.uid || '').slice(0, 40) || 'anon';
+  const now = Date.now();
+  const hits = (rate.get(uid) || []).filter((t) => now - t < 60000);
+  if (hits.length > 40) return res.json({ ok: true });
+  hits.push(now);
+  rate.set(uid, hits);
+  const country = countryOf(req);
+  const referrer = safeRef(body.referrer);
+  const event = String(body.event || 'page');
+  const videoId = String(body.videoId || '').slice(0, 80);
+  const pathName = String(body.path || '/').slice(0, 180);
+  live.set(uid, { ts: now, country: country, referrer: referrer, path: pathName, videoId: videoId });
+  if (!analytics.seenUids[uid]) {
+    analytics.seenUids[uid] = now;
+    analytics.visitors += 1;
+  }
+  bump(analytics.countries, country);
+  bump(analytics.referrers, referrer);
+  if (event === 'page') analytics.pageviewsToday += 1;
+  if (event === 'watch' && videoId) {
+    analytics.watchesToday += 1;
+    bump(analytics.videoViews, videoId);
+    analytics.videoRecent.push({ id: videoId, t: now });
+    if (analytics.videoRecent.length > 4000) analytics.videoRecent = analytics.videoRecent.slice(-3000);
+    const videos = loadVideos();
+    const video = videos.find((item) => item && item.id === videoId);
+    if (video) {
+      video.views = Number(video.views || 0) + 1;
+      try { fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2)); } catch (err) {}
+    }
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/recommend', (req, res) => {
+  const history = Array.isArray(req.body && req.body.history) ? req.body.history.slice(0, 20) : [];
+  const videos = loadVideos().filter((video) => video && video.published !== false);
+  const seen = new Set(history);
+  const watched = videos.filter((video) => seen.has(video.id));
+  const genreScore = {};
+  watched.forEach(function (video) {
+    if (video.genre) genreScore[video.genre] = (genreScore[video.genre] || 0) + 3;
+  });
+  const ranked = videos.map(function (video) {
+    let score = Math.log(1 + Number(video.views || 0)) + (Number(analytics.videoViews[video.id] || 0) * 0.4);
+    if (seen.has(video.id)) score -= 40;
+    if (video.genre && genreScore[video.genre]) score += genreScore[video.genre] * 6;
+    const ageH = (Date.now() - Date.parse(video.uploadedAt || 0)) / 3600000;
+    if (ageH > 0 && ageH < 72) score += 5;
+    return { video: video, score: score };
+  }).sort(function (a, b) { return b.score - a.score; });
+  res.json({ videos: ranked.slice(0, 8).map((row) => row.video) });
+});
+
+app.get('/api/stats', (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const videos = loadVideos();
+  res.json({
+    totalVideos: videos.length,
+    publishedVideos: videos.filter((video) => video && video.published !== false).length,
+    totalViews: videos.reduce((sum, video) => sum + Number(video.views || 0), 0),
+    totalLikes: videos.reduce((sum, video) => sum + Number(video.likes || 0), 0),
+    totalVisitors: analytics.visitors || 0
+  });
+});
+
+app.get('/api/admin/live', (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  rollDay();
+  const now = Date.now();
+  const active = [];
+  live.forEach(function (session, uid) {
+    if (now - session.ts <= 45000) active.push(Object.assign({ uid: uid }, session));
+    else live.delete(uid);
+  });
+  const liveCountries = {};
+  active.forEach(function (session) { bump(liveCountries, session.country); });
+  const recentCut = now - 15 * 60 * 1000;
+  const recentCounts = {};
+  (analytics.videoRecent || []).forEach(function (item) {
+    if (item.t >= recentCut) bump(recentCounts, item.id);
+  });
+  const catalog = loadVideos();
+  const growing = Object.keys(recentCounts).map(function (id) {
+    const video = catalog.find((item) => item && item.id === id) || {};
+    return { id: id, title: video.title || id, recent: recentCounts[id], total: Number(video.views || analytics.videoViews[id] || 0) };
+  }).sort(function (a, b) { return b.recent - a.recent; }).slice(0, 8);
+  const countries = Object.keys(Object.assign({}, analytics.countries, liveCountries)).map(function (code) {
+    return { country: code, live: liveCountries[code] || 0, total: analytics.countries[code] || 0 };
+  }).sort(function (a, b) { return (b.live - a.live) || (b.total - a.total); }).slice(0, 12);
+  const referrers = Object.keys(analytics.referrers || {}).map(function (source) {
+    return { source: source, count: analytics.referrers[source] };
+  }).sort(function (a, b) { return b.count - a.count; }).slice(0, 12);
+  res.json({
+    liveVisitors: active.length,
+    countriesLive: Object.keys(liveCountries).length,
+    pageviewsToday: analytics.pageviewsToday || 0,
+    watchesToday: analytics.watchesToday || 0,
+    growing: growing,
+    countries: countries,
+    referrers: referrers
+  });
+});
 
 function escapeHtml(text) {
   return String(text || '')
@@ -100,17 +279,14 @@ function escapeHtml(text) {
     .replace(/"/g, '"')
     .replace(/'/g, '&#39;');
 }
-
 function clip(text, max) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
   return clean.slice(0, max - 1).replace(/\s+\S*$/, '') + '...';
 }
-
 function previewImageUrl(id) {
   return SITE + '/og-image/' + encodeURIComponent(id || 'home') + '.jpg';
 }
-
 function previewTags({ title, description, url, id }) {
   const t = escapeHtml(clip(title, 70));
   const d = escapeHtml(clip(description, 160));
@@ -135,7 +311,6 @@ function previewTags({ title, description, url, id }) {
     '<meta name="twitter:image:src" content="' + img + '">'
   ].join('\n  ');
 }
-
 function injectHead(html, { title, description, tags }) {
   html = html.replace(/<title>[^<]*<\/title>/i, '<title>' + escapeHtml(title) + '</title>');
   if (/<meta\s+name=["']description["']/i.test(html)) {
@@ -146,13 +321,11 @@ function injectHead(html, { title, description, tags }) {
   html = html.replace(/<head[^>]*>/i, function (open) { return open + '\n  ' + tags; });
   return decorateHtml(html);
 }
-
 function sendLogo(res) {
   const logo = path.join(__dirname, 'public', 'images', 'logo.png');
   if (fs.existsSync(logo)) return res.type('png').sendFile(logo);
   res.status(404).end();
 }
-
 async function handleOgImage(req, res) {
   try {
     const id = String(req.params.id || '').replace(/\.jpe?g$/i, '');
@@ -186,22 +359,20 @@ async function handleOgImage(req, res) {
 }
 
 app.get('/og-image/:id', handleOgImage);
-
 app.get('/api/videos', (req, res) => {
   res.json(loadVideos().filter((video) => video && video.published !== false));
 });
-
 app.get('/api/videos/:id', (req, res) => {
   const video = loadVideos().find((item) => item && item.id === req.params.id);
   if (!video) return res.status(404).json({ error: 'Video not found' });
   res.json(video);
 });
-
 app.get(['/admin', '/admin.html'], (req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  let html = fs.readFileSync(path.join(__dirname, 'public', 'admin.html'), 'utf8');
+  html = decorateHtml(html, ['/js/admin-live.js?v=1']);
+  res.type('html').send(html);
 });
-
 app.get('/watch', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
   const video = loadVideos().find((item) => item && item.id === req.query.v);
@@ -215,9 +386,11 @@ app.get('/watch', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: url, id: video ? video.id : 'home' })
   });
+  if (video) {
+    html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
+  }
   res.type('html').send(html);
 });
-
 app.get('/', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const latest = loadVideos().find((item) => item && item.published !== false);
