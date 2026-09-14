@@ -1,11 +1,19 @@
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+const fetch = global.fetch || require('node-fetch');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
 const SITE = 'https://streamxvault.online';
-const DEFAULT_IMAGE = SITE + '/images/logo.png';
+const ALLOWED_THUMB_HOSTS = new Set([
+  'pub-35e5e185c71b4d2292a6cae626c19d3d.r2.dev',
+  'streamxvault.online',
+  'www.streamxvault.online'
+]);
+
+let Jimp = null;
+try { Jimp = require('jimp'); } catch (err) { Jimp = null; }
 
 app.disable('x-powered-by');
 app.use(express.json());
@@ -15,8 +23,6 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
 
@@ -40,27 +46,22 @@ function escapeHtml(text) {
     .replace(/'/g, '&#39;');
 }
 
-function safeImage(url) {
-  if (typeof url !== 'string') return DEFAULT_IMAGE;
-  const trimmed = url.trim();
-  if (!/^https:\/\//i.test(trimmed)) return DEFAULT_IMAGE;
-  if (/[<>"']/.test(trimmed)) return DEFAULT_IMAGE;
-  return trimmed;
-}
-
 function clip(text, max) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= max) return clean;
-  return clean.slice(0, max - 1).replace(/\s+\S*$/, '') + '\u2026';
+  return clean.slice(0, max - 1).replace(/\s+\S*$/, '') + '...';
 }
 
-function previewTags({ title, description, url, image }) {
+function previewImageUrl(id) {
+  return SITE + '/og-image/' + encodeURIComponent(id);
+}
+
+function previewTags({ title, description, url, id }) {
   const t = escapeHtml(clip(title, 70));
   const d = escapeHtml(clip(description, 160));
   const u = escapeHtml(url);
-  const img = escapeHtml(safeImage(image));
+  const img = escapeHtml(previewImageUrl(id || 'home'));
   return [
-    '<meta name="rating" content="adult">',
     '<link rel="canonical" href="' + u + '">',
     '<meta property="og:type" content="website">',
     '<meta property="og:site_name" content="StreamXvault">',
@@ -69,6 +70,9 @@ function previewTags({ title, description, url, image }) {
     '<meta property="og:url" content="' + u + '">',
     '<meta property="og:image" content="' + img + '">',
     '<meta property="og:image:secure_url" content="' + img + '">',
+    '<meta property="og:image:type" content="image/jpeg">',
+    '<meta property="og:image:width" content="1200">',
+    '<meta property="og:image:height" content="1200">',
     '<meta name="twitter:card" content="summary_large_image">',
     '<meta name="twitter:title" content="' + t + '">',
     '<meta name="twitter:description" content="' + d + '">',
@@ -78,19 +82,50 @@ function previewTags({ title, description, url, image }) {
 
 function injectHead(html, { title, description, tags }) {
   html = html.replace(/<title>[^<]*<\/title>/i, '<title>' + escapeHtml(title) + '</title>');
-  html = html.replace(
-    /<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i,
-    '<meta name="description" content="' + escapeHtml(clip(description, 160)) + '">'
-  );
+  html = html.replace(/<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i, '<meta name="description" content="' + escapeHtml(clip(description, 160)) + '">');
   if (!/property=["']og:title["']/.test(html)) {
     html = html.replace(/<head[^>]*>/i, function (open) { return open + '\n  ' + tags; });
   }
   return html;
 }
 
+function sendLogo(res) {
+  const logo = path.join(__dirname, 'public', 'images', 'logo.png');
+  if (fs.existsSync(logo)) return res.type('png').sendFile(logo);
+  res.status(404).end();
+}
+
+app.get('/og-image/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id || '');
+    const video = id === 'home' ? loadVideos().find((item) => item && item.published !== false) : loadVideos().find((item) => item && item.id === id);
+    const thumb = video && typeof video.thumbnailUrl === 'string' ? video.thumbnailUrl.trim() : '';
+    if (!thumb.startsWith('https://')) return sendLogo(res);
+    let parsed;
+    try { parsed = new URL(thumb); } catch (err) { return sendLogo(res); }
+    if (parsed.protocol !== 'https:' || !ALLOWED_THUMB_HOSTS.has(parsed.hostname)) return sendLogo(res);
+    const upstream = await fetch(parsed.toString(), { redirect: 'error' });
+    if (!upstream.ok) return sendLogo(res);
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    if (Jimp && buf.length) {
+      try {
+        const image = await Jimp.read(buf);
+        image.cover(1200, 630).quality(70);
+        const jpg = await image.getBufferAsync(Jimp.MIME_JPEG);
+        return res.type('jpeg').send(jpg);
+      } catch (err) {}
+    }
+    const type = upstream.headers.get('content-type') || 'image/jpeg';
+    if (!/^image\/(jpeg|jpg|png|webp|gif)$/i.test(type)) return sendLogo(res);
+    res.type(type).send(buf);
+  } catch (err) {
+    sendLogo(res);
+  }
+});
+
 app.get('/api/videos', (req, res) => {
-  const videos = loadVideos().filter((video) => video && video.published !== false);
-  res.json(videos);
+  res.json(loadVideos().filter((video) => video && video.published !== false));
 });
 
 app.get('/api/videos/:id', (req, res) => {
@@ -105,18 +140,12 @@ app.get(['/admin', '/admin.html'], (req, res) => {
 });
 
 app.get('/watch', (req, res) => {
-  const file = path.join(__dirname, 'public', 'watch.html');
-  let html = fs.readFileSync(file, 'utf8');
+  let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
   const video = loadVideos().find((item) => item && item.id === req.query.v);
   if (video) {
     const title = (video.title || 'Watch') + ' - StreamXvault';
     const description = video.shortDescription || video.description || ('Watch ' + (video.title || 'this video') + ' on StreamXvault.');
-    const url = SITE + '/watch?v=' + encodeURIComponent(video.id);
-    html = injectHead(html, {
-      title: title,
-      description: description,
-      tags: previewTags({ title: title, description: description, url: url, image: video.thumbnailUrl })
-    });
+    html = injectHead(html, { title: title, description: description, tags: previewTags({ title: title, description: description, url: SITE + '/watch?v=' + encodeURIComponent(video.id), id: video.id }) });
   } else if (req.query.v) {
     res.status(404);
   }
@@ -125,19 +154,11 @@ app.get('/watch', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  const file = path.join(__dirname, 'public', 'index.html');
-  let html = fs.readFileSync(file, 'utf8');
+  let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
   const latest = loadVideos().find((item) => item && item.published !== false);
-  const title = 'StreamXvault \u2014 Official Premium Streaming Platform';
-  const description = latest
-    ? clip((latest.title || '') + ' and more videos on StreamXvault.', 160)
-    : 'StreamXvault \u2014 Watch curated premium video content.';
-  const image = latest ? latest.thumbnailUrl : DEFAULT_IMAGE;
-  html = injectHead(html, {
-    title: title,
-    description: description,
-    tags: previewTags({ title: title, description: description, url: SITE + '/', image: image })
-  });
+  const title = 'StreamXvault - Official Premium Streaming Platform';
+  const description = latest ? clip((latest.title || '') + ' and more videos on StreamXvault.', 160) : 'StreamXvault - Watch curated premium video content.';
+  html = injectHead(html, { title: title, description: description, tags: previewTags({ title: title, description: description, url: SITE + '/', id: latest ? latest.id : 'home' }) });
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
 });
