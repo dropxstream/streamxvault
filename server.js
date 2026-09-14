@@ -37,8 +37,19 @@ app.use((req, res, next) => {
 });
 
 function decorateHtml(html) {
+  if (html.indexOf('sxv_theme') === -1) {
+    html = html.replace(/<head[^>]*>/i, function (open) {
+      return open + '\n  <script>try{var t=localStorage.getItem(\x27sxv_theme\x27)||\x27light\x27;document.documentElement.setAttribute(\x27data-theme\x27,t===\x27dark\x27?\x27dark\x27:\x27light\x27);}catch(e){}</script>';
+    });
+  }
   if (html.indexOf('/css/nav-fx.css') === -1) {
     html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=1">\n</head>');
+  }
+  if (html.indexOf('/css/theme-dark.css') === -1) {
+    html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/theme-dark.css?v=1">\n</head>');
+  }
+  if (html.indexOf('/js/theme.js') === -1) {
+    html = html.replace(/<\/body>/i, '<script src="/js/theme.js?v=1"></script>\n</body>');
   }
   if (html.indexOf('/js/age-gate.js') === -1) {
     html = html.replace(/<\/body>/i, '<script src="/js/age-gate.js?v=1"></script>\n</body>');
@@ -83,10 +94,10 @@ async function syncVideosFromR2() {
 
 function escapeHtml(text) {
   return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
     .replace(/'/g, '&#39;');
 }
 
