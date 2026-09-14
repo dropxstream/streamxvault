@@ -11,9 +11,8 @@
   position: relative;
   color: #ffffff !important;
   font-weight: 800;
-  background: linear-gradient(135deg, #ff2d2d 0%, #c Panini);
   background: linear-gradient(135deg, #ff3b3b 0%, #b81d24 100%);
-  box-shadow: 0 0 0 0 rgba(255, 220, 80, 0.7), 0 0 18px rgba(255, 210, 70, 0.55);
+  box-shadow: 0 0 18px rgba(255, 210, 70, 0.55);
   animation: sxv-demand-bounce 0.7s cubic-bezier(0.22, 1.4, 0.36, 1) 1,
               sxv-demand-glow 1.6s ease-in-out 3;
 }
