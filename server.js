@@ -232,7 +232,7 @@ app.get('/api/auth/status', (req, res) => {
 });
 
 app.get('/api/admin/videos', requireAdmin, (req, res) => {
-  res.json(loadVideos());
+  res.json(loadVideos().sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0)));
 });
 app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   const body = req.body || {};
@@ -274,8 +274,6 @@ app.delete('/api/videos/:id', requireAdmin, (req, res) => {
   saveVideos(videos);
   res.json({ ok: true });
 });
-app.get('/api/admin/vod/requests', requireAdmin, (req, res) => res.json([]));
-app.get('/api/admin/vod/rules', requireAdmin, (req, res) => res.json({ companies: [] }));
 app.get('/api/admin/adcash', requireAdmin, (req, res) => res.json({ balance: 0, todayEarnings: '0.00' }));
 
 app.post('/api/track', (req, res) => {
@@ -493,9 +491,13 @@ app.post('/api/admin/vod/rules', requireAdmin, async (req, res) => {
   await saveVodRules(rules);
   res.json({ success: true });
 });
+  res.json(loadVodRequests().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+});
+
 app.get('/api/admin/vod/requests', requireAdmin, (req, res) => {
   res.json(loadVodRequests().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
 });
+
 app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
   const { status } = req.body;
   const requests = loadVodRequests();
