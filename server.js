@@ -28,7 +28,7 @@ try { storage = createStorage(); } catch (err) {
 }
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json({ limit: '1mb' }));
 
 app.use((req, res, next) => {
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
@@ -70,6 +70,12 @@ function loadVideos() {
     return Array.isArray(videos) ? videos : [];
   } catch (err) {
     return [];
+  }
+}
+function saveVideos(videos) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    storage.upload(DB_KEY, Buffer.from(JSON.stringify(videos, null, 2)), 'application/json').catch(function () {});
   }
 }
 
@@ -126,6 +132,10 @@ function parseCookies(req) {
 function isAdmin(req) {
   return adminTokens.has(parseCookies(req).sxv_admin || '');
 }
+function requireAdmin(req, res, next) {
+  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
 function countryOf(req) {
   const raw = String(req.headers['cf-ipcountry'] || req.headers['x-country'] || req.headers['x-vercel-ip-country'] || '').toUpperCase();
   if (/^[A-Z]{2}$/.test(raw) && raw !== 'XX' && raw !== 'T1') return raw;
@@ -164,6 +174,53 @@ app.get('/api/auth/status', (req, res) => {
   res.json({ isAdmin: isAdmin(req) });
 });
 
+app.get('/api/admin/videos', requireAdmin, (req, res) => {
+  res.json(loadVideos());
+});
+app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
+  const body = req.body || {};
+  const title = String(body.title || '').trim();
+  const videoUrl = String(body.videoUrl || '').trim();
+  if (!title || !videoUrl) return res.status(400).json({ error: 'Title and video URL required' });
+  const videos = loadVideos();
+  const video = {
+    id: crypto.randomUUID(),
+    title: title,
+    genre: String(body.genre || '').trim(),
+    description: String(body.description || '').trim(),
+    displayViews: String(body.displayViews || '').trim(),
+    videoUrl: videoUrl,
+    thumbnailUrl: String(body.thumbnailUrl || '').trim(),
+    views: 0,
+    likes: 0,
+    published: true,
+    downloads: { p720: String(body.dl720 || ''), p1080: String(body.dl1080 || '') },
+    uploadedAt: new Date().toISOString()
+  };
+  videos.unshift(video);
+  saveVideos(videos);
+  res.json(video);
+});
+app.patch('/api/videos/:id', requireAdmin, (req, res) => {
+  const videos = loadVideos();
+  const video = videos.find((item) => item && item.id === req.params.id);
+  if (!video) return res.status(404).json({ error: 'Video not found' });
+  const body = req.body || {};
+  ['title', 'genre', 'description', 'displayViews', 'videoUrl', 'thumbnailUrl', 'published'].forEach(function (key) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) video[key] = body[key];
+  });
+  saveVideos(videos);
+  res.json(video);
+});
+app.delete('/api/videos/:id', requireAdmin, (req, res) => {
+  const videos = loadVideos().filter((item) => item && item.id !== req.params.id);
+  saveVideos(videos);
+  res.json({ ok: true });
+});
+app.get('/api/admin/vod/requests', requireAdmin, (req, res) => res.json([]));
+app.get('/api/admin/vod/rules', requireAdmin, (req, res) => res.json({ companies: [] }));
+app.get('/api/admin/adcash', requireAdmin, (req, res) => res.json({ balance: 0, todayEarnings: '0.00' }));
+
 app.post('/api/track', (req, res) => {
   rollDay();
   const body = req.body || {};
@@ -195,7 +252,7 @@ app.post('/api/track', (req, res) => {
     const video = videos.find((item) => item && item.id === videoId);
     if (video) {
       video.views = Number(video.views || 0) + 1;
-      try { fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2)); } catch (err) {}
+      try { saveVideos(videos); } catch (err) {}
     }
   }
   res.json({ ok: true });
@@ -221,8 +278,7 @@ app.post('/api/recommend', (req, res) => {
   res.json({ videos: ranked.slice(0, 8).map((row) => row.video) });
 });
 
-app.get('/api/stats', (req, res) => {
-  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+app.get('/api/stats', requireAdmin, (req, res) => {
   const videos = loadVideos();
   res.json({
     totalVideos: videos.length,
@@ -233,8 +289,7 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-app.get('/api/admin/live', (req, res) => {
-  if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
+app.get('/api/admin/live', requireAdmin, (req, res) => {
   rollDay();
   const now = Date.now();
   const active = [];
