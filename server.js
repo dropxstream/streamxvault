@@ -491,8 +491,6 @@ app.post('/api/admin/vod/rules', requireAdmin, async (req, res) => {
   await saveVodRules(rules);
   res.json({ success: true });
 });
-  res.json(loadVodRequests().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
-});
 
 app.get('/api/admin/vod/requests', requireAdmin, (req, res) => {
   res.json(loadVodRequests().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
