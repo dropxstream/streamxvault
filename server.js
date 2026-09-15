@@ -12,6 +12,11 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'videos.json');
 const ANALYTICS_FILE = path.join(DATA_DIR, 'analytics.json');
 const DB_KEY = '_database/videos.json';
+const VOD_RULES_FILE = path.join(DATA_DIR, 'vod_rules.json');
+const VOD_REQUESTS_FILE = path.join(DATA_DIR, 'vod_requests.json');
+const VOD_RULES_KEY = '_database/vod_rules.json';
+const VOD_REQUESTS_KEY = '_database/vod_requests.json';
+
 const ALLOWED_THUMB_HOSTS = new Set([
   'pub-35e5e185c71b4d2292a6cae626c19d3d.r2.dev',
   'streamxvault.online',
@@ -79,15 +84,67 @@ function saveVideos(videos) {
   }
 }
 
+function loadVodRules() {
+  try { return JSON.parse(fs.readFileSync(VOD_RULES_FILE, 'utf-8')); } catch (e) { return []; }
+}
+async function saveVodRules(rules) {
+  fs.writeFileSync(VOD_RULES_FILE, JSON.stringify(rules, null, 2));
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try { await storage.upload(VOD_RULES_KEY, Buffer.from(JSON.stringify(rules)), 'application/json'); } catch(e){}
+  }
+}
+function loadVodRequests() {
+  try { return JSON.parse(fs.readFileSync(VOD_REQUESTS_FILE, 'utf-8')); } catch (e) { return []; }
+}
+async function saveVodRequests(reqs) {
+  fs.writeFileSync(VOD_REQUESTS_FILE, JSON.stringify(reqs, null, 2));
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try { await storage.upload(VOD_REQUESTS_KEY, Buffer.from(JSON.stringify(reqs)), 'application/json'); } catch(e){}
+  }
+}
+
+
 async function syncVideosFromR2() {
-  if (!storage || storage.mode !== 'r2') return;
+  if (!storage || storage.mode !== 'r2') {
+    if (!fs.existsSync(DATA_FILE)) {
+      console.log('⚠️ No videos.json found.');
+    } else {
+      console.log(`📦 Loaded ${loadVideos().length} videos from local storage`);
+    }
+    return;
+  }
   try {
-    const remote = await storage.download(DB_KEY);
-    if (remote && remote.length > 5) { fs.writeFileSync(DATA_FILE, remote); return; }
-    const fallback = await storage.download('videos.json');
-    if (fallback && fallback.length > 5) fs.writeFileSync(DATA_FILE, fallback);
+    console.log('🔄 Syncing Database from R2...');
+    const remoteData = await storage.download(DB_KEY);
+    if (remoteData && remoteData.length > 5) {
+      const localVideos = loadVideos();
+      let remoteVideos = [];
+      try { remoteVideos = JSON.parse(remoteData.toString()); } catch(e) {}
+      if (remoteVideos.length >= localVideos.length) {
+        fs.writeFileSync(DATA_FILE, remoteData);
+        console.log('📦 Database synced from R2');
+      } else {
+        await saveVideos(localVideos);
+      }
+    } else {
+      const localVideos = loadVideos();
+      if (localVideos.length > 0) {
+        await saveVideos(localVideos);
+      } else {
+        const fallback = await storage.download('videos.json');
+        if (fallback && fallback.length > 5) {
+          fs.writeFileSync(DATA_FILE, fallback);
+          if (typeof storage.upload === 'function') await storage.upload(DB_KEY, fallback, 'application/json');
+        }
+      }
+    }
+    const remoteVodRules = await storage.download(VOD_RULES_KEY);
+    if (remoteVodRules && remoteVodRules.length > 2) fs.writeFileSync(VOD_RULES_FILE, remoteVodRules);
+    
+    const remoteVodRequests = await storage.download(VOD_REQUESTS_KEY);
+    if (remoteVodRequests && remoteVodRequests.length > 2) fs.writeFileSync(VOD_REQUESTS_FILE, remoteVodRequests);
   } catch (err) {
-    console.error('Catalog sync failed:', err.message);
+    console.error('❌ R2 Sync failed:', err.message);
   }
 }
 
@@ -428,6 +485,58 @@ app.get(['/admin', '/admin.html'], (req, res) => {
   html = decorateHtml(html, ['/js/admin-live.js?v=1']);
   res.type('html').send(html);
 });
+
+app.get('/api/admin/vod/rules', requireAdmin, (req, res) => { res.json(loadVodRules()); });
+app.post('/api/admin/vod/rules', requireAdmin, async (req, res) => {
+  const { rules } = req.body;
+  if (!Array.isArray(rules)) return res.status(400).json({ error: 'Rules must be an array' });
+  await saveVodRules(rules);
+  res.json({ success: true });
+});
+app.get('/api/admin/vod/requests', requireAdmin, (req, res) => {
+  res.json(loadVodRequests().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+});
+app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
+  const { status } = req.body;
+  const requests = loadVodRequests();
+  const reqItem = requests.find(r => r.id === req.params.id);
+  if (!reqItem) return res.status(404).json({ error: 'Not found' });
+  reqItem.status = status;
+  await saveVodRequests(requests);
+  res.json({ success: true });
+});
+app.post('/api/admin/vod/requests/:id/notify', requireAdmin, async (req, res) => {
+  res.json({ success: true });
+});
+app.delete('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
+  let requests = loadVodRequests();
+  requests = requests.filter(r => r.id !== req.params.id);
+  await saveVodRequests(requests);
+  res.json({ success: true });
+});
+
+app.get('/api/embed/:id', (req, res) => {
+  const videos = loadVideos();
+  const video = videos.find(v => v.id === req.params.id);
+  if (!video || video.published === false) return res.status(404).send('Video not found');
+  const title = (video.title || 'Video').replace(/"/g, '&quot;');
+  const thumb = video.thumbnailUrl || '';
+  const videoUrl = video.videoUrl || '';
+  const isHls = videoUrl.includes('.m3u8');
+  res.send(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${title}</title>
+    <style>*{margin:0;padding:0}body{background:#000}video{width:100%;height:100vh;object-fit:contain}</style>
+    ${isHls ? '<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>' : ''}
+  </head><body>
+    <video id="player" controls playsinline ${thumb ? `poster="${thumb}"` : ''} ${!isHls ? `src="${videoUrl}"` : ''}></video>
+    ${isHls ? `<script>
+      if(Hls.isSupported()){var h=new Hls();h.loadSource("${videoUrl}");h.attachMedia(document.getElementById("player"));}
+      else if(document.getElementById("player").canPlayType("application/vnd.apple.mpegurl")){document.getElementById("player").src="${videoUrl}";}
+    </script>` : ''}
+  </body></html>`);
+});
+
 app.get('/watch', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
   const video = loadVideos().find((item) => item && item.id === req.query.v);
@@ -465,3 +574,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('StreamXvault listening on ' + PORT);
   syncVideosFromR2();
 });
+
