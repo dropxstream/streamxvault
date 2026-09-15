@@ -168,6 +168,20 @@ async function loadStats() {
     } catch(err) {
       console.error('Failed to load Adcash stats:', err);
     }
+    
+    // Live Traffic Stats
+    try {
+      const liveRes = await fetch('/api/admin/live-traffic', { headers: authHeaders() });
+      if (liveRes.ok) {
+        const liveData = await liveRes.json();
+        document.getElementById('stat-live-visitors').textContent = liveData.liveVisitors || 0;
+        document.getElementById('stat-pageviews-today').textContent = liveData.pageviewsToday || 0;
+        document.getElementById('stat-watches-today').textContent = liveData.watchesToday || 0;
+        document.getElementById('stat-countries-live').textContent = liveData.countriesLive || 0;
+      }
+    } catch(err) {
+      console.error('Failed to load live traffic:', err);
+    }
   } catch (err) {
     console.error('Failed to load stats:', err);
   }

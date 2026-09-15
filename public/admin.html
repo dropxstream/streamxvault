@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Panel — StreamXvault</title>
   <meta name="description" content="StreamXvault Admin Panel — Upload and manage streaming content.">
-  <link rel="stylesheet" href="/css/style.css?v=6">
+  <link rel="stylesheet" href="/css/style.css?v=7">
   <link rel="icon" type="image/png" href="/favicon.png">
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8048117171736361"
@@ -130,6 +130,27 @@
             <button class="btn btn-primary" onclick="switchTab('upload', document.querySelector('[data-tab=upload]'))">⬆️ Upload New Video</button>
             <button class="btn btn-secondary" onclick="switchTab('manage', document.querySelector('[data-tab=manage]'))">📁 Manage Videos</button>
             <a href="/" class="btn btn-secondary">🌐 View Site</a>
+          </div>
+
+          <!-- Live Traffic -->
+          <h3 style="margin-top: 2rem; margin-bottom: 1rem; font-weight: 600;">Live traffic</h3>
+          <div class="stats-grid" id="live-traffic-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="stat-card">
+              <div class="stat-value" id="stat-live-visitors">0</div>
+              <div class="stat-label">Live visitors</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-pageviews-today">0</div>
+              <div class="stat-label">Pageviews today</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-watches-today">0</div>
+              <div class="stat-label">Watches today</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat-countries-live">0</div>
+              <div class="stat-label">Countries live</div>
+            </div>
           </div>
 
           <!-- Migration Actions -->
@@ -449,6 +470,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=6"></script>
+  <script src="/js/admin.js?v=7"></script>
 </body>
 </html>

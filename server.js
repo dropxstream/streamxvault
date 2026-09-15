@@ -537,6 +537,70 @@ app.get('/api/embed/:id', (req, res) => {
   </body></html>`);
 });
 
+
+// Live Traffic API (real-time stats for admin dashboard)
+const liveTraffic = { visitors: new Map(), pageviews: 0, watches: 0, countries: new Set(), lastReset: new Date().toDateString() };
+
+function resetLiveTrafficIfNewDay() {
+  const today = new Date().toDateString();
+  if (liveTraffic.lastReset !== today) {
+    liveTraffic.visitors.clear();
+    liveTraffic.pageviews = 0;
+    liveTraffic.watches = 0;
+    liveTraffic.countries.clear();
+    liveTraffic.lastReset = today;
+  }
+}
+
+// Track live traffic middleware (after existing visitor middleware)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.includes('.')) return next();
+  if (isRequestBot(req)) return next();
+  
+  resetLiveTrafficIfNewDay();
+  
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const now = Date.now();
+  
+  // Track active visitor (active in last 5 minutes)
+  liveTraffic.visitors.set(ip, now);
+  liveTraffic.pageviews++;
+  
+  // Track country from CF header if available
+  const country = req.headers['cf-ipcountry'];
+  if (country && country !== 'XX') liveTraffic.countries.add(country);
+  
+  // Track watches
+  if (req.path === '/watch' && req.query.v) {
+    liveTraffic.watches++;
+  }
+  
+  // Clean expired visitors (older than 5 minutes)
+  for (const [visitorIp, timestamp] of liveTraffic.visitors) {
+    if (now - timestamp > 5 * 60 * 1000) liveTraffic.visitors.delete(visitorIp);
+  }
+  
+  next();
+});
+
+app.get('/api/admin/live-traffic', requireAdmin, (req, res) => {
+  resetLiveTrafficIfNewDay();
+  const now = Date.now();
+  
+  // Count visitors active in last 5 minutes
+  let liveCount = 0;
+  for (const [, timestamp] of liveTraffic.visitors) {
+    if (now - timestamp <= 5 * 60 * 1000) liveCount++;
+  }
+  
+  res.json({
+    liveVisitors: liveCount,
+    pageviewsToday: liveTraffic.pageviews,
+    watchesToday: liveTraffic.watches,
+    countriesLive: liveTraffic.countries.size || (liveCount > 0 ? 1 : 0)
+  });
+});
+
 app.get('/watch', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
   const video = loadVideos().find((item) => item && item.id === req.query.v);
