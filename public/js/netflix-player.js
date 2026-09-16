@@ -55,7 +55,30 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return 'Auto';
   }
 
-  if (videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
+  function showError(msg) {
+    console.error('Video Error:', msg);
+    const errDiv = document.createElement('div');
+    errDiv.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(220,38,38,0.9);padding:1rem 1.5rem;border-radius:8px;z-index:9999;font-weight:600;text-align:center;";
+    errDiv.innerHTML = '⚠️ Video playback failed<br><span style="font-size:0.8rem;font-weight:normal;opacity:0.9;">' + escapeHtml(msg) + '</span>';
+    container.appendChild(errDiv);
+    container.classList.remove('loading');
+  }
+
+  video.addEventListener('error', (e) => {
+    let msg = "Unknown error";
+    if (video.error) {
+      switch (video.error.code) {
+        case 1: msg = "Aborted"; break;
+        case 2: msg = "Network error - check your connection or CORS"; break;
+        case 3: msg = "Decode error - invalid video format"; break;
+        case 4: msg = "Source not supported (404 or invalid format)"; break;
+      }
+      msg += " (" + video.error.message + ")";
+    }
+    showError(msg);
+  });
+
+  if (videoSrc && videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
     const hls = new Hls({
       enableWorker: true,
       startLevel: -1,
@@ -72,14 +95,22 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     });
     hls.on(Hls.Events.ERROR, function (event, data) {
       if (data.fatal) {
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-        else hls.destroy();
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          showError("HLS Network Error: Could not download stream");
+          hls.destroy();
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+        } else {
+          showError("HLS Error: " + data.type);
+          hls.destroy();
+        }
       }
     });
-  } else {
+  } else if (videoSrc) {
     video.src = videoSrc;
     setQualityLabel('Auto');
+  } else {
+    showError("No video URL provided");
   }
 
   function formatTime(seconds) {
@@ -91,19 +122,11 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  let adPlayed = false;
-  const vastAdTag = "https://youradexchange.com/video/select.php?r=11262018";
-
   function togglePlay() {
     if (video.paused) {
-      if (!adPlayed && typeof window.playVastAd === 'function') {
-        adPlayed = true;
-        window.playVastAd(container, vastAdTag, () => {
-          video.play().catch(() => {});
-        });
-      } else {
-        video.play();
-      }
+      video.play().catch(e => {
+        showError("Autoplay blocked or playback failed");
+      });
     } else {
       video.pause();
     }
