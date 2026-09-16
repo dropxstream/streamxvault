@@ -5,6 +5,13 @@ const express = require('express');
 const fetch = global.fetch || require('node-fetch');
 const { createStorage } = require('./storage');
 
+
+const BOT_REGEX = /bot|crawler|spider|google|bing|yandex|baidu|slurp|duckduck|postman|headless|axios|python|curl|wget|lighthouse|semrush|ahrefs|dotbot|mj12bot|ia_archiver|monet|adsbot|pingdom/i;
+function isRequestBot(req) {
+  const ua = req.headers['user-agent'] || '';
+  return BOT_REGEX.test(ua);
+}
+
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
 const SITE = 'https://streamxvault.online';
