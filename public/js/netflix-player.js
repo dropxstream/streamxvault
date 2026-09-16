@@ -90,6 +90,18 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     hls.loadSource(videoSrc);
     hls.attachMedia(video);
     setQualityLabel('Auto');
+    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+      let lowestLevel = 0;
+      let lowestBitrate = Infinity;
+      data.levels.forEach((level, index) => {
+        if (level.bitrate < lowestBitrate) {
+          lowestBitrate = level.bitrate;
+          lowestLevel = index;
+        }
+      });
+      hls.startLevel = lowestLevel;
+    });
+
     hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
       setQualityLabel(levelLabel(hls.levels[data.level]));
     });
