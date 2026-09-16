@@ -128,6 +128,10 @@ async function initPlayer() {
           if (downloads.p4k) {
             dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p4k)}" class="download-item" target="_blank" download="${safeTitle}_4k.mp4"><span>4K UHD</span> <span class="quality">MP4</span></a>`;
           }
+          
+          dlMenu.innerHTML += `<a href="https://www.internetdownloadmanager.com/getlatestversion.html?ai=4478" target="_blank" class="download-item" style="border-top: 1px solid var(--border-color); margin-top: 4px; padding-top: 12px; color: #1ed760; font-weight: 600; justify-content: center;">
+            <span style="display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"></path></svg> Get IDM for Faster Downloads</span>
+          </a>`;
         } else {
           dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';
         }
