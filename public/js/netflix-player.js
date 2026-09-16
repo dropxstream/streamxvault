@@ -89,8 +89,8 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       debugLog('Using hls.js for HLS playback');
       const hls = new Hls({
         enableWorker: true,
-        startLevel: -1,
-        capLevelToPlayerSize: true,
+        startLevel: 0,
+        capLevelToPlayerSize: false,
         backBufferLength: 90,
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
@@ -99,11 +99,16 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
         }
       });
 
+      let networkRetries = 0;
+
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
         debugLog('Manifest parsed: ' + data.levels.length + ' quality levels');
         data.levels.forEach((level, i) => {
           debugLog('  Level ' + i + ': ' + (level.height || '?') + 'p @ ' + Math.round(level.bitrate/1000) + 'kbps');
         });
+        // Start from highest quality and let ABR drop down if needed
+        // This avoids empty lower-quality playlists
+        hls.currentLevel = 0;
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
@@ -113,6 +118,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
 
       hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
         debugLog('Fragment loaded: ' + data.frag.sn + ' (level ' + data.frag.level + ')');
+        networkRetries = 0;
       });
 
       hls.on(Hls.Events.ERROR, function (event, data) {
@@ -120,8 +126,22 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              debugLog('Attempting recovery from network error...');
-              hls.startLoad();
+              networkRetries++;
+              if (networkRetries <= 3) {
+                // Try switching to a different quality level
+                const currentLevel = hls.currentLevel;
+                const totalLevels = hls.levels.length;
+                if (totalLevels > 1) {
+                  // Try the next level (wrap around)
+                  const nextLevel = (currentLevel + 1) % totalLevels;
+                  debugLog('Level ' + currentLevel + ' failed, trying level ' + nextLevel);
+                  hls.currentLevel = nextLevel;
+                }
+                hls.startLoad();
+              } else {
+                showError("Video stream unavailable");
+                hls.destroy();
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               debugLog('Attempting recovery from media error...');
