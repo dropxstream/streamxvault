@@ -58,10 +58,13 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   function showError(msg) {
     console.error('Video Error:', msg);
     const errDiv = document.createElement('div');
-    errDiv.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(220,38,38,0.9);padding:1rem 1.5rem;border-radius:8px;z-index:9999;font-weight:600;text-align:center;";
-    errDiv.innerHTML = '⚠️ Video playback failed<br><span style="font-size:0.8rem;font-weight:normal;opacity:0.9;">' + escapeHtml(msg) + '</span>';
+    errDiv.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;background:rgba(220,38,38,0.9);padding:1rem 1.5rem;border-radius:8px;z-index:9999;font-weight:600;text-align:center;max-width:80%;";
+    errDiv.textContent = '⚠️ ' + msg;
     container.appendChild(errDiv);
-    container.classList.remove('loading');
+  }
+
+  function debugLog(msg) {
+    console.log('[StreamX Player]', msg);
   }
 
   video.addEventListener('error', (e) => {
@@ -69,59 +72,91 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     if (video.error) {
       switch (video.error.code) {
         case 1: msg = "Aborted"; break;
-        case 2: msg = "Network error - check your connection or CORS"; break;
-        case 3: msg = "Decode error - invalid video format"; break;
-        case 4: msg = "Source not supported (404 or invalid format)"; break;
+        case 2: msg = "Network error"; break;
+        case 3: msg = "Decode error"; break;
+        case 4: msg = "Source not supported"; break;
       }
-      msg += " (" + video.error.message + ")";
+      if (video.error.message) msg += ": " + video.error.message;
     }
     showError(msg);
   });
 
-  if (videoSrc && videoSrc.includes('.m3u8') && typeof Hls !== 'undefined' && Hls.isSupported()) {
-    const hls = new Hls({
-      enableWorker: true,
-      startLevel: -1,
-      capLevelToPlayerSize: true,
-      backBufferLength: 90,
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60
-    });
-    setQualityLabel('Auto');
-    
-    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-      let lowestLevel = 0;
-      let lowestBitrate = Infinity;
-      data.levels.forEach((level, index) => {
-        if (level.bitrate < lowestBitrate) {
-          lowestBitrate = level.bitrate;
-          lowestLevel = index;
+  debugLog('Source: ' + videoSrc);
+  debugLog('HLS supported: ' + (typeof Hls !== 'undefined' && Hls.isSupported()));
+
+  if (videoSrc && videoSrc.includes('.m3u8')) {
+    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+      debugLog('Using hls.js for HLS playback');
+      const hls = new Hls({
+        enableWorker: true,
+        startLevel: -1,
+        capLevelToPlayerSize: true,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        xhrSetup: function(xhr, url) {
+          debugLog('Loading: ' + url.substring(url.lastIndexOf('/') + 1));
         }
       });
-      hls.startLevel = lowestLevel;
-    });
 
-    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-      setQualityLabel(levelLabel(hls.levels[data.level]));
-    });
-    
-    hls.on(Hls.Events.ERROR, function (event, data) {
-      if (data.fatal) {
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          showError("HLS Network Error: Could not download stream");
-          hls.destroy();
-        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          hls.recoverMediaError();
-        } else {
-          showError("HLS Error: " + data.type);
-          hls.destroy();
+      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+        debugLog('Manifest parsed: ' + data.levels.length + ' quality levels');
+        data.levels.forEach((level, i) => {
+          debugLog('  Level ' + i + ': ' + (level.height || '?') + 'p @ ' + Math.round(level.bitrate/1000) + 'kbps');
+        });
+      });
+
+      hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+        debugLog('Quality switched to level ' + data.level);
+        setQualityLabel(levelLabel(hls.levels[data.level]));
+      });
+
+      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+        debugLog('Fragment loaded: ' + data.frag.sn + ' (level ' + data.frag.level + ')');
+      });
+
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        debugLog('HLS Error: ' + data.type + ' / ' + data.details + ' (fatal: ' + data.fatal + ')');
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              debugLog('Attempting recovery from network error...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              debugLog('Attempting recovery from media error...');
+              hls.recoverMediaError();
+              break;
+            default:
+              showError("HLS fatal error: " + data.details);
+              hls.destroy();
+              break;
+          }
         }
-      }
-    });
+      });
 
-    hls.loadSource(videoSrc);
-    hls.attachMedia(video);
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        debugLog('Media attached to video element');
+      });
+
+      hls.on(Hls.Events.BUFFER_APPENDED, () => {
+        debugLog('Buffer appended, readyState: ' + video.readyState);
+      });
+
+      hls.loadSource(videoSrc);
+      hls.attachMedia(video);
+      setQualityLabel('Auto');
+
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS
+      debugLog('Using Safari native HLS');
+      video.src = videoSrc;
+      setQualityLabel('Auto');
+    } else {
+      showError("Your browser does not support HLS video");
+    }
   } else if (videoSrc) {
+    debugLog('Using direct MP4 playback');
     video.src = videoSrc;
     setQualityLabel('Auto');
   } else {
