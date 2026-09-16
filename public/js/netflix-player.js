@@ -87,9 +87,8 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       maxBufferLength: 30,
       maxMaxBufferLength: 60
     });
-    hls.loadSource(videoSrc);
-    hls.attachMedia(video);
     setQualityLabel('Auto');
+    
     hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
       let lowestLevel = 0;
       let lowestBitrate = Infinity;
@@ -105,6 +104,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
       setQualityLabel(levelLabel(hls.levels[data.level]));
     });
+    
     hls.on(Hls.Events.ERROR, function (event, data) {
       if (data.fatal) {
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -118,6 +118,9 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
         }
       }
     });
+
+    hls.loadSource(videoSrc);
+    hls.attachMedia(video);
   } else if (videoSrc) {
     video.src = videoSrc;
     setQualityLabel('Auto');
