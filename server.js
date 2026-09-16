@@ -251,14 +251,14 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
     views: 0,
     likes: 0,
     published: true,
-    downloads: { p720: String(body.dl720 || ''), p1080: String(body.dl1080 || '') },
+    downloads: { p480: String(body.dl480 || ''), p720: String(body.dl720 || ''), p1080: String(body.dl1080 || ''), p4k: String(body.dl4k || '') },
     uploadedAt: new Date().toISOString()
   };
   videos.unshift(video);
   saveVideos(videos);
   res.json(video);
 });
-app.patch('/api/videos/:id', requireAdmin, (req, res) => {
+app.put('/api/videos/:id', requireAdmin, (req, res) => {
   const videos = loadVideos();
   const video = videos.find((item) => item && item.id === req.params.id);
   if (!video) return res.status(404).json({ error: 'Video not found' });
@@ -266,6 +266,14 @@ app.patch('/api/videos/:id', requireAdmin, (req, res) => {
   ['title', 'genre', 'description', 'displayViews', 'videoUrl', 'thumbnailUrl', 'published'].forEach(function (key) {
     if (Object.prototype.hasOwnProperty.call(body, key)) video[key] = body[key];
   });
+  
+  if (body.dl480 !== undefined || body.dl720 !== undefined || body.dl1080 !== undefined || body.dl4k !== undefined) {
+    video.downloads = video.downloads || {};
+    if (body.dl480 !== undefined) video.downloads.p480 = body.dl480;
+    if (body.dl720 !== undefined) video.downloads.p720 = body.dl720;
+    if (body.dl1080 !== undefined) video.downloads.p1080 = body.dl1080;
+    if (body.dl4k !== undefined) video.downloads.p4k = body.dl4k;
+  }
   saveVideos(videos);
   res.json(video);
 });
@@ -472,6 +480,13 @@ app.get('/og-image/:id', handleOgImage);
 app.get('/api/videos', (req, res) => {
   res.json(loadVideos().filter((video) => video && video.published !== false));
 });
+
+app.get('/api/videos/:id/downloads', (req, res) => {
+  const video = loadVideos().find((item) => item && item.id === req.params.id);
+  if (!video) return res.status(404).json({ error: 'Video not found' });
+  res.json({ downloads: video.downloads || {} });
+});
+
 app.get('/api/videos/:id', (req, res) => {
   const video = loadVideos().find((item) => item && item.id === req.params.id);
   if (!video) return res.status(404).json({ error: 'Video not found' });
@@ -638,4 +653,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('StreamXvault listening on ' + PORT);
   syncVideosFromR2();
 });
+
+
 

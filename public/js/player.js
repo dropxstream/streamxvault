@@ -112,15 +112,21 @@ async function initPlayer() {
         const dlRes = await fetch(`/api/videos/${videoId}/downloads`);
         const dlData = await dlRes.json();
         const downloads = dlData.downloads;
-        const hasDownloads = downloads && (downloads.p720 || downloads.p1080);
+        const hasDownloads = downloads && (downloads.p480 || downloads.p720 || downloads.p1080 || downloads.p4k);
         const safeTitle = (video.title || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
 
         if (hasDownloads) {
+          if (downloads.p480) {
+            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p480)}" class="download-item" target="_blank" download="${safeTitle}_480p.mp4"><span>480p SD</span> <span class="quality">MP4</span></a>`;
+          }
           if (downloads.p720) {
             dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p720)}" class="download-item" target="_blank" download="${safeTitle}_720p.mp4"><span>720p HD</span> <span class="quality">MP4</span></a>`;
           }
           if (downloads.p1080) {
             dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p1080)}" class="download-item" target="_blank" download="${safeTitle}_1080p.mp4"><span>1080p FHD</span> <span class="quality">MP4</span></a>`;
+          }
+          if (downloads.p4k) {
+            dlMenu.innerHTML += `<a href="${escapeHtml(downloads.p4k)}" class="download-item" target="_blank" download="${safeTitle}_4k.mp4"><span>4K UHD</span> <span class="quality">MP4</span></a>`;
           }
         } else {
           dlMenu.innerHTML = '<div class="download-item" style="color: var(--text-muted); font-size: 0.8rem;">No links provided</div>';

@@ -472,8 +472,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   if (currentUploadSource === 'external') {
     const extVideoUrl = document.getElementById('ext-video-url').value.trim();
     const extThumbUrl = document.getElementById('ext-thumb-url').value.trim();
-    const dl720 = document.getElementById('dl-720').value.trim();
-    const dl1080 = document.getElementById('dl-1080').value.trim();
+    const dl480 = document.getElementById('dl-480').value.trim(); const dl720 = document.getElementById('dl-720').value.trim(); const dl1080 = document.getElementById('dl-1080').value.trim(); const dl4k = document.getElementById('dl-4k').value.trim();
 
     if (!extVideoUrl) {
       showToast('Please enter an External Video URL', 'error');
@@ -492,7 +491,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title, genre, description, 
           videoUrl: extVideoUrl, 
           thumbnailUrl: extThumbUrl,
-          dl720, dl1080, displayViews
+          dl480, dl720, dl1080, dl4k, displayViews
         })
       });
 
@@ -516,8 +515,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   if (currentUploadSource === 'r2hls') {
     const inputVal = document.getElementById('r2-video-url').value.trim();
     const r2ThumbUrl = document.getElementById('r2-thumb-url').value.trim();
-    const dl720 = document.getElementById('dl-720').value.trim();
-    const dl1080 = document.getElementById('dl-1080').value.trim();
+    const dl480 = document.getElementById('dl-480').value.trim(); const dl720 = document.getElementById('dl-720').value.trim(); const dl1080 = document.getElementById('dl-1080').value.trim(); const dl4k = document.getElementById('dl-4k').value.trim();
 
     if (!inputVal) {
       showToast('Please enter an HLS Stream URL', 'error');
@@ -538,7 +536,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title, genre, description, 
           videoUrl: isHls ? inputVal : '',
           thumbnailUrl: r2ThumbUrl,
-          dl720, dl1080, displayViews
+          dl480, dl720, dl1080, dl4k, displayViews
         })
       });
 
@@ -611,8 +609,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           videoFilename: videoResult.key,
           thumbnailUrl: thumbResult ? thumbResult.publicUrl : null,
           thumbnailFilename: thumbResult ? thumbResult.key : null,
-          dl720: document.getElementById('dl-720').value.trim(),
-          dl1080: document.getElementById('dl-1080').value.trim()
+          dl480: document.getElementById('dl-480').value.trim(), dl720: document.getElementById('dl-720').value.trim(), dl1080: document.getElementById('dl-1080').value.trim(), dl4k: document.getElementById('dl-4k').value.trim()
         })
       });
 
@@ -766,8 +763,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-display-views').value = video.displayViews || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
   document.getElementById('edit-r2-url').value = isHls ? video.videoUrl : '';
-  document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || '';
-  document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || '';
+  document.getElementById('edit-dl-480').value = (video.downloads && video.downloads.p480) || ''; document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || ''; document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || ''; document.getElementById('edit-dl-4k').value = (video.downloads && video.downloads.p4k) || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
   document.getElementById('edit-modal').classList.add('active');
@@ -789,8 +785,7 @@ async function saveEdit() {
     displayViews: document.getElementById('edit-display-views').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
     videoUrl: isHls ? editR2Val : '',
-    dl720: document.getElementById('edit-dl-720').value.trim(),
-    dl1080: document.getElementById('edit-dl-1080').value.trim(),
+    dl480: document.getElementById('edit-dl-480').value.trim(), dl720: document.getElementById('edit-dl-720').value.trim(), dl1080: document.getElementById('edit-dl-1080').value.trim(), dl4k: document.getElementById('edit-dl-4k').value.trim(),
     published: document.getElementById('edit-published').checked
   };
 
@@ -1142,3 +1137,5 @@ window.migrateBunnyVideos = async function() {
     btn.innerHTML = originalText;
   }
 };
+
+
