@@ -172,15 +172,41 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
+  let pendingPlay = false;
+
   function togglePlay() {
     if (video.paused) {
-      video.play().catch(e => {
-        showError("Autoplay blocked or playback failed");
-      });
+      debugLog('Play requested, readyState: ' + video.readyState);
+      // If video has enough data, play immediately
+      if (video.readyState >= 2) {
+        video.play().catch(e => {
+          debugLog('Play failed: ' + e.name + ' - ' + e.message);
+          if (e.name === 'NotAllowedError') {
+            showError("Click to play (autoplay blocked by browser)");
+          }
+        });
+      } else {
+        // HLS hasn't buffered yet — set flag and wait
+        debugLog('Waiting for buffer before playing...');
+        pendingPlay = true;
+        container.classList.add('loading');
+      }
     } else {
       video.pause();
     }
   }
+
+  // Auto-play when buffer is ready (if user already clicked)
+  video.addEventListener('canplay', () => {
+    debugLog('canplay fired, readyState: ' + video.readyState);
+    if (pendingPlay) {
+      pendingPlay = false;
+      container.classList.remove('loading');
+      video.play().catch(e => {
+        debugLog('Deferred play failed: ' + e.name + ' - ' + e.message);
+      });
+    }
+  });
 
   function updatePlayBtn() {
     if (video.paused) {
@@ -193,6 +219,9 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       container.classList.remove('paused');
     }
   }
+
+  // Ensure play button is visible on load
+  container.classList.add('paused');
 
   playPauseBtn.addEventListener('click', togglePlay);
   bigPlayBtn.addEventListener('click', togglePlay);
