@@ -483,6 +483,55 @@ async function handleOgImage(req, res) {
   }
 }
 
+app.get(['/rss.xml', '/feed.xml', '/feed'], (req, res) => {
+  const videos = loadVideos().filter((video) => video && video.published !== false);
+  const siteUrl = SITE || 'https://streamxvault.online';
+
+  const escapeXml = (str) => String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const items = videos.map((v) => {
+    const title = escapeXml(v.title || 'Video');
+    const link = `${siteUrl}/watch?v=${encodeURIComponent(v.id)}`;
+    const desc = escapeXml(v.description || v.title || '');
+    const pubDate = v.uploadedAt ? new Date(v.uploadedAt).toUTCString() : new Date().toUTCString();
+    const thumb = v.thumbnailUrl ? escapeXml(v.thumbnailUrl) : `${siteUrl}/og-image/${encodeURIComponent(v.id)}.jpg`;
+    const genreTag = v.genre ? `\n      <category>${escapeXml(v.genre)}</category>` : '';
+
+    return `    <item>
+      <title>${title}</title>
+      <link>${link}</link>
+      <guid isPermaLink="true">${link}</guid>
+      <pubDate>${pubDate}</pubDate>${genreTag}
+      <description><![CDATA[<p>${desc}</p><img src="${thumb}" alt="${title}" />]]></description>
+      <enclosure url="${thumb}" type="image/jpeg" length="0" />
+      <media:thumbnail url="${thumb}" />
+      <media:content url="${link}" medium="video" />
+    </item>`;
+  }).join('\n');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>StreamXvault</title>
+    <link>${siteUrl}</link>
+    <description>StreamXvault — Your premium streaming vault. Watch exclusive curated video content.</description>
+    <language>en</language>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+    <atom:link href="${siteUrl}/rss.xml" rel="self" type="application/rss+xml"/>
+${items}
+  </channel>
+</rss>`;
+
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=1800');
+  res.send(xml);
+});
+
 app.get('/og-image/:id', handleOgImage);
 app.get('/api/videos', (req, res) => {
   res.json(loadVideos().filter((video) => video && video.published !== false));
