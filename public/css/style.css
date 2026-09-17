@@ -324,10 +324,10 @@ input, textarea, select {
   display: flex;
   flex-direction: row-reverse; /* Puts image on right, text on left */
   align-items: center;
-  padding: 4rem 2rem 2rem 2rem;
+  padding: 1.5rem 2rem;
   max-width: var(--container-width);
   margin: 0 auto;
-  gap: 3rem;
+  gap: 2rem;
   overflow: visible;
 }
 
@@ -486,7 +486,7 @@ input, textarea, select {
 
 /* ==================== Section Styles ==================== */
 .section {
-  padding: 3rem 0;
+  padding: 1.5rem 0;
 }
 
 .section-header {
@@ -695,7 +695,7 @@ input, textarea, select {
   object-fit: contain;
 }
 
-.video-info { max-width: 1400px; margin: 0 auto 2rem; padding: 0 1rem; }
+.video-info { max-width: 1400px; margin: 0 auto 1rem; padding: 0 1rem; }
 
 .video-info h1 {
   font-size: 1.75rem;
@@ -733,7 +733,7 @@ input, textarea, select {
 .player-container .section {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1rem 1rem;
 }
 
 /* ==================== Admin Panel ==================== */
@@ -1257,9 +1257,9 @@ input, textarea, select {
 
 /* ==================== Footer ==================== */
 .footer {
-  padding: 3rem 0;
+  padding: 1.5rem 0;
   border-top: 1px solid var(--border-color);
-  margin-top: 4rem;
+  margin-top: 1.5rem;
 }
 
 .footer-content {
