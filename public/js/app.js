@@ -1,7 +1,7 @@
 /**
  * StreamXvault — Home catalog: search, sort, pagination, recommendations
  */
-var PAGE_SIZE = 12;
+var PAGE_SIZE = (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) ? 8 : 12;
 var allVideos = [];
 var currentSearch = '';
 var currentGenre = '';
@@ -15,12 +15,16 @@ window.addEventListener('scroll', function () {
   else navbar.classList.remove('scrolled');
 });
 
-function createVideoCard(video) {
+function createVideoCard(video, opts) {
   var card = document.createElement('a');
   card.className = 'video-card';
   card.href = '/watch?v=' + video.id;
+  var eager = opts && opts.eager;
+  var imgAttrs = eager
+    ? 'loading="eager" fetchpriority="high" decoding="async"'
+    : 'loading="lazy" decoding="async"';
   var thumb = video.thumbnailUrl
-    ? '<img src="' + video.thumbnailUrl + '" alt="' + escapeHtml(video.title) + '" loading="lazy" decoding="async">'
+    ? '<img src="' + video.thumbnailUrl + '" alt="' + escapeHtml(video.title) + '" width="640" height="360" ' + imgAttrs + '>'
     : '<div class="thumb-placeholder">🎥</div>';
   var views = formatViews(video.displayViews || video.views || 0);
   card.innerHTML =
@@ -191,7 +195,9 @@ function renderVideoList() {
   var start = (currentPage - 1) * PAGE_SIZE;
   gridEl.innerHTML = '';
   gridEl.style.display = 'grid';
-  list.slice(start, start + PAGE_SIZE).forEach(function (v) { gridEl.appendChild(createVideoCard(v)); });
+  list.slice(start, start + PAGE_SIZE).forEach(function (v, i) {
+    gridEl.appendChild(createVideoCard(v, { eager: currentPage === 1 && i < 4 }));
+  });
   if (countEl) countEl.textContent = list.length + ' video' + (list.length !== 1 ? 's' : '') + ' · page ' + currentPage + '/' + pages;
   renderPager(list.length, currentPage, pages);
 }
@@ -214,17 +220,21 @@ async function loadVideos() {
     allVideos = Array.isArray(videos) ? videos : [];
     if (loadingEl) loadingEl.style.display = 'none';
     renderVideoList();
-    fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: ((window.sxvWatchHistory && window.sxvWatchHistory()) || []).map(function (i) { return i.id; }) }) })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (!data || !data.videos || !data.videos.length) return;
-        var section = document.getElementById('recommended-section');
-        var carousel = document.getElementById('recommended-carousel');
-        if (!section || !carousel) return;
-        carousel.innerHTML = '';
-        data.videos.forEach(function (v) { carousel.appendChild(createVideoCard(v)); });
-        section.style.display = 'block';
-      }).catch(function () {});
+    function loadRecs() {
+      fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: ((window.sxvWatchHistory && window.sxvWatchHistory()) || []).map(function (i) { return i.id; }) }) })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || !data.videos || !data.videos.length) return;
+          var section = document.getElementById('recommended-section');
+          var carousel = document.getElementById('recommended-carousel');
+          if (!section || !carousel) return;
+          carousel.innerHTML = '';
+          data.videos.forEach(function (v) { carousel.appendChild(createVideoCard(v)); });
+          section.style.display = 'block';
+        }).catch(function () {});
+    }
+    if ('requestIdleCallback' in window) requestIdleCallback(loadRecs, { timeout: 4000 });
+    else setTimeout(loadRecs, 1200);
   } catch (err) {
     console.error('Failed to load videos:', err);
     if (loadingEl) loadingEl.style.display = 'none';
@@ -247,7 +257,13 @@ function updateHero(video) {
   }
   var watchUrl = '/watch?v=' + video.id;
   if (heroBg) heroBg.href = watchUrl;
-  if (heroThumb && video.thumbnailUrl) { heroThumb.src = video.thumbnailUrl; heroThumb.alt = video.title; heroThumb.style.display = 'block'; }
+  if (heroThumb && video.thumbnailUrl) {
+    heroThumb.src = video.thumbnailUrl;
+    heroThumb.alt = video.title;
+    heroThumb.width = 1280;
+    heroThumb.height = 720;
+    heroThumb.style.display = 'block';
+  }
   if (heroPlayBtn) { heroPlayBtn.style.display = 'inline-flex'; heroPlayBtn.href = watchUrl; }
   if (heroBadge) heroBadge.textContent = 'Latest Upload';
 }

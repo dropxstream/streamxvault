@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const express = require('express');
 const fetch = global.fetch || require('node-fetch');
 const { createStorage } = require('./storage');
@@ -50,6 +51,29 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(function gzipMaybe(req, res, next) {
+  const ae = req.headers['accept-encoding'] || '';
+  if (!/gzip/i.test(ae)) return next();
+  const origSend = res.send.bind(res);
+  res.send = function (body) {
+    if (body == null || res.getHeader('Content-Encoding')) return origSend(body);
+    const type = String(res.getHeader('Content-Type') || '');
+    if (!/html|json|javascript|css|xml|svg|text/i.test(type)) return origSend(body);
+    const buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
+    if (buf.length < 800) return origSend(body);
+    try {
+      const gz = zlib.gzipSync(buf, { level: 5 });
+      res.setHeader('Content-Encoding', 'gzip');
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.removeHeader('Content-Length');
+      return origSend(gz);
+    } catch (err) {
+      return origSend(body);
+    }
+  };
+  next();
+});
+
 function decorateHtml(html, extraScripts) {
   if (html.indexOf('sxv_theme') === -1) {
     html = html.replace(/<head[^>]*>/i, function (open) {
@@ -58,9 +82,9 @@ function decorateHtml(html, extraScripts) {
   }
   if (html.indexOf('/css/nav-fx.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=1">\n</head>');
   if (html.indexOf('/css/theme-dark.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/theme-dark.css?v=1">\n</head>');
-  var scripts = ['/js/theme.js?v=1', '/js/tracker.js?v=1', '/js/age-gate.js?v=1'].concat(extraScripts || []);
+  var scripts = ['/js/theme.js?v=2', '/js/tracker.js?v=1', '/js/age-gate.js?v=1'].concat(extraScripts || []);
   scripts.forEach(function (src) {
-    if (html.indexOf(src.split('?')[0]) === -1) html = html.replace(/<\/body>/i, '<script src="' + src + '"></script>\n</body>');
+    if (html.indexOf(src.split('?')[0]) === -1) html = html.replace(/<\/body>/i, '<script src="' + src + '" defer></script>\n</body>');
   });
   return html;
 }
@@ -69,12 +93,24 @@ app.get(['/demand.html', '/demand-form.html'], (req, res) => {
   const name = req.path === '/demand-form.html' ? 'demand-form.html' : 'demand.html';
   const file = path.join(__dirname, 'public', name);
   if (!fs.existsSync(file)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
   res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  etag: true,
+  maxAge: '7d',
+  setHeaders: function (res, filePath) {
+    if (/\.(?:css|js|png|jpe?g|gif|webp|svg|ico|woff2?)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    }
+  }
+}));
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+let videosCache = { mtime: 0, data: null };
 
 function repairVideoUrl(video) {
   if (!video || !video.videoUrl) return false;
@@ -101,6 +137,8 @@ function repairVideoUrl(video) {
 
 function loadVideos() {
   try {
+    const st = fs.statSync(DATA_FILE);
+    if (videosCache.data && videosCache.mtime === st.mtimeMs) return videosCache.data;
     const videos = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     if (!Array.isArray(videos)) return [];
     let changed = false;
@@ -109,14 +147,19 @@ function loadVideos() {
     }
     if (changed) {
       try { saveVideos(videos); } catch (err) {}
+    } else {
+      videosCache = { mtime: st.mtimeMs, data: videos };
     }
     return videos;
   } catch (err) {
-    return [];
+    return videosCache.data || [];
   }
 }
 function saveVideos(videos) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2));
+  try { videosCache = { mtime: fs.statSync(DATA_FILE).mtimeMs, data: videos }; } catch (err) {
+    videosCache = { mtime: Date.now(), data: videos };
+  }
   if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
     storage.upload(DB_KEY, Buffer.from(JSON.stringify(videos, null, 2)), 'application/json').catch(function () {});
   }
@@ -720,6 +763,7 @@ app.get('/watch', (req, res) => {
   if (video) {
     html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
   }
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
   res.type('html').send(html);
 });
 app.get('/', (req, res) => {
@@ -734,6 +778,7 @@ app.get('/', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: SITE + '/', id: latest ? latest.id : 'home' })
   });
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
   res.type('html').send(html);
 });
 
