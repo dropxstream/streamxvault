@@ -84,91 +84,131 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   debugLog('Source: ' + videoSrc);
   debugLog('HLS supported: ' + (typeof Hls !== 'undefined' && Hls.isSupported()));
 
+  function pickStartLevel(levels) {
+    if (!levels || !levels.length) return 0;
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < levels.length; i++) {
+      const h = levels[i].height || 0;
+      if (h >= 2160) continue;
+      const dist = Math.abs((h || 720) - 1080);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  function loadHls(src) {
+    const hls = new Hls({
+      enableWorker: true,
+      startLevel: -1,
+      capLevelToPlayerSize: true,
+      autoStartLoad: true,
+      backBufferLength: 30,
+      maxBufferLength: 20,
+      maxMaxBufferLength: 40,
+      abrEwmaDefaultEstimate: 2500000
+    });
+    window.__sxvHls = hls;
+
+    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+      debugLog('Manifest parsed: ' + data.levels.length + ' quality levels');
+      data.levels.forEach((level, i) => {
+        debugLog('  Level ' + i + ': ' + (level.height || '?') + 'p @ ' + Math.round(level.bitrate / 1000) + 'kbps');
+      });
+      const start = pickStartLevel(hls.levels);
+      hls.startLevel = start;
+      hls.nextLevel = start;
+      hls.currentLevel = -1;
+      setQualityLabel(levelLabel(hls.levels[start]) + ' start');
+    });
+
+    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+      debugLog('Quality switched to level ' + data.level);
+      setQualityLabel(levelLabel(hls.levels[data.level]));
+    });
+
+    hls.on(Hls.Events.FRAG_LOADED, () => {
+      networkRetries = 0;
+    });
+
+    hls.on(Hls.Events.ERROR, function (event, data) {
+      debugLog('HLS Error: ' + data.type + ' / ' + data.details + ' (fatal: ' + data.fatal + ')');
+      if (data.details === 'manifestLoadError' || data.details === 'manifestLoadTimeOut') {
+        const fixed = repairClientHlsUrl(src);
+        if (fixed && fixed !== src) {
+          debugLog('Retrying HLS at ' + fixed);
+          hls.destroy();
+          loadHls(fixed);
+          return;
+        }
+      }
+      if (data.fatal) {
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            networkRetries++;
+            if (networkRetries <= 3) {
+              const levels = hls.levels || [];
+              const safer = levels.findIndex((l) => l.height && l.height <= 1080);
+              if (safer >= 0) hls.currentLevel = safer;
+              hls.startLoad();
+            } else {
+              showError('Video stream unavailable');
+              hls.destroy();
+            }
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            debugLog('Media error — drop to 1080p and recover');
+            {
+              const levels = hls.levels || [];
+              const safer = levels.findIndex((l) => l.height && l.height <= 1080 && l.height >= 720);
+              if (safer >= 0) {
+                hls.currentLevel = safer;
+                hls.autoLevelCapping = safer;
+              }
+            }
+            hls.recoverMediaError();
+            break;
+          default:
+            showError('HLS fatal error: ' + data.details);
+            hls.destroy();
+            break;
+        }
+      }
+    });
+
+    hls.loadSource(src);
+    hls.attachMedia(video);
+    setQualityLabel('Auto');
+  }
+
+  function repairClientHlsUrl(src) {
+    try {
+      const u = new URL(src);
+      const poster = (video && video.getAttribute('poster')) || '';
+      if (!poster) return '';
+      const t = new URL(poster);
+      const vSegs = decodeURIComponent(u.pathname).split('/').filter(Boolean);
+      const tSegs = decodeURIComponent(t.pathname).split('/').filter(Boolean);
+      if (vSegs.length && tSegs.includes(vSegs[0]) && tSegs[0] !== vSegs[0]) {
+        const idx = tSegs.indexOf(vSegs[0]);
+        const prefix = tSegs.slice(0, idx).map(encodeURIComponent).join('/');
+        u.pathname = '/' + prefix + u.pathname;
+        return u.toString();
+      }
+    } catch (err) {}
+    return '';
+  }
+
+  let networkRetries = 0;
+
   if (videoSrc && videoSrc.includes('.m3u8')) {
     if (typeof Hls !== 'undefined' && Hls.isSupported()) {
       debugLog('Using hls.js for HLS playback');
-      const hls = new Hls({
-        enableWorker: true,
-        startLevel: 0,
-        capLevelToPlayerSize: false,
-        backBufferLength: 90,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        xhrSetup: function(xhr, url) {
-          debugLog('Loading: ' + url.substring(url.lastIndexOf('/') + 1));
-        }
-      });
-
-      let networkRetries = 0;
-
-      hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-        debugLog('Manifest parsed: ' + data.levels.length + ' quality levels');
-        data.levels.forEach((level, i) => {
-          debugLog('  Level ' + i + ': ' + (level.height || '?') + 'p @ ' + Math.round(level.bitrate/1000) + 'kbps');
-        });
-        // Start from highest quality and let ABR drop down if needed
-        // This avoids empty lower-quality playlists
-        hls.currentLevel = 0;
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-        debugLog('Quality switched to level ' + data.level);
-        setQualityLabel(levelLabel(hls.levels[data.level]));
-      });
-
-      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-        debugLog('Fragment loaded: ' + data.frag.sn + ' (level ' + data.frag.level + ')');
-        networkRetries = 0;
-      });
-
-      hls.on(Hls.Events.ERROR, function (event, data) {
-        debugLog('HLS Error: ' + data.type + ' / ' + data.details + ' (fatal: ' + data.fatal + ')');
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              networkRetries++;
-              if (networkRetries <= 3) {
-                // Try switching to a different quality level
-                const currentLevel = hls.currentLevel;
-                const totalLevels = hls.levels.length;
-                if (totalLevels > 1) {
-                  // Try the next level (wrap around)
-                  const nextLevel = (currentLevel + 1) % totalLevels;
-                  debugLog('Level ' + currentLevel + ' failed, trying level ' + nextLevel);
-                  hls.currentLevel = nextLevel;
-                }
-                hls.startLoad();
-              } else {
-                showError("Video stream unavailable");
-                hls.destroy();
-              }
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              debugLog('Attempting recovery from media error...');
-              hls.recoverMediaError();
-              break;
-            default:
-              showError("HLS fatal error: " + data.details);
-              hls.destroy();
-              break;
-          }
-        }
-      });
-
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        debugLog('Media attached to video element');
-      });
-
-      hls.on(Hls.Events.BUFFER_APPENDED, () => {
-        debugLog('Buffer appended, readyState: ' + video.readyState);
-      });
-
-      hls.loadSource(videoSrc);
-      hls.attachMedia(video);
-      setQualityLabel('Auto');
-
+      loadHls(videoSrc);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari native HLS
       debugLog('Using Safari native HLS');
       video.src = videoSrc;
       setQualityLabel('Auto');

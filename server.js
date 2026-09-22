@@ -76,10 +76,41 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+function repairVideoUrl(video) {
+  if (!video || !video.videoUrl) return false;
+  const before = video.videoUrl;
+  let url = String(video.videoUrl);
+  try {
+    const vu = new URL(url);
+    const vSegs = decodeURIComponent(vu.pathname).split('/').filter(Boolean);
+    const thumb = video.thumbnailUrl ? new URL(video.thumbnailUrl) : null;
+    const tSegs = thumb ? decodeURIComponent(thumb.pathname).split('/').filter(Boolean) : [];
+    if (vSegs.length && tSegs.length && tSegs.includes(vSegs[0]) && tSegs[0] !== vSegs[0]) {
+      const idx = tSegs.indexOf(vSegs[0]);
+      const prefix = tSegs.slice(0, idx).map(encodeURIComponent).join('/');
+      vu.pathname = '/' + prefix + vu.pathname;
+      url = vu.toString();
+    }
+  } catch (err) {}
+  if (url !== before) {
+    video.videoUrl = url;
+    return true;
+  }
+  return false;
+}
+
 function loadVideos() {
   try {
     const videos = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    return Array.isArray(videos) ? videos : [];
+    if (!Array.isArray(videos)) return [];
+    let changed = false;
+    for (let i = 0; i < videos.length; i++) {
+      if (repairVideoUrl(videos[i])) changed = true;
+    }
+    if (changed) {
+      try { saveVideos(videos); } catch (err) {}
+    }
+    return videos;
   } catch (err) {
     return [];
   }
@@ -534,6 +565,7 @@ ${items}
 
 app.get('/og-image/:id', handleOgImage);
 app.get('/api/videos', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
   res.json(loadVideos().filter((video) => video && video.published !== false));
 });
 
