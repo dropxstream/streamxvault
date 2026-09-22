@@ -87,14 +87,14 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
 
   function pickStartLevel(levels) {
     if (!levels || !levels.length) return 0;
+    // Start at lowest bitrate level for instant 0-second playback without buffering stalls.
+    // HLS ABR will automatically ramp up to 720p/1080p once buffer is established.
+    let minBitrate = Infinity;
     let best = 0;
-    let bestDist = Infinity;
     for (let i = 0; i < levels.length; i++) {
-      const h = levels[i].height || 0;
-      if (h >= 2160) continue;
-      const dist = Math.abs((h || 720) - 1080);
-      if (dist < bestDist) {
-        bestDist = dist;
+      const b = levels[i].bitrate || (levels[i].height ? levels[i].height * 1000 : 99999999);
+      if (b < minBitrate) {
+        minBitrate = b;
         best = i;
       }
     }
@@ -110,7 +110,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       backBufferLength: 30,
       maxBufferLength: 20,
       maxMaxBufferLength: 40,
-      abrEwmaDefaultEstimate: 2500000
+      abrEwmaDefaultEstimate: 500000
     });
     window.__sxvHls = hls;
 
@@ -121,9 +121,8 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       });
       const start = pickStartLevel(hls.levels);
       hls.startLevel = start;
-      hls.nextLevel = start;
       hls.currentLevel = -1;
-      setQualityLabel(levelLabel(hls.levels[start]) + ' start');
+      setQualityLabel(levelLabel(hls.levels[start]));
     });
 
     hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
