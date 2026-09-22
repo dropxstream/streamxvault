@@ -68,6 +68,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   }
 
   video.addEventListener('error', (e) => {
+    container.classList.remove('loading');
     let msg = "Unknown error";
     if (video.error) {
       switch (video.error.code) {
@@ -232,40 +233,51 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  let pendingPlay = false;
-
   function togglePlay() {
     if (video.paused) {
       debugLog('Play requested, readyState: ' + video.readyState);
-      // If video has enough data, play immediately
-      if (video.readyState >= 2) {
-        video.play().catch(e => {
+      container.classList.add('loading');
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          container.classList.remove('loading');
+          updatePlayBtn();
+        }).catch(e => {
+          container.classList.remove('loading');
           debugLog('Play failed: ' + e.name + ' - ' + e.message);
           if (e.name === 'NotAllowedError') {
-            showError("Click to play (autoplay blocked by browser)");
+            // In case browser policy demands muted playback first
+            video.muted = true;
+            updateVolumeIcon();
+            video.play().catch(() => {
+              showError("Click to play (playback blocked by browser)");
+            });
           }
         });
-      } else {
-        // HLS hasn't buffered yet — set flag and wait
-        debugLog('Waiting for buffer before playing...');
-        pendingPlay = true;
-        container.classList.add('loading');
       }
     } else {
       video.pause();
+      container.classList.remove('loading');
     }
   }
 
-  // Auto-play when buffer is ready (if user already clicked)
+  video.addEventListener('waiting', () => {
+    debugLog('Video buffering...');
+    container.classList.add('loading');
+  });
+
+  video.addEventListener('playing', () => {
+    debugLog('Video playing');
+    container.classList.remove('loading');
+    updatePlayBtn();
+  });
+
   video.addEventListener('canplay', () => {
     debugLog('canplay fired, readyState: ' + video.readyState);
-    if (pendingPlay) {
-      pendingPlay = false;
+    if (!video.paused) {
       container.classList.remove('loading');
-      video.play().catch(e => {
-        debugLog('Deferred play failed: ' + e.name + ' - ' + e.message);
-      });
     }
+    updatePlayBtn();
   });
 
   function updatePlayBtn() {

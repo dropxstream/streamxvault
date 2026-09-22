@@ -80,6 +80,11 @@
   transform: scale(1);
 }
 
+.video-container.loading .big-play-btn {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
 .video-controls {
   position: absolute;
   bottom: 0;

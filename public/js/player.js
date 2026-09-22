@@ -63,7 +63,7 @@ async function initPlayer() {
       const safeThumbnail = video.thumbnailUrl ? video.thumbnailUrl.replace(/'/g, "'") : "";
       wrapper.innerHTML =
         "<div class='video-container' id='video-container'>" +
-        "<video id='video-player' class='video-player' poster='" + safeThumbnail + "'></video>" +
+        "<video id='video-player' class='video-player' preload='auto' playsinline poster='" + safeThumbnail + "'></video>" +
         "<div class='video-overlay' id='video-overlay'>" +
           "<div class='big-play-btn' id='big-play-btn'><svg viewBox='0 0 24 24' fill='currentColor'><path d='M8 5v14l11-7z'/></svg></div>" +
         "</div>" +
@@ -209,5 +209,9 @@ async function likeVideo() {
   } catch (err) {}
 }
 
-document.addEventListener('DOMContentLoaded', initPlayer);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPlayer);
+} else {
+  initPlayer();
+}
 
