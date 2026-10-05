@@ -762,6 +762,15 @@ app.get('/watch', (req, res) => {
     tags: previewTags({ title: title, description: description, url: url, id: video ? video.id : 'home' })
   });
   if (video) {
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      "name": video.title || 'Watch Video',
+      "description": video.description || 'Watch on StreamXvault',
+      "thumbnailUrl": SITE + '/og-image/' + encodeURIComponent(video.id) + '.jpg',
+      "uploadDate": video.uploadedAt || new Date().toISOString()
+    };
+    html = html.replace(/<\/head>/i, '<script type="application/ld+json">\n' + JSON.stringify(jsonLd) + '\n</script>\n</head>');
     html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
   }
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
