@@ -363,7 +363,7 @@ app.delete('/api/videos/:id', requireAdmin, (req, res) => {
   saveVideos(videos);
   res.json({ ok: true });
 });
-app.get('/api/admin/adcash', requireAdmin, (req, res) => res.json({ balance: 0, todayEarnings: '0.00' }));
+
 
 app.post('/api/track', (req, res) => {
   rollDay();

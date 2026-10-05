@@ -158,17 +158,7 @@ async function loadStats() {
     document.getElementById('stat-likes').textContent = formatViews(stats.totalLikes || 0);
     document.getElementById('stat-visitors').textContent = formatViews(stats.totalVisitors || 0);
     
-    try {
-      const adcashRes = await fetch('/api/admin/adcash', { headers: authHeaders() });
-      if (adcashRes.ok) {
-        const adcashData = await adcashRes.json();
-        document.getElementById('stat-adcash-balance').textContent = '$' + (adcashData.balance || 0).toFixed(2);
-        document.getElementById('stat-adcash-today').textContent = '$' + (adcashData.todayEarnings || '0.00');
-      }
-    } catch(err) {
-      console.error('Failed to load Adcash stats:', err);
-    }
-    
+
     // Live Traffic Stats
     try {
       const liveRes = await fetch('/api/admin/live-traffic', { headers: authHeaders() });

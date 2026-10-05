@@ -55,16 +55,7 @@
     else setTimeout(fn, 1800);
   }
   function loadDeferred() {
-    if (!document.getElementById('aclib')) {
-      var ads = document.createElement('script');
-      ads.id = 'aclib';
-      ads.async = true;
-      ads.src = 'https://acscdn.com/script/aclib.js';
-      ads.onload = function () {
-        try { if (window.aclib && aclib.runVideoSlider) aclib.runVideoSlider({ zoneId: '11262190' }); } catch (e) {}
-      };
-      document.head.appendChild(ads);
-    }
+
     if (typeof window.clarity !== 'function') {
       (function (c, l, a, r, i, t, y) {
         c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); };
