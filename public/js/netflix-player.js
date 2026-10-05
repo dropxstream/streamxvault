@@ -232,31 +232,45 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
+  let preRollPlayed = false;
+  const vastAdUrl = 'https://s.magsrv.com/v1/vast.php?idz=6047230&ex-av=name';
+
   function togglePlay() {
     if (video.paused) {
-      debugLog('Play requested, readyState: ' + video.readyState);
-      container.classList.add('loading');
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          container.classList.remove('loading');
-          updatePlayBtn();
-        }).catch(e => {
-          container.classList.remove('loading');
-          debugLog('Play failed: ' + e.name + ' - ' + e.message);
-          if (e.name === 'NotAllowedError') {
-            // In case browser policy demands muted playback first
-            video.muted = true;
-            updateVolumeIcon();
-            video.play().catch(() => {
-              showError("Click to play (playback blocked by browser)");
-            });
-          }
+      if (!preRollPlayed && typeof window.playVastAd === 'function') {
+        preRollPlayed = true;
+        container.classList.add('loading');
+        window.playVastAd(container, vastAdUrl, () => {
+          startActualPlayback();
         });
+        return;
       }
+      startActualPlayback();
     } else {
       video.pause();
       container.classList.remove('loading');
+    }
+  }
+
+  function startActualPlayback() {
+    debugLog('Play requested, readyState: ' + video.readyState);
+    container.classList.add('loading');
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        container.classList.remove('loading');
+        updatePlayBtn();
+      }).catch(e => {
+        container.classList.remove('loading');
+        debugLog('Play failed: ' + e.name + ' - ' + e.message);
+        if (e.name === 'NotAllowedError') {
+          video.muted = true;
+          updateVolumeIcon();
+          video.play().catch(() => {
+            showError("Click to play (playback blocked by browser)");
+          });
+        }
+      });
     }
   }
 
