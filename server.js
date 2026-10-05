@@ -366,6 +366,7 @@ app.delete('/api/videos/:id', requireAdmin, (req, res) => {
 
 
 app.post('/api/track', (req, res) => {
+  if (isAdmin(req)) return res.json({ ok: true });
   rollDay();
   const body = req.body || {};
   const uid = String(body.uid || '').slice(0, 40) || 'anon';
@@ -701,7 +702,7 @@ function resetLiveTrafficIfNewDay() {
 // Track live traffic middleware (after existing visitor middleware)
 app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path.includes('.')) return next();
-  if (isRequestBot(req)) return next();
+  if (isRequestBot(req) || isAdmin(req)) return next();
   
   resetLiveTrafficIfNewDay();
   
