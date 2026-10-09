@@ -100,10 +100,12 @@ app.get(['/demand.html', '/demand-form.html'], (req, res) => {
 app.use(express.static(path.join(__dirname, 'public'), {
   index: false,
   etag: true,
-  maxAge: '7d',
+  maxAge: '0',
   setHeaders: function (res, filePath) {
     if (/\.(?:css|js|png|jpe?g|gif|webp|svg|ico|woff2?)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    } else if (/\.html$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
   }
 }));
@@ -800,7 +802,7 @@ app.get('/watch', (req, res) => {
     html = html.replace(/<\/head>/i, '<script type="application/ld+json">\n' + JSON.stringify(jsonLd) + '\n</script>\n</head>');
     html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
   }
-  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('html').send(html);
 });
 app.get('/', (req, res) => {
@@ -815,7 +817,7 @@ app.get('/', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: SITE + '/', id: latest ? latest.id : 'home' })
   });
-  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('html').send(html);
 });
 
