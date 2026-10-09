@@ -169,7 +169,16 @@ function renderVideoList() {
   var countEl = document.getElementById('video-count');
   if (!gridEl) return;
   var newest = sortVideos(allVideos, 'latest');
-  if (newest[0]) updateHero(newest[0]); else updateHeroDefault();
+  var heroSection = document.getElementById('hero-section');
+  var mainTitle = document.getElementById('catalog-main-title');
+  if (currentSearch || currentGenre) {
+    if (heroSection) heroSection.style.display = 'none';
+    if (mainTitle) mainTitle.textContent = currentSearch ? 'Search Results: ' + currentSearch : 'Genre: ' + currentGenre;
+  } else {
+    if (heroSection) heroSection.style.display = 'flex';
+    if (mainTitle) mainTitle.textContent = 'All Videos';
+    if (newest[0]) updateHero(newest[0]); else updateHeroDefault();
+  }
   if (recentSection) {
     if (!currentSearch && !currentGenre && newest.length > 1) {
       recentSection.style.display = 'block';
