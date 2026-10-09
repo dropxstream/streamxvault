@@ -304,8 +304,19 @@ document.addEventListener('DOMContentLoaded', function () {
     var saved = localStorage.getItem('sxv_sort');
     if (saved === 'latest' || saved === 'ascending' || saved === 'descending' || saved === 'popular') currentSort = saved;
   } catch (e) {}
+
   var nav = document.getElementById('search-input');
   var extra = document.getElementById('catalog-search');
+
+  // Read search query from URL
+  var urlParams = new URLSearchParams(window.location.search);
+  var urlSearch = urlParams.get('search');
+  if (urlSearch) {
+    currentSearch = urlSearch.trim();
+    if (nav) nav.value = currentSearch;
+    if (extra) extra.value = currentSearch;
+  }
+
   function onSearch(val) {
     currentSearch = (val || '').trim(); currentPage = 1;
     if (nav && nav.value !== currentSearch) nav.value = currentSearch;
