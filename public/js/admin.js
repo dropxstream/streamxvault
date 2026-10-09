@@ -607,6 +607,14 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         throw new Error('Failed to register video');
       }
 
+      fetch('https://hook.eu1.make.com/vbt4url5zn4rduygj66pkyvz2m5hq98u', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title, genre, description, videoUrl: videoResult.publicUrl, thumbnailUrl: thumbResult ? thumbResult.publicUrl : null
+        })
+      }).catch(console.error);
+
       showToast(`"${title}" uploaded successfully! 🎬`, 'success');
     } else {
       // Fallback to legacy upload (local storage)
@@ -621,6 +629,12 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         progressBar.style.width = pct + '%';
         progressText.textContent = `Uploading... ${pct}%`;
       });
+
+      fetch('https://hook.eu1.make.com/vbt4url5zn4rduygj66pkyvz2m5hq98u', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, genre, description })
+      }).catch(console.error);
 
       showToast(`"${title}" uploaded successfully! 🎬`, 'success');
     }

@@ -337,6 +337,13 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   };
   videos.unshift(video);
   saveVideos(videos);
+
+  fetch('https://hook.eu1.make.com/vbt4url5zn4rduygj66pkyvz2m5hq98u', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(video)
+  }).catch(err => console.error('Webhook error:', err));
+
   res.json(video);
 });
 app.put('/api/videos/:id', requireAdmin, (req, res) => {
