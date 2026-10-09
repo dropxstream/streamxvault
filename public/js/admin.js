@@ -754,7 +754,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-display-views').value = video.displayViews || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
-  document.getElementById('edit-r2-url').value = isHls ? video.videoUrl : '';
+  document.getElementById('edit-video-url').value = video.videoUrl || '';
   document.getElementById('edit-dl-480').value = (video.downloads && video.downloads.p480) || ''; document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || ''; document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || ''; document.getElementById('edit-dl-4k').value = (video.downloads && video.downloads.p4k) || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
@@ -767,8 +767,7 @@ function closeEditModal() {
 
 async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
-  const editR2Val = document.getElementById('edit-r2-url').value.trim();
-  const isHls = editR2Val.startsWith('http') || editR2Val.includes('.m3u8');
+  const editVideoUrl = document.getElementById('edit-video-url').value.trim();
 
   const payload = {
     title: document.getElementById('edit-title').value.trim(),
@@ -777,7 +776,7 @@ async function saveEdit() {
     description: document.getElementById('edit-desc').value.trim(),
     displayViews: document.getElementById('edit-display-views').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
-    videoUrl: isHls ? editR2Val : '',
+    videoUrl: editVideoUrl,
     dl480: document.getElementById('edit-dl-480').value.trim(), dl720: document.getElementById('edit-dl-720').value.trim(), dl1080: document.getElementById('edit-dl-1080').value.trim(), dl4k: document.getElementById('edit-dl-4k').value.trim(),
     published: document.getElementById('edit-published').checked
   };
