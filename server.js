@@ -315,6 +315,29 @@ app.get('/api/auth/status', (req, res) => {
 app.get('/api/admin/videos', requireAdmin, (req, res) => {
   res.json(loadVideos().sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0)));
 });
+async function triggerTelegramWebhook(videoData) {
+  const webhookUrl = process.env.MAKE_WEBHOOK_URL || 'https://hook.eu1.make.com/vbt4url5zn4rduygj66pkyvz2m5hq98u';
+  
+  if (!webhookUrl) return;
+
+  const payload = {
+      title: videoData.title,
+      url: `${SITE}/watch?v=${videoData.id}`, 
+      image: videoData.thumbnailUrl 
+  };
+
+  try {
+      const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+      if (response.ok) console.log("Success: Make.com webhook triggered.");
+  } catch (error) {
+      console.error("Network error reaching Make.com:", error.message);
+  }
+}
+
 app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   const body = req.body || {};
   const title = String(body.title || '').trim();
@@ -338,11 +361,7 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   videos.unshift(video);
   saveVideos(videos);
 
-  fetch('https://hook.eu1.make.com/vbt4url5zn4rduygj66pkyvz2m5hq98u', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(video)
-  }).catch(err => console.error('Webhook error:', err));
+  triggerTelegramWebhook(video);
 
   res.json(video);
 });
