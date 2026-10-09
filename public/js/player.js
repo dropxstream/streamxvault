@@ -42,26 +42,11 @@ async function initPlayer() {
 
     const modelElem = document.getElementById('video-model');
     if (modelElem) {
-      function guessModelName(title) {
-        let t = title.trim();
-        let m = t.match(/#\d+\s+(.+)/i);
-        if (m) return m[1].trim();
-        if (t.includes(' - ')) return t.split(' - ')[0].trim();
-        if (t.includes(' | ')) return t.split(' | ')[0].trim();
-        if (t.includes('~')) return t.split('~')[0].trim();
-        m = t.match(/^(.+?)\s+(?:in|presents|stars in|featuring|feat\.?|ft\.?|with)\s+/i);
-        if (m && m[1].split(' ').length <= 3) return m[1].trim();
-        m = t.match(/(?:featuring|feat\.?|ft\.?|with)\s+(.+?)(?:\s+-|\s+\(|vs|$)/i);
-        if (m) return m[1].trim();
-        m = t.match(/\(([^)]+)\)$/);
-        if (m && m[1].split(' ').length <= 3) return m[1].trim();
-        const words = t.split(' ');
-        if (words.length <= 3) return t;
-        return words[0] + ' ' + words[1];
+      let modelName = video.title.split(/[-|:]/)[0].trim();
+      if (modelName === video.title.trim()) {
+        if (video.genre) modelName = video.genre;
+        else modelName = video.title.split(' ').slice(0, 2).join(' ');
       }
-      
-      let modelName = guessModelName(video.title);
-      
       if (modelName) {
         modelElem.textContent = '👤 ' + modelName;
         modelElem.href = `/?search=${encodeURIComponent(modelName)}`;
