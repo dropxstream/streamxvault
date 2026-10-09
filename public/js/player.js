@@ -40,21 +40,6 @@ async function initPlayer() {
     const dateElem = document.getElementById('video-date');
     if (dateElem && video.uploadedAt) dateElem.textContent = new Date(video.uploadedAt).toLocaleDateString();
 
-    const modelElem = document.getElementById('video-model');
-    if (modelElem) {
-      let modelName = video.title.split(/[-|:]/)[0].trim();
-      if (modelName === video.title.trim()) {
-        if (video.genre) modelName = video.genre;
-        else modelName = video.title.split(' ').slice(0, 2).join(' ');
-      }
-      if (modelName) {
-        modelElem.textContent = '👤 ' + modelName;
-        modelElem.href = `/?search=${encodeURIComponent(modelName)}`;
-        modelElem.style.display = 'inline-flex';
-      }
-    }
-
-
     document.getElementById('like-count').textContent = video.likes || 0;
 
     const wrapper = document.getElementById('player-wrapper');
