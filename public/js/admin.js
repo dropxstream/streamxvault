@@ -455,6 +455,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
+  const modelName = document.getElementById('video-model').value.trim();
   const description = document.getElementById('video-desc').value.trim();
   const displayViews = document.getElementById('video-display-views').value.trim();
 
@@ -478,7 +479,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ 
-          title, genre, description, 
+          title, genre, modelName, description, 
           videoUrl: extVideoUrl, 
           thumbnailUrl: extThumbUrl,
           dl480, dl720, dl1080, dl4k, displayViews
@@ -523,7 +524,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ 
-          title, genre, description, 
+          title, genre, modelName, description, 
           videoUrl: isHls ? inputVal : '',
           thumbnailUrl: r2ThumbUrl,
           dl480, dl720, dl1080, dl4k, displayViews
@@ -594,6 +595,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           videoId: videoResult.id,
           title,
           genre,
+          modelName,
           description,
           videoUrl: videoResult.publicUrl,
           videoFilename: videoResult.key,
@@ -613,6 +615,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       formData.append('video', videoFile);
       formData.append('title', title);
       formData.append('genre', genre);
+      formData.append('modelName', modelName);
       formData.append('description', description);
       if (thumbFile) formData.append('thumbnail', thumbFile);
 
@@ -747,6 +750,7 @@ function openEditModal(videoId) {
   document.getElementById('edit-id').value = video.id;
   document.getElementById('edit-title').value = video.title;
   document.getElementById('edit-genre').value = video.genre || '';
+  document.getElementById('edit-model').value = video.modelName || '';
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-display-views').value = video.displayViews || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
@@ -769,6 +773,7 @@ async function saveEdit() {
   const payload = {
     title: document.getElementById('edit-title').value.trim(),
     genre: document.getElementById('edit-genre').value,
+    modelName: document.getElementById('edit-model').value.trim(),
     description: document.getElementById('edit-desc').value.trim(),
     displayViews: document.getElementById('edit-display-views').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),

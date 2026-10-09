@@ -40,6 +40,13 @@ async function initPlayer() {
     const dateElem = document.getElementById('video-date');
     if (dateElem && video.uploadedAt) dateElem.textContent = new Date(video.uploadedAt).toLocaleDateString();
 
+    const modelElem = document.getElementById('video-model');
+    if (modelElem && video.modelName) {
+      modelElem.textContent = '👤 ' + video.modelName;
+      modelElem.href = `/?search=${encodeURIComponent(video.modelName)}`;
+      modelElem.style.display = 'inline-flex';
+    }
+
     document.getElementById('like-count').textContent = video.likes || 0;
 
     const wrapper = document.getElementById('player-wrapper');
@@ -183,7 +190,8 @@ function createVideoCard(video) {
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
-      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeHtml(video.genre)}</div>` : ''}
+      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeHtml(video.genre)}</div>` : ''}
+      ${video.modelName ? `<div style="display:inline-block; font-size: 0.7rem; background: rgba(130, 71, 229, 0.2); color: #a77dfa; border: 1px solid rgba(130, 71, 229, 0.4); padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; font-weight: 700;">👤 ${escapeHtml(video.modelName)}</div>` : ''}
       <div class="card-meta">
         <span><span aria-hidden="true">👁️</span> ${views}</span>
         <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>

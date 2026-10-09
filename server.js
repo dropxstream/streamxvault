@@ -348,6 +348,7 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
     id: crypto.randomUUID(),
     title: title,
     genre: String(body.genre || '').trim(),
+    modelName: String(body.modelName || '').trim(),
     description: String(body.description || '').trim(),
     displayViews: String(body.displayViews || '').trim(),
     videoUrl: videoUrl,
@@ -370,7 +371,7 @@ app.put('/api/videos/:id', requireAdmin, (req, res) => {
   const video = videos.find((item) => item && item.id === req.params.id);
   if (!video) return res.status(404).json({ error: 'Video not found' });
   const body = req.body || {};
-  ['title', 'genre', 'description', 'displayViews', 'videoUrl', 'thumbnailUrl', 'published'].forEach(function (key) {
+  ['title', 'genre', 'modelName', 'description', 'displayViews', 'videoUrl', 'thumbnailUrl', 'published'].forEach(function (key) {
     if (Object.prototype.hasOwnProperty.call(body, key)) video[key] = body[key];
   });
   
