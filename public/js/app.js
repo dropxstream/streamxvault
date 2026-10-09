@@ -155,6 +155,10 @@ function renderRecommended() {
   var section = document.getElementById('recommended-section');
   var carousel = document.getElementById('recommended-carousel');
   if (!section || !carousel || !allVideos.length) return;
+  if (currentSearch || currentGenre) {
+    section.style.display = 'none';
+    return;
+  }
   var picks = localRecommend(allVideos).slice(0, 8);
   if (!picks.length) { section.style.display = 'none'; return; }
   carousel.innerHTML = '';
