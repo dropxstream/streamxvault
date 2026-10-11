@@ -878,37 +878,22 @@ app.get('/watch', (req, res) => {
     const jsonLdTag = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</script>';
     html = html.replace(/<\/head>/i, jsonLdTag + '\n</head>');
 
-    // SSR content block: visible text content that Googlebot can read
-    // This is inserted as a hidden-by-JS noscript-style block right after <body> or before the main content
+    // SSR: Populate existing elements directly in the HTML template (avoids duplicate h1 tags)
     const ssrTitle = escapeHtml(video.title || 'Video');
-    const ssrDesc = escapeHtml(clip(video.description || '', 500));
-    const ssrThumb = escapeHtml(video.thumbnailUrl || '');
-    const ssrGenre = video.genre ? '<span>' + escapeHtml(video.genre) + '</span>' : '';
+    const ssrDesc = escapeHtml(video.description || video.shortDescription || '');
     const ssrViews = escapeHtml(String(video.displayViews || video.views || 0));
     const ssrDate = video.uploadedAt ? escapeHtml(new Date(video.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })) : '';
 
-    const ssrBlock = '\n<!-- SSR Content for SEO -->\n' +
-      '<div id="ssr-content" class="ssr-seo-content">\n' +
-      '  <article itemscope itemtype="https://schema.org/VideoObject">\n' +
-      '    <h1 itemprop="name">' + ssrTitle + '</h1>\n' +
-      (ssrThumb ? '    <img itemprop="thumbnailUrl" src="' + ssrThumb + '" alt="' + ssrTitle + '" width="1280" height="720" style="max-width:100%;height:auto;">\n' : '') +
-      '    <meta itemprop="uploadDate" content="' + escapeHtml(video.uploadedAt || '') + '">\n' +
-      '    <meta itemprop="contentUrl" content="' + escapeHtml(url) + '">\n' +
-      '    <meta itemprop="embedUrl" content="' + escapeHtml(SITE + '/api/embed/' + video.id) + '">\n' +
-      (ssrGenre ? '    <p>Genre: ' + ssrGenre + '</p>\n' : '') +
-      (ssrViews ? '    <p>' + ssrViews + ' views</p>\n' : '') +
-      (ssrDate ? '    <p>Published: <time itemprop="datePublished">' + ssrDate + '</time></p>\n' : '') +
-      '    <p itemprop="description">' + ssrDesc + '</p>\n' +
-      '    <span itemprop="publisher" itemscope itemtype="https://schema.org/Organization">\n' +
-      '      <meta itemprop="name" content="StreamXvault">\n' +
-      '      <meta itemprop="url" content="' + escapeHtml(SITE) + '">\n' +
-      '    </span>\n' +
-      '  </article>\n' +
-      '</div>\n' +
-      '<script>document.addEventListener("DOMContentLoaded",function(){var s=document.getElementById("ssr-content");if(s)s.style.display="none";if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n';
+    // Directly replace placeholders in watch.html so there is exactly ONE <h1> tag on the page
+    html = html.replace(/<h1 id="video-title">[^<]*<\/h1>/i, '<h1 id="video-title">' + ssrTitle + '</h1>');
+    html = html.replace(/<div class="video-description" id="video-description">[\s\S]*?<\/div>/i, '<div class="video-description" id="video-description">' + ssrDesc + '</div>');
+    html = html.replace(/<span id="video-views">[^<]*<\/span>/i, '<span id="video-views">' + ssrViews + ' views</span>');
+    if (ssrDate) {
+      html = html.replace(/<span id="video-date">[^<]*<\/span>/i, '<span id="video-date">' + ssrDate + '</span>');
+    }
 
-    // Inject the SSR block right after the opening <body> tag
-    html = html.replace(/<body[^>]*>/i, function (match) { return match + ssrBlock; });
+    // Attach watch tracking script
+    html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
   }
 
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
