@@ -847,9 +847,13 @@ app.get('/watch', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
   const video = loadVideos().find((item) => item && item.id === req.query.v);
   const title = video ? (video.title || 'Watch') + ' - StreamXvault' : 'Watch - StreamXvault';
-  const description = video
-    ? (video.shortDescription || video.description || ('Watch ' + (video.title || 'this video') + ' on StreamXvault.'))
-    : 'Watch videos on StreamXvault.';
+  let descRaw = (video && (video.description || video.shortDescription)) || '';
+  if (descRaw.length < 90) {
+    const videoTitle = (video && video.title) || 'video';
+    descRaw = descRaw ? (descRaw + '. Watch ' + videoTitle + ' in full HD streaming with fast download options on StreamXvault.')
+                      : ('Watch ' + videoTitle + ' on StreamXvault. Stream exclusive full HD scenes, multiple download resolutions, and fresh daily video updates.');
+  }
+  const description = clip(descRaw, 160);
   const url = video ? SITE + '/watch?v=' + encodeURIComponent(video.id) : SITE + '/watch';
   html = injectHead(html, {
     title: title,
@@ -914,8 +918,8 @@ app.get('/', (req, res) => {
   const latest = videos[0];
   const title = 'StreamXvault - Official Premium Streaming Platform';
   const description = latest
-    ? clip((latest.title || '') + ' and more videos on StreamXvault.', 160)
-    : 'StreamXvault - Watch curated premium video content.';
+    ? clip('Watch ' + (latest.title || 'trending videos') + ' and exclusive streaming content on StreamXvault. Explore full HD scenes, multiple genres, and daily releases.', 160)
+    : 'StreamXvault is your premium streaming platform. Watch exclusive curated video releases, browse multiple categories, and stream in full HD without buffering.';
   html = injectHead(html, {
     title: title,
     description: description,
