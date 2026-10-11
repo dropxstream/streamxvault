@@ -637,6 +637,63 @@ ${items}
 });
 
 app.get('/og-image/:id', handleOgImage);
+// Dynamic Sitemap - auto-generates from the videos database
+app.get('/sitemap.xml', (req, res) => {
+  const escapeXml = (str) => String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const videos = loadVideos().filter((v) => v && v.published !== false);
+  const now = new Date().toISOString();
+
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n';
+
+  // Homepage
+  xml += '  <url>\n';
+  xml += '    <loc>' + SITE + '/</loc>\n';
+  xml += '    <lastmod>' + now + '</lastmod>\n';
+  xml += '    <changefreq>daily</changefreq>\n';
+  xml += '    <priority>1.0</priority>\n';
+  xml += '  </url>\n';
+
+  // Demand page
+  xml += '  <url>\n';
+  xml += '    <loc>' + SITE + '/demand.html</loc>\n';
+  xml += '    <lastmod>' + now + '</lastmod>\n';
+  xml += '    <changefreq>weekly</changefreq>\n';
+  xml += '    <priority>0.6</priority>\n';
+  xml += '  </url>\n';
+
+  // Video pages
+  videos.forEach(function (v) {
+    xml += '  <url>\n';
+    xml += '    <loc>' + SITE + '/watch?v=' + escapeXml(v.id) + '</loc>\n';
+    xml += '    <lastmod>' + (v.uploadedAt || now) + '</lastmod>\n';
+    xml += '    <changefreq>weekly</changefreq>\n';
+    xml += '    <priority>0.8</priority>\n';
+    xml += '    <video:video>\n';
+    xml += '      <video:thumbnail_loc>' + escapeXml(v.thumbnailUrl || (SITE + '/og-image/' + v.id + '.jpg')) + '</video:thumbnail_loc>\n';
+    xml += '      <video:title>' + escapeXml(v.title || 'Video') + '</video:title>\n';
+    xml += '      <video:description>' + escapeXml(clip(v.description || v.title || '', 300)) + '</video:description>\n';
+    xml += '      <video:player_loc>' + SITE + '/api/embed/' + escapeXml(v.id) + '</video:player_loc>\n';
+    xml += '      <video:publication_date>' + (v.uploadedAt || now) + '</video:publication_date>\n';
+    xml += '      <video:family_friendly>no</video:family_friendly>\n';
+    if (v.genre) xml += '      <video:tag>' + escapeXml(v.genre) + '</video:tag>\n';
+    xml += '    </video:video>\n';
+    xml += '  </url>\n';
+  });
+
+  xml += '</urlset>';
+
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(xml);
+});
+
 app.get('/api/videos', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
   res.json(loadVideos().filter((video) => video && video.published !== false));
@@ -790,24 +847,77 @@ app.get('/watch', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: url, id: video ? video.id : 'home' })
   });
+
+  // --- SSR: Inject real content into HTML body for SEO ---
   if (video) {
+    // Build JSON-LD VideoObject structured data
     const jsonLd = {
-      "@context": "https://schema.org",
-      "@type": "VideoObject",
-      "name": video.title || 'Watch Video',
-      "description": video.description || 'Watch on StreamXvault',
-      "thumbnailUrl": SITE + '/og-image/' + encodeURIComponent(video.id) + '.jpg',
-      "uploadDate": video.uploadedAt || new Date().toISOString()
+      '@context': 'https://schema.org',
+      '@type': 'VideoObject',
+      name: video.title || 'Video',
+      description: clip(video.description || video.title || '', 300),
+      thumbnailUrl: video.thumbnailUrl || (SITE + '/og-image/' + encodeURIComponent(video.id) + '.jpg'),
+      uploadDate: video.uploadedAt || new Date().toISOString(),
+      contentUrl: url,
+      embedUrl: SITE + '/api/embed/' + encodeURIComponent(video.id),
+      interactionStatistic: {
+        '@type': 'InteractionCounter',
+        interactionType: { '@type': 'WatchAction' },
+        userInteractionCount: Number(video.views || 0)
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: 'StreamXvault',
+        url: SITE,
+        logo: { '@type': 'ImageObject', url: SITE + '/images/logo.png' }
+      }
     };
-    html = html.replace(/<\/head>/i, '<script type="application/ld+json">\n' + JSON.stringify(jsonLd) + '\n</script>\n</head>');
-    html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
+    if (video.genre) jsonLd.genre = video.genre;
+
+    // JSON-LD script tag in <head>
+    const jsonLdTag = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</script>';
+    html = html.replace(/<\/head>/i, jsonLdTag + '\n</head>');
+
+    // SSR content block: visible text content that Googlebot can read
+    // This is inserted as a hidden-by-JS noscript-style block right after <body> or before the main content
+    const ssrTitle = escapeHtml(video.title || 'Video');
+    const ssrDesc = escapeHtml(clip(video.description || '', 500));
+    const ssrThumb = escapeHtml(video.thumbnailUrl || '');
+    const ssrGenre = video.genre ? '<span>' + escapeHtml(video.genre) + '</span>' : '';
+    const ssrViews = escapeHtml(String(video.displayViews || video.views || 0));
+    const ssrDate = video.uploadedAt ? escapeHtml(new Date(video.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })) : '';
+
+    const ssrBlock = '\n<!-- SSR Content for SEO -->\n' +
+      '<div id="ssr-content" class="ssr-seo-content">\n' +
+      '  <article itemscope itemtype="https://schema.org/VideoObject">\n' +
+      '    <h1 itemprop="name">' + ssrTitle + '</h1>\n' +
+      (ssrThumb ? '    <img itemprop="thumbnailUrl" src="' + ssrThumb + '" alt="' + ssrTitle + '" width="1280" height="720" style="max-width:100%;height:auto;">\n' : '') +
+      '    <meta itemprop="uploadDate" content="' + escapeHtml(video.uploadedAt || '') + '">\n' +
+      '    <meta itemprop="contentUrl" content="' + escapeHtml(url) + '">\n' +
+      '    <meta itemprop="embedUrl" content="' + escapeHtml(SITE + '/api/embed/' + video.id) + '">\n' +
+      (ssrGenre ? '    <p>Genre: ' + ssrGenre + '</p>\n' : '') +
+      (ssrViews ? '    <p>' + ssrViews + ' views</p>\n' : '') +
+      (ssrDate ? '    <p>Published: <time itemprop="datePublished">' + ssrDate + '</time></p>\n' : '') +
+      '    <p itemprop="description">' + ssrDesc + '</p>\n' +
+      '    <span itemprop="publisher" itemscope itemtype="https://schema.org/Organization">\n' +
+      '      <meta itemprop="name" content="StreamXvault">\n' +
+      '      <meta itemprop="url" content="' + escapeHtml(SITE) + '">\n' +
+      '    </span>\n' +
+      '  </article>\n' +
+      '</div>\n' +
+      '<script>document.addEventListener("DOMContentLoaded",function(){var s=document.getElementById("ssr-content");if(s)s.style.display="none";if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n';
+
+    // Inject the SSR block right after the opening <body> tag
+    html = html.replace(/<body[^>]*>/i, function (match) { return match + ssrBlock; });
   }
+
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('html').send(html);
 });
 app.get('/', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
-  const latest = loadVideos().find((item) => item && item.published !== false);
+  const videos = loadVideos().filter((item) => item && item.published !== false);
+  const latest = videos[0];
   const title = 'StreamXvault - Official Premium Streaming Platform';
   const description = latest
     ? clip((latest.title || '') + ' and more videos on StreamXvault.', 160)
@@ -817,6 +927,50 @@ app.get('/', (req, res) => {
     description: description,
     tags: previewTags({ title: title, description: description, url: SITE + '/', id: latest ? latest.id : 'home' })
   });
+
+  // --- SSR: Inject JSON-LD WebSite + ItemList and video listing for SEO ---
+  if (videos.length > 0) {
+    const webSiteLd = {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'StreamXvault',
+      url: SITE,
+      description: 'StreamXvault — Your premium streaming vault. Watch exclusive curated video content.'
+    };
+    const itemListLd = {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      itemListElement: videos.slice(0, 20).map(function (v, i) {
+        return {
+          '@type': 'ListItem',
+          position: i + 1,
+          url: SITE + '/watch?v=' + encodeURIComponent(v.id),
+          name: v.title || 'Video'
+        };
+      })
+    };
+    const ldTags = '<script type="application/ld+json">' + JSON.stringify(webSiteLd) + '</script>\n' +
+                   '<script type="application/ld+json">' + JSON.stringify(itemListLd) + '</script>';
+    html = html.replace(/<\/head>/i, ldTags + '\n</head>');
+
+    // SSR video listing block — visible to Googlebot, hidden by JS for real users
+    let ssrCards = '';
+    videos.slice(0, 20).forEach(function (v) {
+      ssrCards += '  <div><a href="/watch?v=' + escapeHtml(encodeURIComponent(v.id)) + '">' +
+        '<h3>' + escapeHtml(v.title || 'Video') + '</h3>' +
+        (v.thumbnailUrl ? '<img src="' + escapeHtml(v.thumbnailUrl) + '" alt="' + escapeHtml(v.title || '') + '" width="320" height="180" loading="lazy">' : '') +
+        (v.genre ? '<span>' + escapeHtml(v.genre) + '</span>' : '') +
+        '</a></div>\n';
+    });
+    const ssrBlock = '\n<!-- SSR Content for SEO -->\n' +
+      '<div id="ssr-content" class="ssr-seo-content">\n' +
+      '<h2>' + escapeHtml(videos.length + ' Videos on StreamXvault') + '</h2>\n' +
+      ssrCards +
+      '</div>\n' +
+      '<script>document.addEventListener("DOMContentLoaded",function(){var s=document.getElementById("ssr-content");if(s)s.style.display="none";});</script>\n';
+    html = html.replace(/<body[^>]*>/i, function (match) { return match + ssrBlock; });
+  }
+
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('html').send(html);
 });

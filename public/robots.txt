@@ -2,8 +2,8 @@ User-agent: *
 Allow: /
 Allow: /api/videos/
 Allow: /api/embed/
-Disallow: /admin
 Disallow: /api/
+Disallow: /admin
 
 Sitemap: https://streamxvault.online/sitemap.xml
 
