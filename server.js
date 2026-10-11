@@ -345,15 +345,29 @@ async function triggerTelegramWebhook(videoData) {
     image = rawThumb.startsWith('http://') || rawThumb.startsWith('https://')
       ? rawThumb
       : `https://streamxvault.online/${rawThumb.replace(/^\/+/, '')}`;
-  } else if (id) {
-    image = `https://streamxvault.online/og-image/${encodeURIComponent(id)}.jpg`;
+  }
+  
+  // Guarantee a valid fallback image so Telegram 'Send a photo' never receives an empty URL
+  if (!image) {
+    image = id
+      ? `https://streamxvault.online/og-image/${encodeURIComponent(id)}.jpg`
+      : 'https://streamxvault.online/images/logo.png';
   }
 
   const payload = {
-    title: title,
+    title: title || 'New Video Upload',
     url: `https://streamxvault.online/watch?v=${id}`,
+    watchUrl: `https://streamxvault.online/watch?v=${id}`,
+    id: id,
+    videoId: id,
     // Ensure the full HTTPS domain is prepended to the image path
-    image: image
+    image: image,
+    photo: image,
+    photoUrl: image,
+    imageUrl: image,
+    thumbnailUrl: image,
+    thumbnailFile: image,
+    httpUrl: image
   };
 
   try {
