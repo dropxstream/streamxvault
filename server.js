@@ -97,6 +97,14 @@ app.get(['/demand.html', '/demand-form.html'], (req, res) => {
   res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
 });
 
+app.get('/watch.html', (req, res) => {
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  res.redirect(301, '/watch' + qs);
+});
+app.get('/index.html', (req, res) => {
+  res.redirect(301, '/');
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   index: false,
   etag: true,
@@ -545,6 +553,7 @@ function injectHead(html, { title, description, tags }) {
   if (/<meta\s+name=["']description["']/i.test(html)) {
     html = html.replace(/<meta\s+name=["']description["']\s+content=["'][^"']*["']\s*\/?>/i, '<meta name="description" content="' + escapeHtml(clip(description, 160)) + '">');
   }
+  html = html.replace(/\n\s*<link rel=["']canonical["'][^>]*>/gi, '');
   html = html.replace(/\n\s*<meta property=["']og:[^>]*>/gi, '');
   html = html.replace(/\n\s*<meta name=["']twitter:[^>]*>/gi, '');
   html = html.replace(/<head[^>]*>/i, function (open) { return open + '\n  ' + tags; });
