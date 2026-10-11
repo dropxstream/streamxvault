@@ -330,21 +330,45 @@ async function triggerTelegramWebhook(videoData) {
   
   if (!webhookUrl) return;
 
+  const id = videoData.id || videoData.videoId || '';
+  const title = videoData.title || '';
+
+  // Ensure the full HTTPS domain is prepended to the image path
+  const thumbFile = videoData.thumbnailFile || videoData.thumbnailFilename || '';
+  let image = '';
+  if (thumbFile) {
+    image = thumbFile.startsWith('http://') || thumbFile.startsWith('https://')
+      ? thumbFile
+      : `https://streamxvault.online/${thumbFile.replace(/^\/+/, '')}`;
+  } else if (videoData.thumbnailUrl) {
+    const rawThumb = String(videoData.thumbnailUrl).trim();
+    image = rawThumb.startsWith('http://') || rawThumb.startsWith('https://')
+      ? rawThumb
+      : `https://streamxvault.online/${rawThumb.replace(/^\/+/, '')}`;
+  } else if (id) {
+    image = `https://streamxvault.online/og-image/${encodeURIComponent(id)}.jpg`;
+  }
+
   const payload = {
-      title: videoData.title,
-      url: `${SITE}/watch?v=${videoData.id}`, 
-      image: videoData.thumbnailUrl 
+    title: title,
+    url: `https://streamxvault.online/watch?v=${id}`,
+    // Ensure the full HTTPS domain is prepended to the image path
+    image: image
   };
 
   try {
-      const response = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-      });
-      if (response.ok) console.log("Success: Make.com webhook triggered.");
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (response.ok) {
+      console.log('Success: Make.com webhook triggered for Telegram.');
+    } else {
+      console.error('Make.com webhook rejected the payload. Status:', response.status);
+    }
   } catch (error) {
-      console.error("Network error reaching Make.com:", error.message);
+    console.error('Network error reaching Make.com:', error.message);
   }
 }
 
@@ -363,6 +387,7 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
     displayViews: String(body.displayViews || '').trim(),
     videoUrl: videoUrl,
     thumbnailUrl: String(body.thumbnailUrl || '').trim(),
+    thumbnailFile: String(body.thumbnailFile || body.thumbnailFilename || '').trim(),
     views: 0,
     likes: 0,
     published: true,
@@ -375,6 +400,100 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   triggerTelegramWebhook(video);
 
   res.json(video);
+});
+
+app.post('/api/upload', (req, res) => {
+  try {
+    const body = req.body || {};
+    const id = body.id || body.videoId || crypto.randomUUID();
+    const title = String(body.title || 'Untitled Video').trim();
+    const thumbnailFile = String(body.thumbnailFile || body.thumbnailFilename || '').trim();
+    let thumbnailUrl = String(body.thumbnailUrl || '').trim();
+    if (!thumbnailUrl && thumbnailFile) {
+      thumbnailUrl = thumbnailFile.startsWith('http') ? thumbnailFile : `https://streamxvault.online/${thumbnailFile.replace(/^\/+/, '')}`;
+    }
+
+    const newVideo = {
+      id: id,
+      title: title,
+      genre: String(body.genre || '').trim(),
+      modelName: String(body.modelName || '').trim(),
+      description: String(body.description || '').trim(),
+      displayViews: String(body.displayViews || '').trim(),
+      videoUrl: String(body.videoUrl || '').trim(),
+      thumbnailUrl: thumbnailUrl,
+      thumbnailFile: thumbnailFile,
+      views: 0,
+      likes: 0,
+      published: true,
+      downloads: { p480: String(body.dl480 || ''), p720: String(body.dl720 || ''), p1080: String(body.dl1080 || ''), p4k: String(body.dl4k || '') },
+      uploadedAt: new Date().toISOString()
+    };
+
+    const videos = loadVideos();
+    videos.unshift(newVideo);
+    saveVideos(videos);
+
+    triggerTelegramWebhook({
+      title: req.body.title || newVideo.title,
+      id: req.body.id || newVideo.id,
+      thumbnailFile: req.body.thumbnailFile || thumbnailFile,
+      thumbnailUrl: newVideo.thumbnailUrl
+    });
+
+    return res.status(200).json({ success: true, message: 'Video uploaded successfully', video: newVideo });
+  } catch (error) {
+    console.error('Upload error:', error);
+    return res.status(500).json({ error: 'Failed to process upload' });
+  }
+});
+
+app.post('/api/upload/complete', (req, res) => {
+  try {
+    const body = req.body || {};
+    const id = body.videoId || body.id || crypto.randomUUID();
+    const title = String(body.title || 'Untitled Video').trim();
+    const thumbnailFile = String(body.thumbnailFilename || body.thumbnailFile || '').trim();
+    let thumbnailUrl = String(body.thumbnailUrl || '').trim();
+    if (!thumbnailUrl && thumbnailFile) {
+      thumbnailUrl = thumbnailFile.startsWith('http') ? thumbnailFile : `https://streamxvault.online/${thumbnailFile.replace(/^\/+/, '')}`;
+    }
+
+    const videoData = {
+      id: id,
+      title: title,
+      genre: String(body.genre || '').trim(),
+      modelName: String(body.modelName || '').trim(),
+      description: String(body.description || '').trim(),
+      displayViews: String(body.displayViews || '').trim(),
+      videoUrl: String(body.videoUrl || '').trim(),
+      videoFilename: body.videoFilename || null,
+      thumbnailUrl: thumbnailUrl,
+      thumbnailFile: thumbnailFile,
+      thumbnailFilename: thumbnailFile || null,
+      views: 0,
+      likes: 0,
+      published: true,
+      downloads: { p480: String(body.dl480 || ''), p720: String(body.dl720 || ''), p1080: String(body.dl1080 || ''), p4k: String(body.dl4k || '') },
+      uploadedAt: new Date().toISOString()
+    };
+
+    const videos = loadVideos();
+    videos.unshift(videoData);
+    saveVideos(videos);
+
+    triggerTelegramWebhook({
+      title: videoData.title,
+      id: videoData.id,
+      thumbnailFile: thumbnailFile,
+      thumbnailUrl: videoData.thumbnailUrl
+    });
+
+    res.json({ success: true, video: videoData });
+  } catch (err) {
+    console.error('Complete upload error:', err);
+    res.status(500).json({ error: 'Failed to register video' });
+  }
 });
 app.put('/api/videos/:id', requireAdmin, (req, res) => {
   const videos = loadVideos();
