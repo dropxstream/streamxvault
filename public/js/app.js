@@ -32,7 +32,7 @@ function createVideoCard(video, opts) {
     '<div class="card-info"><div class="card-title">' + escapeHtml(video.title) + '</div>' +
     (video.genre ? '<div style="display:inline-block;font-size:0.7rem;background:var(--accent-gradient-pink);color:#fff;padding:2px 8px;border-radius:4px;margin:4px 4px 8px 0;text-transform:uppercase;font-weight:700;">' + escapeHtml(video.genre) + '</div>' : '') +
     (video.modelName ? '<div style="display:inline-block;font-size:0.7rem;background:rgba(130, 71, 229, 0.2);color:#a77dfa;border:1px solid rgba(130, 71, 229, 0.4);padding:2px 8px;border-radius:4px;margin:4px 0 8px;font-weight:700;">👤 ' + escapeHtml(video.modelName) + '</div>' : '') +
-    '<div class="card-meta"><span>👁️ ' + views + '</span><span>🕒 ' + getTimeAgo(video.uploadedAt) + '</span></div></div>';
+    '<div class="card-meta"><span>🕒 ' + getTimeAgo(video.uploadedAt) + '</span></div></div>';
   return card;
 }
 

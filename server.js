@@ -1027,13 +1027,11 @@ app.get('/watch', (req, res) => {
     // SSR: Populate existing elements directly in the HTML template (avoids duplicate h1 tags)
     const ssrTitle = escapeHtml(video.title || 'Video');
     const ssrDesc = escapeHtml(video.description || video.shortDescription || '');
-    const ssrViews = escapeHtml(String(video.displayViews || video.views || 0));
     const ssrDate = video.uploadedAt ? escapeHtml(new Date(video.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })) : '';
 
     // Directly replace placeholders in watch.html so there is exactly ONE <h1> tag on the page
     html = html.replace(/<h1 id="video-title">[^<]*<\/h1>/i, '<h1 id="video-title">' + ssrTitle + '</h1>');
     html = html.replace(/<div class="video-description" id="video-description">[\s\S]*?<\/div>/i, '<div class="video-description" id="video-description">' + ssrDesc + '</div>');
-    html = html.replace(/<span id="video-views">[^<]*<\/span>/i, '<span id="video-views">' + ssrViews + ' views</span>');
     if (ssrDate) {
       html = html.replace(/<span id="video-date">[^<]*<\/span>/i, '<span id="video-date">' + ssrDate + '</span>');
     }
