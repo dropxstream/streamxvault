@@ -113,7 +113,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
   maxAge: '0',
   setHeaders: function (res, filePath) {
-    if (/\.(?:css|js|png|jpe?g|gif|webp|svg|ico|woff2?)$/i.test(filePath)) {
+    if (/\.(?:css|js|png|jpe?g|gif|webp|svg|ico|woff2?|mp4)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
     } else if (/\.html$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
