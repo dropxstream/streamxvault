@@ -39,6 +39,16 @@ window.playVastAd = function(containerElement, adTagUrl, onComplete) {
   const adsLoader = new google.ima.AdsLoader(adDisplayContainer);
   let adsManager;
 
+  let loadTimer = setTimeout(finish, 8000);
+  let maxTimer = setTimeout(finish, 45000);
+
+  const origFinish = finish;
+  finish = function() {
+    clearTimeout(loadTimer);
+    clearTimeout(maxTimer);
+    origFinish();
+  };
+
   adsLoader.addEventListener(google.ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED, (e) => {
     adsManager = e.getAdsManager(adVideoElement);
     
@@ -47,6 +57,9 @@ window.playVastAd = function(containerElement, adTagUrl, onComplete) {
     adsManager.addEventListener(google.ima.AdEvent.Type.USER_CLOSE, finish);
     adsManager.addEventListener(google.ima.AdEvent.Type.SKIPPED, finish);
     adsManager.addEventListener(google.ima.AdEvent.Type.COMPLETE, finish);
+    adsManager.addEventListener(google.ima.AdEvent.Type.STARTED, () => {
+      clearTimeout(loadTimer);
+    });
     
     try {
       adsManager.init(containerElement.clientWidth, containerElement.clientHeight, google.ima.ViewMode.NORMAL);
@@ -66,7 +79,4 @@ window.playVastAd = function(containerElement, adTagUrl, onComplete) {
   adsRequest.nonLinearAdSlotHeight = containerElement.clientHeight;
   
   adsLoader.requestAds(adsRequest);
-  
-  // Fallback timeout in case ad hangs
-  setTimeout(finish, 45000); // 45 seconds max for ad
 };

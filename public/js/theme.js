@@ -43,6 +43,16 @@
       btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     });
     nav.appendChild(btn);
+    var navRight = nav.querySelector('.nav-right');
+    if (navRight) {
+      navRight.addEventListener('click', function (e) {
+        var target = e.target.closest('a, .btn-support');
+        if (target && nav.classList.contains('nav-open')) {
+          nav.classList.remove('nav-open');
+          btn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
     document.addEventListener('click', function (e) {
       if (!nav.classList.contains('nav-open')) return;
       if (nav.contains(e.target)) return;

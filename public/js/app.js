@@ -93,7 +93,7 @@ function ensureToolbar() {
     searchWrap.id = 'catalog-search-wrap';
     searchWrap.style.cssText = 'width:100%;max-width:420px;';
     searchWrap.innerHTML = '<label for="catalog-search" style="display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Search catalog</label>' +
-      '<input id="catalog-search" type="search" placeholder="Search title, genre, #tag, or model..." autocomplete="off" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;">';
+      '<input id="catalog-search" type="search" placeholder="Search title, genre, #tag, or model..." autocomplete="off" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);font-size:16px;">';
     genres.parentNode.insertBefore(searchWrap, genres);
     var extra = document.getElementById('catalog-search');
     var nav = document.getElementById('search-input');

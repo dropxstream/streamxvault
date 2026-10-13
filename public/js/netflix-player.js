@@ -308,10 +308,33 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   // Ensure play button is visible on load
   container.classList.add('paused');
 
-  playPauseBtn.addEventListener('click', togglePlay);
-  bigPlayBtn.addEventListener('click', togglePlay);
-  video.addEventListener('click', togglePlay);
-  video.addEventListener('play', updatePlayBtn);
+  let isTouchDevice = false;
+  container.addEventListener('touchstart', () => {
+    isTouchDevice = true;
+  }, { passive: true });
+
+  playPauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+    resetHideTimer();
+  });
+  bigPlayBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePlay();
+    resetHideTimer();
+  });
+  video.addEventListener('click', () => {
+    if (isTouchDevice && !video.paused && !container.classList.contains('active')) {
+      resetHideTimer();
+      return;
+    }
+    togglePlay();
+    resetHideTimer();
+  });
+  video.addEventListener('play', () => {
+    updatePlayBtn();
+    resetHideTimer();
+  });
   video.addEventListener('pause', updatePlayBtn);
 
   video.addEventListener('loadedmetadata', () => {
@@ -329,7 +352,12 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
 
   function hoverPos(e) {
     const rect = progressContainer.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    if (!rect.width) return 0;
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX
+      : (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX
+      : e.clientX;
+    if (typeof clientX !== 'number' || isNaN(clientX)) return 0;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   }
 
   progressContainer.addEventListener('mousemove', (e) => {
@@ -352,22 +380,49 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     const pos = hoverPos(e);
     if (isScrubbing) {
       progressFilled.style.width = `${pos * 100}%`;
-      currentTimeDisplay.textContent = formatTime(pos * video.duration);
+      if (video.duration) currentTimeDisplay.textContent = formatTime(pos * video.duration);
     }
-    if (video.duration && updateVideo) video.currentTime = pos * video.duration;
+    if (video.duration && updateVideo && isFinite(pos)) {
+      video.currentTime = pos * video.duration;
+    }
   }
 
   progressContainer.addEventListener('mousedown', (e) => { isScrubbing = true; scrub(e, true); });
   document.addEventListener('mousemove', (e) => { if (isScrubbing) scrub(e, false); });
   document.addEventListener('mouseup', (e) => { if (isScrubbing) { scrub(e, true); isScrubbing = false; } });
 
-  rewindBtn.addEventListener('click', () => { video.currentTime = Math.max(0, video.currentTime - 10); });
-  forwardBtn.addEventListener('click', () => { video.currentTime = Math.min(video.duration, video.currentTime + 10); });
+  progressContainer.addEventListener('touchstart', (e) => {
+    isScrubbing = true;
+    resetHideTimer();
+    scrub(e, false);
+  }, { passive: true });
+  progressContainer.addEventListener('touchmove', (e) => {
+    if (!isScrubbing) return;
+    resetHideTimer();
+    scrub(e, false);
+  }, { passive: true });
+  progressContainer.addEventListener('touchend', (e) => {
+    if (isScrubbing) {
+      scrub(e, true);
+      isScrubbing = false;
+      if (previewTooltip) previewTooltip.classList.remove('is-visible');
+    }
+  });
+
+  rewindBtn.addEventListener('click', () => {
+    video.currentTime = Math.max(0, (video.currentTime || 0) - 10);
+    resetHideTimer();
+  });
+  forwardBtn.addEventListener('click', () => {
+    if (video.duration) video.currentTime = Math.min(video.duration, (video.currentTime || 0) + 10);
+    resetHideTimer();
+  });
 
   function toggleMute() {
     video.muted = !video.muted;
     volumeSlider.value = video.muted ? 0 : video.volume;
     updateVolumeIcon();
+    resetHideTimer();
   }
   function updateVolumeIcon() {
     const muted = video.muted || video.volume === 0;
@@ -382,17 +437,26 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   });
 
   function toggleFullscreen() {
-    if (!document.fullscreenElement) {
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen);
+    if (!isFs) {
       if (container.requestFullscreen) container.requestFullscreen();
       else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
-    } else if (document.exitFullscreen) document.exitFullscreen();
-    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      else if (video.webkitExitFullscreen) video.webkitExitFullscreen();
+    }
   }
-  document.addEventListener('fullscreenchange', () => {
-    const fs = !!document.fullscreenElement;
+  function onFullscreenChange() {
+    const fs = !!(document.fullscreenElement || document.webkitFullscreenElement || video.webkitDisplayingFullscreen);
     fullscreenIcon.classList.toggle('hidden', fs);
     exitFullscreenIcon.classList.toggle('hidden', !fs);
-  });
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+  video.addEventListener('webkitbeginfullscreen', onFullscreenChange);
+  video.addEventListener('webkitendfullscreen', onFullscreenChange);
   fullscreenBtn.addEventListener('click', toggleFullscreen);
   video.addEventListener('dblclick', toggleFullscreen);
   video.addEventListener('loadeddata', updatePlayBtn);
@@ -404,16 +468,18 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     speedIndex = (speedIndex + 1) % speeds.length;
     video.playbackRate = speeds[speedIndex];
     speedBtn.textContent = `${speeds[speedIndex]}x`;
+    resetHideTimer();
   });
 
   document.addEventListener('keydown', (e) => {
-    if (document.activeElement.tagName === 'INPUT') return;
+    const activeTag = document.activeElement && document.activeElement.tagName;
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
     switch (e.key.toLowerCase()) {
       case ' ': case 'k': e.preventDefault(); togglePlay(); break;
       case 'f': e.preventDefault(); toggleFullscreen(); break;
       case 'm': e.preventDefault(); toggleMute(); break;
-      case 'arrowleft': e.preventDefault(); video.currentTime = Math.max(0, video.currentTime - 10); break;
-      case 'arrowright': e.preventDefault(); video.currentTime = Math.min(video.duration, video.currentTime + 10); break;
+      case 'arrowleft': e.preventDefault(); video.currentTime = Math.max(0, (video.currentTime || 0) - 10); break;
+      case 'arrowright': e.preventDefault(); if (video.duration) video.currentTime = Math.min(video.duration, (video.currentTime || 0) + 10); break;
       case 'arrowup':
         e.preventDefault();
         video.volume = Math.min(1, video.volume + 0.1);

@@ -28,6 +28,12 @@ html[data-theme="dark"] .navbar {
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
+@media (max-width: 768px) {
+  html[data-theme="dark"] .nav-right {
+    background: rgba(12, 12, 22, 0.98) !important;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+}
 html[data-theme="dark"] .nav-brand,
 html[data-theme="dark"] .nav-link,
 html[data-theme="dark"] #nav-home {

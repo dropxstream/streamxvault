@@ -16,6 +16,18 @@ document.addEventListener('click', () => {
 });
 
 async function initPlayer() {
+  const searchInput = document.getElementById('search-input');
+  if (searchInput && !searchInput.dataset.boundWatchSearch) {
+    searchInput.dataset.boundWatchSearch = '1';
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const q = searchInput.value.trim();
+        if (q) window.location.href = `/?search=${encodeURIComponent(q)}`;
+      }
+    });
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const videoId = urlParams.get('v');
 

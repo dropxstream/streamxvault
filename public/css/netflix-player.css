@@ -58,7 +58,7 @@
   justify-content: center;
   align-items: center;
   cursor: pointer;
-  pointer-events: auto;
+  pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
   transform: scale(0.9);
@@ -77,6 +77,7 @@
 
 .video-container.paused .big-play-btn {
   opacity: 1;
+  pointer-events: auto;
   transform: scale(1);
 }
 
@@ -93,6 +94,7 @@
   background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
   padding: 20px;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -103,6 +105,7 @@
 .video-container.paused .video-controls,
 .video-container.active .video-controls {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .video-container .progress-bar-container {
@@ -116,6 +119,7 @@
   align-items: center;
   cursor: pointer;
   position: relative;
+  touch-action: none;
 }
 
 .preview-tooltip {
@@ -219,6 +223,7 @@
   justify-content: center;
   align-items: center;
   transition: transform 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .control-btn:hover {
@@ -253,18 +258,12 @@
   opacity: 1;
 }
 
-.time-display { font-size: 14px; font-weight: 400; user-select: none; color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }
+.time-display { font-size: 14px; font-weight: 400; user-select: none; color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); white-space: nowrap; }
 
 .text-btn {
   font-size: 16px;
   font-weight: bold;
 }
-
-@media (max-width: 600px) {
-  .volume-container, .time-display { display: none !important; }
-  .control-btn svg { width: 24px; height: 24px; }
-}
-
 
 /* Adaptive quality and timeline preview */
 .quality-indicator {
@@ -280,6 +279,7 @@
   font-size: 0.82rem;
   line-height: 1.5;
   text-align: center;
+  padding: 0 0.75rem;
 }
 
 .preview-image {
@@ -291,6 +291,42 @@
 }
 
 @media (max-width: 600px) {
-  .quality-indicator { font-size: 0.65rem; }
-  .preview-image { width: 140px; height: 79px; }
+  .video-controls {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .controls-left, .controls-right {
+    gap: 10px;
+  }
+  .volume-slider {
+    display: none !important;
+  }
+  .control-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+  .time-display {
+    font-size: 11px;
+  }
+  .text-btn {
+    font-size: 13px;
+  }
+  .big-play-btn {
+    width: 60px;
+    height: 60px;
+  }
+  .big-play-btn svg {
+    width: 30px;
+    height: 30px;
+  }
+  .quality-indicator {
+    font-size: 0.65rem;
+  }
+  .preview-image {
+    width: 120px;
+    height: 68px;
+  }
+  .progress-thumb {
+    opacity: 1;
+  }
 }
