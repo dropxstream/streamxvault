@@ -31,7 +31,8 @@ function createVideoCard(video, opts) {
     '<div class="thumbnail" style="position:relative;overflow:hidden;">' + thumb + '</div>' +
     '<div class="card-info"><div class="card-title">' + escapeHtml(video.title) + '</div>' +
     (video.genre ? '<div style="display:inline-block;font-size:0.7rem;background:var(--accent-gradient-pink);color:#fff;padding:2px 8px;border-radius:4px;margin:4px 4px 8px 0;text-transform:uppercase;font-weight:700;">' + escapeHtml(video.genre) + '</div>' : '') +
-    (video.modelName ? '<div style="display:inline-block;font-size:0.7rem;background:rgba(130, 71, 229, 0.2);color:#a77dfa;border:1px solid rgba(130, 71, 229, 0.4);padding:2px 8px;border-radius:4px;margin:4px 0 8px;font-weight:700;">👤 ' + escapeHtml(video.modelName) + '</div>' : '') +
+    (video.modelName ? '<div style="display:inline-block;font-size:0.7rem;background:rgba(130, 71, 229, 0.2);color:#a77dfa;border:1px solid rgba(130, 71, 229, 0.4);padding:2px 8px;border-radius:4px;margin:4px 4px 8px 0;font-weight:700;">👤 ' + escapeHtml(video.modelName) + '</div>' : '') +
+    (Array.isArray(video.tags) && video.tags.length ? video.tags.slice(0, 4).map(function (t) { return '<div style="display:inline-block;font-size:0.68rem;background:rgba(56, 189, 248, 0.12);color:#38bdf8;border:1px solid rgba(56, 189, 248, 0.3);padding:2px 7px;border-radius:4px;margin:4px 4px 8px 0;font-weight:600;">#' + escapeHtml(t) + '</div>'; }).join('') : '') +
     '<div class="card-meta"><span>🕒 ' + getTimeAgo(video.uploadedAt) + '</span></div></div>';
   return card;
 }
@@ -52,8 +53,10 @@ function sortVideos(list, sort) {
 }
 function matchesSearch(video, q) {
   if (!q) return true;
-  var hay = [(video.title || ''), (video.genre || ''), (video.modelName || ''), (video.description || ''), (video.shortDescription || '')].join(' ').toLowerCase();
-  return hay.indexOf(q) !== -1;
+  var tagsStr = Array.isArray(video.tags) ? video.tags.map(function (t) { return '#' + t + ' ' + t; }).join(' ') : '';
+  var hay = [(video.title || ''), (video.genre || ''), (video.modelName || ''), tagsStr, (video.description || ''), (video.shortDescription || '')].join(' ').toLowerCase();
+  var cleanQ = q.replace(/^#+/, '').trim();
+  return hay.indexOf(q) !== -1 || (cleanQ && hay.indexOf(cleanQ) !== -1);
 }
 function filteredList() {
   var list = allVideos.slice();
@@ -90,7 +93,7 @@ function ensureToolbar() {
     searchWrap.id = 'catalog-search-wrap';
     searchWrap.style.cssText = 'width:100%;max-width:420px;';
     searchWrap.innerHTML = '<label for="catalog-search" style="display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Search catalog</label>' +
-      '<input id="catalog-search" type="search" placeholder="Search title, genre, or description..." autocomplete="off" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;">';
+      '<input id="catalog-search" type="search" placeholder="Search title, genre, #tag, or model..." autocomplete="off" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;">';
     genres.parentNode.insertBefore(searchWrap, genres);
     var extra = document.getElementById('catalog-search');
     var nav = document.getElementById('search-input');

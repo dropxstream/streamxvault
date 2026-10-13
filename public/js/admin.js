@@ -461,6 +461,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   }
 
   const modelName = document.getElementById('video-model').value.trim();
+  const tags = document.getElementById('video-tags') ? document.getElementById('video-tags').value.trim() : '';
   const description = document.getElementById('video-desc').value.trim();
   const displayViews = document.getElementById('video-display-views').value.trim();
 
@@ -484,7 +485,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ 
-          title, genre, modelName, description, 
+          title, genre, modelName, tags, description, 
           videoUrl: extVideoUrl, 
           thumbnailUrl: extThumbUrl,
           dl480, dl720, dl1080, dl4k, displayViews
@@ -529,7 +530,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ 
-          title, genre, modelName, description, 
+          title, genre, modelName, tags, description, 
           videoUrl: isHls ? inputVal : '',
           thumbnailUrl: r2ThumbUrl,
           dl480, dl720, dl1080, dl4k, displayViews
@@ -601,6 +602,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
           title,
           genre,
           modelName,
+          tags,
           description,
           videoUrl: videoResult.publicUrl,
           videoFilename: videoResult.key,
@@ -621,6 +623,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       formData.append('title', title);
       formData.append('genre', genre);
       formData.append('modelName', modelName);
+      formData.append('tags', tags);
       formData.append('description', description);
       if (thumbFile) formData.append('thumbnail', thumbFile);
 
@@ -915,6 +918,10 @@ function renderAdminVideoList(videosToRender) {
       ? `<span class="badge" style="background:var(--accent-purple);color:white;">🏷️ ${escapeHtml(video.genre)}</span>`
       : '<span class="badge" style="background:rgba(255,255,255,0.1);color:var(--text-muted);">No Genre</span>';
 
+    const tagsBadges = Array.isArray(video.tags) && video.tags.length
+      ? video.tags.map(t => `<span class="badge" style="background:rgba(6, 182, 212, 0.15);color:#22d3ee;border:1px solid rgba(6, 182, 212, 0.3);">#${escapeHtml(t)}</span>`).join('')
+      : '';
+
     // Build quick genre options for inline category switching
     const allGenreChoices = adminGenres.slice();
     if (video.genre && !allGenreChoices.some(g => g.toLowerCase() === video.genre.toLowerCase())) {
@@ -934,6 +941,7 @@ function renderAdminVideoList(videosToRender) {
         <div class="item-meta">
           ${statusBadge}
           ${genreBadge}
+          ${tagsBadges}
           ${isHlsVideo ? '<span class="badge" style="background: rgba(34, 211, 238, 0.1); color: #22d3ee;">☁️ Cloudflare HLS</span>' : ''}
           ${(video.downloads && (video.downloads.p720 || video.downloads.p1080)) ? '<span class="badge" style="background: rgba(46, 204, 113, 0.1); color: #2ecc71;" title="Download links set">📥 Simple DL</span>' : ''}
           <span>👁️ Real: ${formatViews(video.views || 0)} ${video.displayViews ? `(Fake: ${video.displayViews})` : ''}</span>
@@ -990,6 +998,12 @@ function openEditModal(videoId) {
   if (editNewGenreInput) editNewGenreInput.value = '';
 
   document.getElementById('edit-model').value = video.modelName || '';
+  const editTagsEl = document.getElementById('edit-tags');
+  if (editTagsEl) {
+    editTagsEl.value = Array.isArray(video.tags) && video.tags.length
+      ? video.tags.map(t => '#' + String(t).replace(/^#+/, '')).join(', ')
+      : '';
+  }
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-display-views').value = video.displayViews || '';
   document.getElementById('edit-thumb-url').value = video.thumbnailUrl || '';
@@ -1020,6 +1034,7 @@ async function saveEdit() {
     title: document.getElementById('edit-title').value.trim(),
     genre: selectedGenre,
     modelName: document.getElementById('edit-model').value.trim(),
+    tags: document.getElementById('edit-tags') ? document.getElementById('edit-tags').value.trim() : '',
     description: document.getElementById('edit-desc').value.trim(),
     displayViews: document.getElementById('edit-display-views').value.trim(),
     thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),

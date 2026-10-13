@@ -493,6 +493,21 @@ app.delete('/api/admin/genres/:name', requireAdmin, async (req, res) => {
   res.json({ ok: true, genres: loadGenres(), savedGenres: saved });
 });
 
+function parseTags(input) {
+  if (!input) return [];
+  const raw = Array.isArray(input) ? input.join(',') : String(input);
+  const seen = new Set();
+  const out = [];
+  raw.split(/[,#]+/).forEach(part => {
+    const clean = part.trim().replace(/^#+/, '').trim();
+    if (clean && !seen.has(clean.toLowerCase())) {
+      seen.add(clean.toLowerCase());
+      out.push(clean);
+    }
+  });
+  return out;
+}
+
 app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   const body = req.body || {};
   const title = String(body.title || '').trim();
@@ -504,6 +519,7 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
     title: title,
     genre: String(body.genre || '').trim(),
     modelName: String(body.modelName || '').trim(),
+    tags: parseTags(body.tags),
     description: String(body.description || '').trim(),
     displayViews: String(body.displayViews || '').trim(),
     videoUrl: videoUrl,
@@ -540,6 +556,7 @@ app.post('/api/upload', (req, res) => {
       title: title,
       genre: String(body.genre || '').trim(),
       modelName: String(body.modelName || '').trim(),
+      tags: parseTags(body.tags),
       description: String(body.description || '').trim(),
       displayViews: String(body.displayViews || '').trim(),
       videoUrl: String(body.videoUrl || '').trim(),
@@ -587,6 +604,7 @@ app.post('/api/upload/complete', (req, res) => {
       title: title,
       genre: String(body.genre || '').trim(),
       modelName: String(body.modelName || '').trim(),
+      tags: parseTags(body.tags),
       description: String(body.description || '').trim(),
       displayViews: String(body.displayViews || '').trim(),
       videoUrl: String(body.videoUrl || '').trim(),
@@ -627,6 +645,9 @@ app.put('/api/videos/:id', requireAdmin, (req, res) => {
   ['title', 'genre', 'modelName', 'description', 'displayViews', 'videoUrl', 'thumbnailUrl', 'published'].forEach(function (key) {
     if (Object.prototype.hasOwnProperty.call(body, key)) video[key] = body[key];
   });
+  if (Object.prototype.hasOwnProperty.call(body, 'tags')) {
+    video.tags = parseTags(body.tags);
+  }
   
   if (body.dl480 !== undefined || body.dl720 !== undefined || body.dl1080 !== undefined || body.dl4k !== undefined) {
     video.downloads = video.downloads || {};

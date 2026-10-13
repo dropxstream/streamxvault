@@ -44,6 +44,12 @@ async function initPlayer() {
       modelElem.style.display = 'inline-flex';
     }
 
+    const tagsElem = document.getElementById('video-tags');
+    if (tagsElem && Array.isArray(video.tags) && video.tags.length > 0) {
+      tagsElem.innerHTML = video.tags.map(t => `<a href="/?search=${encodeURIComponent('#' + t)}" style="display:inline-flex; align-items:center; gap:2px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 3px 10px; border-radius: 20px; font-weight: 700; text-decoration: none; font-size: 0.78rem;">#${escapeHtml(t)}</a>`).join('');
+      tagsElem.style.display = 'inline-flex';
+    }
+
     document.getElementById('like-count').textContent = video.likes || 0;
 
     const wrapper = document.getElementById('player-wrapper');
@@ -188,7 +194,8 @@ function createVideoCard(video) {
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
       ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeHtml(video.genre)}</div>` : ''}
-      ${video.modelName ? `<div style="display:inline-block; font-size: 0.7rem; background: rgba(130, 71, 229, 0.2); color: #a77dfa; border: 1px solid rgba(130, 71, 229, 0.4); padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; font-weight: 700;">👤 ${escapeHtml(video.modelName)}</div>` : ''}
+      ${video.modelName ? `<div style="display:inline-block; font-size: 0.7rem; background: rgba(130, 71, 229, 0.2); color: #a77dfa; border: 1px solid rgba(130, 71, 229, 0.4); padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; font-weight: 700;">👤 ${escapeHtml(video.modelName)}</div>` : ''}
+      ${Array.isArray(video.tags) && video.tags.length ? video.tags.slice(0, 4).map(t => `<div style="display:inline-block; font-size: 0.68rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 7px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; font-weight: 600;">#${escapeHtml(t)}</div>`).join('') : ''}
       <div class="card-meta">
         <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>
       </div>
