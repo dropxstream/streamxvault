@@ -83,9 +83,9 @@ function decorateHtml(html, extraScripts) {
       return open + '\n  <script>try{var t=localStorage.getItem(\x27sxv_theme\x27)||\x27light\x27;document.documentElement.setAttribute(\x27data-theme\x27,t===\x27dark\x27?\x27dark\x27:\x27light\x27);}catch(e){}</script>';
     });
   }
-  if (html.indexOf('/css/nav-fx.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=2">\n</head>');
-  if (html.indexOf('/css/theme-dark.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/theme-dark.css?v=2">\n</head>');
-  var scripts = ['/js/theme.js?v=3', '/js/tracker.js?v=1', '/js/age-gate.js?v=1'].concat(extraScripts || []);
+  if (html.indexOf('/css/nav-fx.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/nav-fx.css?v=4">\n</head>');
+  if (html.indexOf('/css/theme-dark.css') === -1) html = html.replace(/<\/head>/i, '<link rel="stylesheet" href="/css/theme-dark.css?v=4">\n</head>');
+  var scripts = ['/js/theme.js?v=4', '/js/tracker.js?v=1', '/js/age-gate.js?v=1'].concat(extraScripts || []);
   scripts.forEach(function (src) {
     if (html.indexOf(src.split('?')[0]) === -1) html = html.replace(/<\/body>/i, '<script src="' + src + '" defer></script>\n</body>');
   });

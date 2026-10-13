@@ -205,9 +205,11 @@ function createVideoCard(video) {
     </div>
     <div class="card-info">
       <div class="card-title">${escapeHtml(video.title)}</div>
-      ${video.genre ? `<div style="display:inline-block; font-size: 0.7rem; background: var(--accent-gradient-pink); color: white; padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeHtml(video.genre)}</div>` : ''}
-      ${video.modelName ? `<div style="display:inline-block; font-size: 0.7rem; background: rgba(130, 71, 229, 0.2); color: #a77dfa; border: 1px solid rgba(130, 71, 229, 0.4); padding: 2px 8px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; font-weight: 700;">👤 ${escapeHtml(video.modelName)}</div>` : ''}
-      ${Array.isArray(video.tags) && video.tags.length ? video.tags.slice(0, 4).map(t => `<div style="display:inline-block; font-size: 0.68rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 7px; border-radius: 4px; margin-top: 4px; margin-bottom: 8px; margin-right: 4px; font-weight: 600;">#${escapeHtml(t)}</div>`).join('') : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px;">
+        ${video.genre ? `<span style="display:inline-block; font-size: 0.68rem; background: var(--accent-gradient-pink); color: white; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">${escapeHtml(video.genre)}</span>` : ''}
+        ${video.modelName ? `<span style="display:inline-block; font-size: 0.68rem; background: rgba(130, 71, 229, 0.2); color: #a77dfa; border: 1px solid rgba(130, 71, 229, 0.4); padding: 2px 7px; border-radius: 4px; font-weight: 700;">👤 ${escapeHtml(video.modelName)}</span>` : ''}
+        ${Array.isArray(video.tags) && video.tags.length ? video.tags.slice(0, 4).map(t => `<span style="display:inline-block; font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600;">#${escapeHtml(t)}</span>`).join('') : ''}
+      </div>
       <div class="card-meta">
         <span><span aria-hidden="true">🕐</span> ${timeAgo}</span>
       </div>

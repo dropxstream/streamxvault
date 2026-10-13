@@ -24,14 +24,21 @@ html[data-theme="dark"] body {
   color: #f5f5f7;
 }
 html[data-theme="dark"] .navbar {
-  background: rgba(8, 8, 16, 0.88) !important;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000 !important;
+  background: rgba(8, 8, 16, 0.94) !important;
   backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 @media (max-width: 768px) {
   html[data-theme="dark"] .nav-right {
-    background: rgba(12, 12, 22, 0.98) !important;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: #0d0d18 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.85) !important;
+    z-index: 10001 !important;
   }
 }
 html[data-theme="dark"] .nav-brand,
@@ -102,7 +109,6 @@ html[data-theme="dark"] body::before {
     radial-gradient(ellipse 80% 60% at 20% 20%, rgba(139, 26, 26, 0.22) 0%, transparent 60%),
     radial-gradient(ellipse 60% 50% at 80% 80%, rgba(124, 58, 237, 0.16) 0%, transparent 60%);
 }
-html[data-theme="dark"] .navbar,
 html[data-theme="dark"] .main-content,
 html[data-theme="dark"] .vod-hero,
 html[data-theme="dark"] .genres-section {
