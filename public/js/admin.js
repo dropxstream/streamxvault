@@ -137,13 +137,14 @@ function switchTab(tabName, element) {
 
   // Load tab data
   if (tabName === 'dashboard') loadStats();
-  if (tabName === 'manage') loadAdminVideos();
+  if (tabName === 'upload') loadGenres();
+  if (tabName === 'manage') { loadGenres(); loadAdminVideos(); }
   if (tabName === 'vod') loadVodData();
 }
 
 // ==================== Dashboard ====================
 async function loadDashboard() {
-  await loadStats();
+  await Promise.all([loadStats(), loadGenres()]);
 }
 
 async function loadStats() {
@@ -449,9 +450,13 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  const genre = document.getElementById('video-genre').value;
+  const uploadNewGenreInput = document.getElementById('upload-new-genre-input');
+  let genre = document.getElementById('video-genre').value;
+  if (uploadNewGenreInput && uploadNewGenreInput.value.trim()) {
+    genre = uploadNewGenreInput.value.trim();
+  }
   if (!genre) {
-    showToast('Please select a video genre', 'error');
+    showToast('Please select or create a video genre', 'error');
     return;
   }
 
@@ -645,21 +650,235 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   }
 });
 
-// ==================== Manage Videos ====================
+// ==================== Manage Videos & Genre Categories ====================
 let adminVideos = [];
+let adminGenres = ['Trueanal', 'Analonly', 'Nympho', 'Analvids', 'Tushy Raw'];
+let currentAdminGenreFilter = '';
+
+async function loadGenres() {
+  try {
+    const res = await fetch('/api/genres');
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list) && list.length > 0) {
+        adminGenres = list;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load genres:', err);
+  }
+  renderGenreUI();
+}
+
+function renderGenreUI() {
+  // 1. Update Upload Genre Select (#video-genre)
+  const uploadSelect = document.getElementById('video-genre');
+  if (uploadSelect) {
+    const prevVal = uploadSelect.value;
+    uploadSelect.innerHTML = '<option value="" disabled ' + (!prevVal ? 'selected' : '') + '>Select a genre</option>';
+    adminGenres.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      if (prevVal && prevVal.toLowerCase() === g.toLowerCase()) opt.selected = true;
+      uploadSelect.appendChild(opt);
+    });
+  }
+
+  // 2. Update Edit Modal Genre Select (#edit-genre)
+  const editSelect = document.getElementById('edit-genre');
+  if (editSelect) {
+    const prevVal = editSelect.value;
+    editSelect.innerHTML = '<option value="" disabled ' + (!prevVal ? 'selected' : '') + '>Select a genre</option>';
+    adminGenres.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      if (prevVal && prevVal.toLowerCase() === g.toLowerCase()) opt.selected = true;
+      editSelect.appendChild(opt);
+    });
+  }
+
+  // 3. Update Manage Tab Genre Filter Buttons (#admin-genre-filters)
+  const filterWrap = document.getElementById('admin-genre-filters');
+  if (filterWrap) {
+    filterWrap.innerHTML = '';
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.id = 'admin-filter-All';
+    allBtn.className = !currentAdminGenreFilter ? 'btn btn-primary' : 'btn btn-secondary';
+    allBtn.textContent = 'All Genres';
+    allBtn.onclick = () => filterAdminVideos('');
+    filterWrap.appendChild(allBtn);
+
+    adminGenres.forEach(g => {
+      const isSelected = currentAdminGenreFilter && currentAdminGenreFilter.toLowerCase() === g.toLowerCase();
+      const pill = document.createElement('div');
+      pill.style.cssText = 'display: inline-flex; align-items: center; border-radius: var(--radius-sm); overflow: hidden;';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'admin-filter-' + g.replace(/\s+/g, '-');
+      btn.className = isSelected ? 'btn btn-primary' : 'btn btn-secondary';
+      btn.style.cssText = 'border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 0.65rem;';
+      btn.textContent = g;
+      btn.onclick = () => filterAdminVideos(g);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = isSelected ? 'btn btn-primary' : 'btn btn-secondary';
+      delBtn.style.cssText = 'border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid rgba(255,255,255,0.15); padding: 0.5rem 0.5rem; font-size: 0.75rem; opacity: 0.85;';
+      delBtn.title = `Delete "${g}" genre category`;
+      delBtn.textContent = '✕';
+      delBtn.onclick = (e) => deleteGenreCategory(g, e);
+
+      pill.appendChild(btn);
+      pill.appendChild(delBtn);
+      filterWrap.appendChild(pill);
+    });
+  }
+}
+
+window.createGenreCategory = async function(source) {
+  let inputId = 'manage-new-genre-input';
+  if (source === 'upload') inputId = 'upload-new-genre-input';
+  else if (source === 'edit') inputId = 'edit-new-genre-input';
+
+  const inputEl = document.getElementById(inputId);
+  if (!inputEl) return;
+  const newGenre = inputEl.value.trim();
+  if (!newGenre) {
+    showToast('Please enter a genre category name', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/genres', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ genre: newGenre })
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Even if it already exists, select it if in upload/edit mode
+      const existing = adminGenres.find(g => g.toLowerCase() === newGenre.toLowerCase());
+      if (existing && (source === 'upload' || source === 'edit')) {
+        const targetSelect = document.getElementById(source === 'upload' ? 'video-genre' : 'edit-genre');
+        if (targetSelect) targetSelect.value = existing;
+        inputEl.value = '';
+        showToast(`Selected "${existing}"`, 'success');
+        return;
+      }
+      showToast(data.error || 'Could not create genre', 'error');
+      return;
+    }
+
+    if (Array.isArray(data.genres)) {
+      adminGenres = data.genres;
+    } else if (!adminGenres.includes(newGenre)) {
+      adminGenres.push(newGenre);
+    }
+
+    inputEl.value = '';
+    renderGenreUI();
+
+    if (source === 'upload') {
+      const uploadSelect = document.getElementById('video-genre');
+      if (uploadSelect) uploadSelect.value = newGenre;
+    } else if (source === 'edit') {
+      const editSelect = document.getElementById('edit-genre');
+      if (editSelect) editSelect.value = newGenre;
+    } else {
+      filterAdminVideos(currentAdminGenreFilter);
+    }
+
+    showToast(`Genre category "${newGenre}" created! 🏷️`, 'success');
+  } catch (err) {
+    showToast('Failed to create genre category', 'error');
+  }
+};
+
+window.deleteGenreCategory = async function(genreName, event) {
+  if (event) event.stopPropagation();
+  const countInGenre = adminVideos.filter(v => v.genre && v.genre.toLowerCase() === genreName.toLowerCase()).length;
+  if (countInGenre > 0) {
+    showToast(`Cannot delete "${genreName}" while ${countInGenre} video(s) still use it. Move those videos to another genre first.`, 'error');
+    return;
+  }
+  if (!confirm(`Delete genre category "${genreName}"?`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/genres/${encodeURIComponent(genreName)}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    const data = await res.json();
+    if (res.ok) {
+      if (Array.isArray(data.genres)) adminGenres = data.genres;
+      if (currentAdminGenreFilter.toLowerCase() === genreName.toLowerCase()) {
+        currentAdminGenreFilter = '';
+      }
+      renderGenreUI();
+      filterAdminVideos(currentAdminGenreFilter);
+      showToast(`Genre "${genreName}" removed`, 'success');
+    } else {
+      showToast(data.error || 'Failed to delete genre', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to delete genre', 'error');
+  }
+};
+
+window.quickChangeVideoGenre = async function(videoId, newGenre) {
+  const video = adminVideos.find(v => v.id === videoId);
+  if (!video) return;
+
+  try {
+    const res = await fetch(`/api/videos/${videoId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ genre: newGenre })
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.ok) {
+      video.genre = newGenre;
+      if (newGenre && !adminGenres.some(g => g.toLowerCase() === newGenre.toLowerCase())) {
+        adminGenres.push(newGenre);
+        renderGenreUI();
+      }
+      filterAdminVideos(currentAdminGenreFilter);
+      showToast(`Updated "${video.title}" to genre "${newGenre}"! 🏷️`, 'success');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to update genre', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to update genre', 'error');
+  }
+};
 
 async function loadAdminVideos() {
-  const listEl = document.getElementById('admin-video-list');
-  const emptyEl = document.getElementById('admin-empty');
-
   try {
     const res = await fetch('/api/admin/videos', { headers: authHeaders() });
     if (res.status === 401) { clearToken(); location.reload(); return; }
     adminVideos = await res.json();
-    
-    // Automatically render all videos initially
+
+    // Ensure any custom genres on existing videos appear in adminGenres
+    let addedAny = false;
+    adminVideos.forEach(v => {
+      const g = v && v.genre ? String(v.genre).trim() : '';
+      if (g && !adminGenres.some(item => item.toLowerCase() === g.toLowerCase())) {
+        adminGenres.push(g);
+        addedAny = true;
+      }
+    });
+    if (addedAny) renderGenreUI();
+
     if (typeof filterAdminVideos === 'function') {
-      filterAdminVideos('');
+      filterAdminVideos(currentAdminGenreFilter || '');
     }
   } catch (err) {
     console.error('Failed to load videos:', err);
@@ -685,7 +904,7 @@ function renderAdminVideoList(videosToRender) {
     item.className = 'admin-video-item';
 
     const thumbnailContent = video.thumbnailUrl
-      ? `<img src="${video.thumbnailUrl}" alt="${video.title}">`
+      ? `<img src="${video.thumbnailUrl}" alt="${escapeHtml(video.title)}">`
       : `<div class="thumb-placeholder" style="font-size: 1.5rem;">🎬</div>`;
 
     const statusBadge = video.published !== false
@@ -694,7 +913,18 @@ function renderAdminVideoList(videosToRender) {
 
     const genreBadge = video.genre 
       ? `<span class="badge" style="background:var(--accent-purple);color:white;">🏷️ ${escapeHtml(video.genre)}</span>`
-      : '';
+      : '<span class="badge" style="background:rgba(255,255,255,0.1);color:var(--text-muted);">No Genre</span>';
+
+    // Build quick genre options for inline category switching
+    const allGenreChoices = adminGenres.slice();
+    if (video.genre && !allGenreChoices.some(g => g.toLowerCase() === video.genre.toLowerCase())) {
+      allGenreChoices.push(video.genre);
+    }
+    const genreOptionsHtml = `<option value="" disabled ${!video.genre ? 'selected' : ''}>Move to Genre...</option>` +
+      allGenreChoices.map(g => {
+        const selected = video.genre && video.genre.toLowerCase() === g.toLowerCase() ? 'selected' : '';
+        return `<option value="${escapeHtml(g)}" ${selected}>🏷️ ${escapeHtml(g)}</option>`;
+      }).join('');
 
     const isHlsVideo = video.videoUrl && video.videoUrl.includes('.m3u8');
     item.innerHTML = `
@@ -711,7 +941,10 @@ function renderAdminVideoList(videosToRender) {
           <span>🕐 ${getTimeAgo(video.uploadedAt)}</span>
         </div>
       </div>
-      <div class="item-actions">
+      <div class="item-actions" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <select aria-label="Change Genre Category" onchange="quickChangeVideoGenre('${video.id}', this.value)" style="padding: 0.35rem 0.6rem; background: var(--bg-body); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; outline: none;" title="Quickly move video to another genre category">
+          ${genreOptionsHtml}
+        </select>
         <button class="btn btn-secondary btn-sm" onclick="openEditModal('${video.id}')">✏️ Edit</button>
         <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${video.id}')">🗑️</button>
       </div>
@@ -722,14 +955,8 @@ function renderAdminVideoList(videosToRender) {
 }
 
 function filterAdminVideos(genre) {
-  // Update button active states
-  const buttons = document.querySelectorAll('#admin-genre-filters .btn');
-  buttons.forEach(btn => btn.className = 'btn btn-secondary');
-  
-  // Fix: Handle spaces in genre names for ID lookup
-  const buttonId = 'admin-filter-' + (genre ? genre.replace(/\s+/g, '-') : 'All');
-  const activeBtn = document.getElementById(buttonId);
-  if (activeBtn) activeBtn.className = 'btn btn-primary';
+  currentAdminGenreFilter = genre || '';
+  renderGenreUI();
 
   if (!genre) {
     renderAdminVideoList(adminVideos);
@@ -745,11 +972,23 @@ function openEditModal(videoId) {
   const video = adminVideos.find(v => v.id === videoId);
   if (!video) return;
 
-  const isHls = video.videoUrl && video.videoUrl.includes('.m3u8');
+  if (video.genre && !adminGenres.some(g => g.toLowerCase() === video.genre.toLowerCase())) {
+    adminGenres.push(video.genre);
+  }
+  renderGenreUI();
 
   document.getElementById('edit-id').value = video.id;
   document.getElementById('edit-title').value = video.title;
-  document.getElementById('edit-genre').value = video.genre || '';
+
+  const editGenreEl = document.getElementById('edit-genre');
+  if (editGenreEl) {
+    const matchingGenre = adminGenres.find(g => video.genre && g.toLowerCase() === video.genre.toLowerCase());
+    editGenreEl.value = matchingGenre || video.genre || '';
+  }
+
+  const editNewGenreInput = document.getElementById('edit-new-genre-input');
+  if (editNewGenreInput) editNewGenreInput.value = '';
+
   document.getElementById('edit-model').value = video.modelName || '';
   document.getElementById('edit-desc').value = video.description || '';
   document.getElementById('edit-display-views').value = video.displayViews || '';
@@ -769,9 +1008,17 @@ async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
   const editVideoUrl = document.getElementById('edit-video-url').value.trim();
 
+  // If the admin typed a new genre in the edit modal's quick input without clicking "+ Create & Select", use it automatically!
+  const pendingNewGenreEl = document.getElementById('edit-new-genre-input');
+  let selectedGenre = document.getElementById('edit-genre').value;
+  if (pendingNewGenreEl && pendingNewGenreEl.value.trim()) {
+    selectedGenre = pendingNewGenreEl.value.trim();
+    pendingNewGenreEl.value = '';
+  }
+
   const payload = {
     title: document.getElementById('edit-title').value.trim(),
-    genre: document.getElementById('edit-genre').value,
+    genre: selectedGenre,
     modelName: document.getElementById('edit-model').value.trim(),
     description: document.getElementById('edit-desc').value.trim(),
     displayViews: document.getElementById('edit-display-views').value.trim(),
@@ -793,6 +1040,7 @@ async function saveEdit() {
     if (res.ok) {
       showToast('Video updated successfully!', 'success');
       closeEditModal();
+      await loadGenres();
       loadAdminVideos();
       loadStats();
     } else {

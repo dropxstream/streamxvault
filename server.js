@@ -24,6 +24,9 @@ const VOD_RULES_FILE = path.join(DATA_DIR, 'vod_rules.json');
 const VOD_REQUESTS_FILE = path.join(DATA_DIR, 'vod_requests.json');
 const VOD_RULES_KEY = '_database/vod_rules.json';
 const VOD_REQUESTS_KEY = '_database/vod_requests.json';
+const GENRES_FILE = path.join(DATA_DIR, 'genres.json');
+const GENRES_KEY = '_database/genres.json';
+const DEFAULT_GENRES = ['Trueanal', 'Analonly', 'Nympho', 'Analvids', 'Tushy Raw'];
 
 const ALLOWED_THUMB_HOSTS = new Set([
   'pub-35e5e185c71b4d2292a6cae626c19d3d.r2.dev',
@@ -194,6 +197,52 @@ async function saveVodRequests(reqs) {
   }
 }
 
+function loadGenres() {
+  let list = [];
+  try {
+    const raw = JSON.parse(fs.readFileSync(GENRES_FILE, 'utf-8'));
+    if (Array.isArray(raw)) list = raw.map(g => String(g || '').trim()).filter(Boolean);
+  } catch (e) {}
+  if (list.length === 0) {
+    list = DEFAULT_GENRES.slice();
+  }
+  const seen = new Set(list.map(g => g.toLowerCase()));
+  const videos = loadVideos();
+  videos.forEach(v => {
+    const g = v && v.genre ? String(v.genre).trim() : '';
+    if (g && !seen.has(g.toLowerCase())) {
+      seen.add(g.toLowerCase());
+      list.push(g);
+    }
+  });
+  return list;
+}
+async function saveGenres(genres) {
+  const seen = new Set();
+  const clean = [];
+  (Array.isArray(genres) ? genres : []).forEach(g => {
+    const t = String(g || '').trim();
+    if (t && !seen.has(t.toLowerCase())) {
+      seen.add(t.toLowerCase());
+      clean.push(t);
+    }
+  });
+  fs.writeFileSync(GENRES_FILE, JSON.stringify(clean, null, 2));
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try { await storage.upload(GENRES_KEY, Buffer.from(JSON.stringify(clean, null, 2)), 'application/json'); } catch(e){}
+  }
+  return clean;
+}
+function ensureGenreExists(genreName) {
+  const g = String(genreName || '').trim();
+  if (!g) return;
+  const current = loadGenres();
+  if (!current.some(item => item.toLowerCase() === g.toLowerCase())) {
+    current.push(g);
+    saveGenres(current).catch(() => {});
+  }
+}
+
 
 async function syncVideosFromR2() {
   if (!storage || storage.mode !== 'r2') {
@@ -234,6 +283,9 @@ async function syncVideosFromR2() {
     
     const remoteVodRequests = await storage.download(VOD_REQUESTS_KEY);
     if (remoteVodRequests && remoteVodRequests.length > 2) fs.writeFileSync(VOD_REQUESTS_FILE, remoteVodRequests);
+
+    const remoteGenres = await storage.download(GENRES_KEY);
+    if (remoteGenres && remoteGenres.length > 2) fs.writeFileSync(GENRES_FILE, remoteGenres);
   } catch (err) {
     console.error('❌ R2 Sync failed:', err.message);
   }
@@ -386,6 +438,61 @@ async function triggerTelegramWebhook(videoData) {
   }
 }
 
+app.get('/api/genres', (req, res) => {
+  res.json(loadGenres());
+});
+
+app.post('/api/admin/genres', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const current = loadGenres();
+  if (Array.isArray(body.genres)) {
+    const saved = await saveGenres(body.genres);
+    return res.json({ ok: true, genres: saved });
+  }
+  const newGenre = String(body.genre || body.name || '').trim();
+  if (!newGenre) return res.status(400).json({ error: 'Genre name is required' });
+  if (current.some(g => g.toLowerCase() === newGenre.toLowerCase())) {
+    return res.status(400).json({ error: 'Genre category already exists' });
+  }
+  current.push(newGenre);
+  const saved = await saveGenres(current);
+  res.json({ ok: true, genres: saved, added: newGenre });
+});
+
+app.put('/api/admin/genres', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const oldName = String(body.oldName || '').trim();
+  const newName = String(body.newName || '').trim();
+  if (!oldName || !newName) return res.status(400).json({ error: 'Both oldName and newName are required' });
+  let current = loadGenres();
+  current = current.map(g => g.toLowerCase() === oldName.toLowerCase() ? newName : g);
+  const saved = await saveGenres(current);
+  const videos = loadVideos();
+  let updatedCount = 0;
+  videos.forEach(v => {
+    if (v && v.genre && v.genre.toLowerCase() === oldName.toLowerCase()) {
+      v.genre = newName;
+      updatedCount++;
+    }
+  });
+  if (updatedCount > 0) saveVideos(videos);
+  res.json({ ok: true, genres: saved, updatedCount });
+});
+
+app.delete('/api/admin/genres/:name', requireAdmin, async (req, res) => {
+  const target = decodeURIComponent(req.params.name || '').trim();
+  if (!target) return res.status(400).json({ error: 'Genre name required' });
+  let list = [];
+  try {
+    const raw = JSON.parse(fs.readFileSync(GENRES_FILE, 'utf-8'));
+    if (Array.isArray(raw)) list = raw.map(g => String(g || '').trim()).filter(Boolean);
+  } catch (e) {}
+  if (list.length === 0) list = loadGenres();
+  const filtered = list.filter(g => g.toLowerCase() !== target.toLowerCase());
+  const saved = await saveGenres(filtered);
+  res.json({ ok: true, genres: loadGenres(), savedGenres: saved });
+});
+
 app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   const body = req.body || {};
   const title = String(body.title || '').trim();
@@ -410,6 +517,7 @@ app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   };
   videos.unshift(video);
   saveVideos(videos);
+  if (video.genre) ensureGenreExists(video.genre);
 
   triggerTelegramWebhook(video);
 
@@ -447,6 +555,7 @@ app.post('/api/upload', (req, res) => {
     const videos = loadVideos();
     videos.unshift(newVideo);
     saveVideos(videos);
+    if (newVideo.genre) ensureGenreExists(newVideo.genre);
 
     triggerTelegramWebhook({
       title: req.body.title || newVideo.title,
@@ -495,6 +604,7 @@ app.post('/api/upload/complete', (req, res) => {
     const videos = loadVideos();
     videos.unshift(videoData);
     saveVideos(videos);
+    if (videoData.genre) ensureGenreExists(videoData.genre);
 
     triggerTelegramWebhook({
       title: videoData.title,
@@ -526,6 +636,7 @@ app.put('/api/videos/:id', requireAdmin, (req, res) => {
     if (body.dl4k !== undefined) video.downloads.p4k = body.dl4k;
   }
   saveVideos(videos);
+  if (video.genre) ensureGenreExists(video.genre);
   res.json(video);
 });
 app.delete('/api/videos/:id', requireAdmin, (req, res) => {

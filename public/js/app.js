@@ -59,7 +59,10 @@ function filteredList() {
   var list = allVideos.slice();
   var q = currentSearch.toLowerCase();
   if (q) list = list.filter(function (v) { return matchesSearch(v, q); });
-  if (currentGenre) list = list.filter(function (v) { return v.genre === currentGenre; });
+  if (currentGenre) {
+    var g = currentGenre.toLowerCase();
+    list = list.filter(function (v) { return v.genre && v.genre.toLowerCase() === g; });
+  }
   return sortVideos(list, currentSort);
 }
 function setSort(sort) {
@@ -215,6 +218,40 @@ function renderVideoList() {
   if (countEl) countEl.textContent = list.length + ' video' + (list.length !== 1 ? 's' : '') + ' · page ' + currentPage + '/' + pages;
   renderPager(list.length, currentPage, pages);
 }
+var publicGenres = ['Trueanal', 'Analonly', 'Nympho', 'Analvids', 'Tushy Raw'];
+function renderGenreFilters() {
+  var wrap = document.getElementById('genre-filters');
+  if (!wrap) return;
+  var seen = {};
+  var merged = [];
+  publicGenres.forEach(function (g) {
+    var t = String(g || '').trim();
+    if (t && !seen[t.toLowerCase()]) { seen[t.toLowerCase()] = true; merged.push(t); }
+  });
+  allVideos.forEach(function (v) {
+    var t = v && v.genre ? String(v.genre).trim() : '';
+    if (t && !seen[t.toLowerCase()]) { seen[t.toLowerCase()] = true; merged.push(t); }
+  });
+  wrap.innerHTML = '';
+  var allBtn = document.createElement('button');
+  allBtn.className = !currentGenre ? 'btn btn-primary' : 'btn btn-secondary';
+  allBtn.id = 'filter-All';
+  allBtn.setAttribute('aria-pressed', !currentGenre ? 'true' : 'false');
+  allBtn.textContent = 'All Genres';
+  allBtn.onclick = function () { filterByGenre(''); };
+  wrap.appendChild(allBtn);
+
+  merged.forEach(function (g) {
+    var active = currentGenre && currentGenre.toLowerCase() === g.toLowerCase();
+    var btn = document.createElement('button');
+    btn.className = active ? 'btn btn-primary' : 'btn btn-secondary';
+    btn.id = 'filter-' + g.replace(/\s+/g, '-');
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    btn.textContent = g;
+    btn.onclick = function () { filterByGenre(g); };
+    wrap.appendChild(btn);
+  });
+}
 async function loadVideos() {
   var loadingEl = document.getElementById('videos-loading');
   var gridEl = document.getElementById('videos-grid');
@@ -229,10 +266,17 @@ async function loadVideos() {
     }
   }
   try {
+    fetch('/api/genres').then(function (r) { return r.ok ? r.json() : null; }).then(function (gList) {
+      if (Array.isArray(gList) && gList.length) {
+        publicGenres = gList;
+        renderGenreFilters();
+      }
+    }).catch(function () {});
     var res = await fetch('/api/videos');
     var videos = await res.json();
     allVideos = Array.isArray(videos) ? videos : [];
     if (loadingEl) loadingEl.style.display = 'none';
+    renderGenreFilters();
     renderVideoList();
     function loadRecs() {
       fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: ((window.sxvWatchHistory && window.sxvWatchHistory()) || []).map(function (i) { return i.id; }) }) })
@@ -291,12 +335,7 @@ function updateHeroDefault() {
 }
 function filterByGenre(genre) {
   currentGenre = genre; currentPage = 1;
-  document.querySelectorAll('.genre-filters .btn').forEach(function (btn) {
-    btn.className = 'btn btn-secondary'; btn.setAttribute('aria-pressed', 'false');
-  });
-  var buttonId = 'filter-' + (genre ? genre.replace(/\s+/g, '-') : 'All');
-  var activeBtn = document.getElementById(buttonId);
-  if (activeBtn) { activeBtn.className = 'btn btn-primary'; activeBtn.setAttribute('aria-pressed', 'true'); }
+  renderGenreFilters();
   renderVideoList();
 }
 function clearSearch() {

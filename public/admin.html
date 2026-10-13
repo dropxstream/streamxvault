@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Panel — StreamXvault</title>
   <meta name="description" content="StreamXvault Admin Panel — Upload and manage streaming content.">
-  <link rel="stylesheet" href="/css/style.css?v=48">
+  <link rel="stylesheet" href="/css/style.css?v=50">
   <link rel="icon" type="image/png" href="/favicon.png">
 </head>
 <body>
@@ -241,7 +241,7 @@
 
             <!-- Genre -->
             <div class="form-group">
-              <label for="video-genre">Genre *</label>
+              <label for="video-genre">Genre Category *</label>
               <select id="video-genre" required style="width: 100%; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;">
                 <option value="" disabled selected>Select a genre</option>
                 <option value="Trueanal">Trueanal</option>
@@ -249,7 +249,11 @@
                 <option value="Nympho">Nympho</option>
                 <option value="Analvids">Analvids</option>
                 <option value="Tushy Raw">Tushy Raw</option>
-            </select>
+              </select>
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <input type="text" id="upload-new-genre-input" placeholder="Or type new genre category name..." style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.85rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="createGenreCategory('upload')">➕ Create & Select</button>
+              </div>
             </div>
 
             <!-- Model Name -->
@@ -279,15 +283,29 @@
 
         <!-- Manage Tab -->
         <div class="admin-tab" id="tab-manage" style="display: none;">
-          <h2 style="margin-bottom: 1.5rem; font-weight: 700;">📁 Manage Videos</h2>
+          <h2 style="margin-bottom: 1.5rem; font-weight: 700;">📁 Manage Videos & Genre Categories</h2>
           
-          <div class="genre-filters" id="admin-genre-filters" style="display: flex; gap: 0.5rem; overflow-x: auto; width: 100%; padding-bottom: 1.5rem;">
-            <button class="btn btn-primary" onclick="filterAdminVideos('')" id="admin-filter-All">All Genres</button>
-            <button class="btn btn-secondary" onclick="filterAdminVideos('Trueanal')" id="admin-filter-Trueanal">Trueanal</button>
-            <button class="btn btn-secondary" onclick="filterAdminVideos('Analonly')" id="admin-filter-Analonly">Analonly</button>
-            <button class="btn btn-secondary" onclick="filterAdminVideos('Nympho')" id="admin-filter-Nympho">Nympho</button>
-            <button class="btn btn-secondary" onclick="filterAdminVideos('Analvids')" id="admin-filter-Analvids">Analvids</button>
-            <button class="btn btn-secondary" onclick="filterAdminVideos('Tushy Raw')" id="admin-filter-Tushy-Raw">Tushy Raw</button>
+          <!-- Genre Category Creator -->
+          <div style="background: var(--bg-card); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+              <div>
+                <h3 style="margin: 0; font-size: 1rem; font-weight: 700;">🏷️ Genre Categories</h3>
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-muted);">Create new genre categories or filter videos by category below. You can also change any video's genre directly in the list or via Edit.</p>
+              </div>
+              <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 420px; min-width: 240px;">
+                <input type="text" id="manage-new-genre-input" placeholder="New genre category (e.g. Hardcore)..." style="flex: 1; padding: 0.55rem 0.75rem; background: var(--bg-body); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="createGenreCategory('manage')" style="white-space: nowrap;">➕ Create Genre</button>
+              </div>
+            </div>
+
+            <div class="genre-filters" id="admin-genre-filters" style="display: flex; gap: 0.5rem; flex-wrap: wrap; width: 100%;">
+              <button class="btn btn-primary" onclick="filterAdminVideos('')" id="admin-filter-All">All Genres</button>
+              <button class="btn btn-secondary" onclick="filterAdminVideos('Trueanal')" id="admin-filter-Trueanal">Trueanal</button>
+              <button class="btn btn-secondary" onclick="filterAdminVideos('Analonly')" id="admin-filter-Analonly">Analonly</button>
+              <button class="btn btn-secondary" onclick="filterAdminVideos('Nympho')" id="admin-filter-Nympho">Nympho</button>
+              <button class="btn btn-secondary" onclick="filterAdminVideos('Analvids')" id="admin-filter-Analvids">Analvids</button>
+              <button class="btn btn-secondary" onclick="filterAdminVideos('Tushy Raw')" id="admin-filter-Tushy-Raw">Tushy Raw</button>
+            </div>
           </div>
 
           <div class="admin-video-list" id="admin-video-list">
@@ -359,7 +377,7 @@
             <input type="text" id="edit-title" required>
           </div>
           <div class="form-group">
-            <label for="edit-genre">Genre</label>
+            <label for="edit-genre">Genre Category</label>
             <select id="edit-genre" required style="width: 100%; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;">
               <option value="" disabled>Select a genre</option>
               <option value="Trueanal">Trueanal</option>
@@ -368,6 +386,10 @@
               <option value="Analvids">Analvids</option>
               <option value="Tushy Raw">Tushy Raw</option>
             </select>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <input type="text" id="edit-new-genre-input" placeholder="Or create new genre category..." style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.85rem;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="createGenreCategory('edit')">➕ Create & Select</button>
+            </div>
           </div>
           <div class="form-group">
             <label for="edit-model">Model Name (Optional)</label>
@@ -449,7 +471,7 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=48"></script>
+  <script src="/js/admin.js?v=50"></script>
 </body>
 </html>
 
