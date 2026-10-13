@@ -8,6 +8,7 @@
 function authHeaders() {
   return {};
 }
+function clearToken() {}
 
 // ==================== Toast Notifications ====================
 function showToast(message, type = 'info') {
@@ -32,7 +33,7 @@ function showToast(message, type = 'info') {
 // ==================== Utility Functions ====================
 function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-  return text.replace(/[&<>"']/g, m => map[m]);
+  return String(text == null ? '' : text).replace(/[&<>"']/g, m => map[m]);
 }
 
 function formatViews(count) {
@@ -1243,12 +1244,12 @@ function renderVodRequests() {
         <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(req.actor || 'N/A')}</div>
       </td>
       <td style="padding: 0.75rem;">
-        <span style="color: ${statusColor}; font-weight: 600; font-size: 0.85rem;">${req.status}</span>
+        <span style="color: ${statusColor}; font-weight: 600; font-size: 0.85rem;">${escapeHtml(req.status || 'Pending')}</span>
       </td>
       <td style="padding: 0.75rem; text-align: right; display: flex; gap: 0.25rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
         <button class="btn btn-secondary btn-sm" onclick="updateVodStatus('${req.id}', 'Approved')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Approve</button>
         <button class="btn btn-secondary btn-sm" onclick="updateVodStatus('${req.id}', 'Rejected')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Reject</button>
-        <button class="btn btn-secondary btn-sm" onclick="openNotifyModal('${req.id}', '${escapeHtml(req.email || '')}', '${escapeHtml(req.title || '')}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 2px;">✉️ Notify</button>
+        <button class="btn btn-secondary btn-sm" onclick="openNotifyModal('${req.id}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 2px;">✉️ Notify</button>
         <button class="btn btn-danger btn-sm" onclick="deleteVodRequest('${req.id}')" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">🗑️</button>
       </td>
     `;
@@ -1263,11 +1264,17 @@ window.updateVodStatus = async function(id, status) {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ status })
     });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      showToast(`Request marked as ${status}`, 'success');
+      if (data.emailSent) {
+        showToast(`Request marked as ${status} & email sent!`, 'success');
+      } else if (data.warning) {
+        showToast(`Marked as ${status}, but email failed: ${data.warning}`, 'info');
+      } else {
+        showToast(`Request marked as ${status}`, 'success');
+      }
       loadVodData();
     } else {
-      const data = await res.json().catch(() => ({}));
       showToast(data.error || 'Failed to update status', 'error');
     }
   } catch (err) {
@@ -1297,8 +1304,11 @@ window.deleteVodRequest = async function(id) {
 // ==================== VOD Notifications ====================
 let activeNotifyId = null;
 
-window.openNotifyModal = function(id, email, title) {
+window.openNotifyModal = function(id, fallbackEmail, fallbackTitle) {
   activeNotifyId = id;
+  const reqItem = vodRequests.find(r => r.id === id) || {};
+  const email = reqItem.email || fallbackEmail || 'N/A';
+  const title = reqItem.title || fallbackTitle || 'Video Request';
   document.getElementById('notify-user-email').textContent = email;
   document.getElementById('notify-video-title').textContent = `"${title}"`;
   document.getElementById('notify-message').value = '';
@@ -1309,6 +1319,13 @@ window.closeNotifyModal = function() {
   activeNotifyId = null;
   document.getElementById('notify-modal').classList.remove('active');
 };
+
+const notifyModalEl = document.getElementById('notify-modal');
+if (notifyModalEl) {
+  notifyModalEl.addEventListener('click', (e) => {
+    if (e.target === notifyModalEl) closeNotifyModal();
+  });
+}
 
 window.sendNotification = async function() {
   if (!activeNotifyId) return;
@@ -1330,11 +1347,16 @@ window.sendNotification = async function() {
     });
     if (res.status === 401) { clearToken(); location.reload(); return; }
     
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      showToast('Notification email sent successfully', 'success');
+      if (data.warning) {
+        showToast(data.warning, 'info');
+      } else {
+        showToast('Notification email sent successfully! ✉️', 'success');
+      }
       closeNotifyModal();
+      loadVodData();
     } else {
-      const data = await res.json().catch(() => ({}));
       showToast(data.error || 'Failed to send email', 'error');
     }
   } catch (err) {

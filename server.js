@@ -2,9 +2,114 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
+try { require('dotenv').config(); } catch (e) {}
 const express = require('express');
 const fetch = global.fetch || require('node-fetch');
 const { createStorage } = require('./storage');
+
+// ==================== EMAIL CONFIGURATION (RESEND API + SMTP FALLBACK) ====================
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
+const smtpConfig = {
+  host: process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || process.env.EMAIL_PORT || '465', 10),
+  secure: process.env.SMTP_SECURE === 'true' || (process.env.SMTP_PORT || '465') === '465' || process.env.SMTP_SECURE === undefined,
+  auth: {
+    user: (process.env.SMTP_USER || process.env.EMAIL_USER || '').trim(),
+    pass: (process.env.SMTP_PASS || process.env.EMAIL_PASS || '').trim()
+  }
+};
+
+let smtpTransporter = null;
+if (smtpConfig.auth.user && smtpConfig.auth.pass) {
+  try {
+    const nodemailer = require('nodemailer');
+    smtpTransporter = nodemailer.createTransport(smtpConfig);
+    console.log('📧 SMTP transporter initialized successfully');
+  } catch (err) {
+    console.error('❌ Failed to initialize SMTP transporter:', err.message);
+  }
+}
+
+if (RESEND_API_KEY) {
+  console.log('📧 Resend Email API client configured successfully');
+} else if (!smtpTransporter) {
+  console.log('⚠️ Neither RESEND_API_KEY nor SMTP credentials set. Emails will be logged in simulation mode.');
+}
+
+async function sendMail({ to, subject, text, html }) {
+  const recipient = String(to || '').trim();
+  if (!recipient) return { ok: false, error: 'Recipient email is missing' };
+
+  let lastError = '';
+
+  // 1. Try Resend HTTPS API if configured
+  if (RESEND_API_KEY) {
+    const fromCandidates = [];
+    if (process.env.RESEND_FROM) fromCandidates.push(process.env.RESEND_FROM.trim());
+    if (process.env.SMTP_FROM && !/@(gmail|yahoo|outlook|hotmail)\.com/i.test(process.env.SMTP_FROM)) {
+      fromCandidates.push(process.env.SMTP_FROM.trim());
+    }
+    fromCandidates.push('StreamXvault <noreply@streamxvault.online>');
+    fromCandidates.push('StreamXvault <onboarding@resend.dev>');
+
+    const uniqueFroms = [...new Set(fromCandidates.filter(Boolean))];
+
+    for (const fromAddr of uniqueFroms) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${RESEND_API_KEY}`
+          },
+          body: JSON.stringify({
+            from: fromAddr,
+            to: [recipient],
+            subject,
+            text,
+            html
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.log(`✉️  [EMAIL SENT VIA RESEND] Sent to ${recipient} from ${fromAddr} (ID: ${data.id || 'ok'})`);
+          return { ok: true, provider: 'resend', id: data.id };
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.message || res.statusText || JSON.stringify(errData);
+          lastError = errMsg;
+          console.error(`❌ [RESEND API ERROR] (${fromAddr} -> ${recipient}):`, errMsg);
+        }
+      } catch (err) {
+        lastError = err.message;
+        console.error(`❌ [RESEND NETWORK ERROR] (${fromAddr} -> ${recipient}):`, err.message);
+      }
+    }
+  }
+
+  // 2. Fallback to Nodemailer SMTP if configured
+  if (smtpTransporter) {
+    try {
+      const from = process.env.SMTP_FROM || `StreamXvault <${smtpConfig.auth.user}>`;
+      await smtpTransporter.sendMail({ from, to: recipient, subject, text, html });
+      console.log(`✉️  [EMAIL SENT VIA SMTP] Sent successfully to ${recipient}`);
+      return { ok: true, provider: 'smtp' };
+    } catch (err) {
+      lastError = err.message;
+      console.error(`❌ [SMTP EMAIL ERROR] Failed to send email to ${recipient}:`, err.message);
+    }
+  }
+
+  // 3. Simulation fallback when no credentials are configured
+  if (!RESEND_API_KEY && !smtpTransporter) {
+    console.log(`\n✉️  [SIMULATED EMAIL - NO API KEY]\nTo: ${recipient}\nSubject: ${subject}\nText:\n${text}\n--------------------\n`);
+    return { ok: true, simulated: true, error: 'Email service (RESEND_API_KEY or SMTP) is not configured on the server.' };
+  }
+
+  return { ok: false, error: lastError || 'Failed to send email' };
+}
+
 
 
 const BOT_REGEX = /bot|crawler|spider|google|bing|yandex|baidu|slurp|duckduck|postman|headless|axios|python|curl|wget|lighthouse|semrush|ahrefs|dotbot|mj12bot|ia_archiver|monet|adsbot|pingdom/i;
@@ -991,6 +1096,83 @@ app.get(['/admin', '/admin.html'], (req, res) => {
   res.type('html').send(html);
 });
 
+app.get('/api/vod/rules', (req, res) => {
+  res.json(loadVodRules());
+});
+
+app.post('/api/vod/request', async (req, res) => {
+  if (isRequestBot(req)) return res.json({ success: false });
+  const { genre, company, actor, title, description, email } = req.body || {};
+  if (!genre || !title || !actor || !email) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const cleanEmail = String(email).trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Invalid email address' });
+  }
+
+  const requests = loadVodRequests();
+  const newRequest = {
+    id: crypto.randomUUID(),
+    genre: String(genre).trim(),
+    company: company ? String(company).trim() : 'N/A',
+    actor: String(actor).trim(),
+    title: String(title).trim(),
+    description: description ? String(description).trim() : '',
+    email: cleanEmail,
+    status: 'Pending',
+    createdAt: new Date().toISOString()
+  };
+  requests.push(newRequest);
+  await saveVodRequests(requests);
+
+  const emailHtml = `
+    <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Video on Demand Request</p>
+      </div>
+      <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+        <h2 style="color: #22d3ee; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Request Received 🚀</h2>
+        <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">We have successfully received your video request! Here are the details:</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold; width: 35%;">Category / Genre:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9;">${escapeHtml(newRequest.genre)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold;">Video Title:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9; font-weight: 600;">${escapeHtml(newRequest.title)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold;">Actor / Actress Name:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9;">${escapeHtml(newRequest.actor)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 0.5rem 0; font-weight: bold; vertical-align: top;">Additional Details:</td>
+            <td style="padding: 0.5rem 0; color: #f1f5f9; line-height: 1.4;">${newRequest.description ? escapeHtml(newRequest.description) : '<em>None</em>'}</td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+        Our admin team will review your request shortly. Once approved, you will receive another confirmation email.<br>
+        © 2026 StreamXvault. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  await sendMail({
+    to: cleanEmail,
+    subject: 'VOD Request Received — StreamXvault',
+    text: `Hello,\n\nWe have successfully received your video request! Here is what you requested:\n\n- Genre: ${newRequest.genre}\n- Video Title: ${newRequest.title}\n- Model / Actor / Actress Name: ${newRequest.actor}\n- Additional Details: ${newRequest.description || 'None'}\n\nOur admin team will review it shortly. Once approved, you will receive another confirmation email.\n\nBest regards,\nThe StreamXvault Team`,
+    html: emailHtml
+  });
+
+  res.json({ success: true, request: newRequest });
+});
+
 app.get('/api/admin/vod/rules', requireAdmin, (req, res) => { res.json(loadVodRules()); });
 app.post('/api/admin/vod/rules', requireAdmin, async (req, res) => {
   const { rules } = req.body;
@@ -1004,17 +1186,160 @@ app.get('/api/admin/vod/requests', requireAdmin, (req, res) => {
 });
 
 app.put('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
-  const { status } = req.body;
+  const { status } = req.body || {};
   const requests = loadVodRequests();
   const reqItem = requests.find(r => r.id === req.params.id);
   if (!reqItem) return res.status(404).json({ error: 'Not found' });
+
+  const oldStatus = reqItem.status;
   reqItem.status = status;
   await saveVodRequests(requests);
-  res.json({ success: true });
+
+  let mailResult = null;
+
+  // Trigger automated approval email
+  if (status === 'Approved' && oldStatus !== 'Approved' && reqItem.email) {
+    const emailHtml = `
+      <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+          <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Video on Demand Request</p>
+        </div>
+        <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+          <h2 style="color: #4ade80; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Request Approved! 🎉</h2>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Great news! Your video request has been approved by the admin team:</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold; width: 35%;">Category / Genre:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${escapeHtml(reqItem.genre || '')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Video Title:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9; font-weight: 600;">${escapeHtml(reqItem.title || '')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Actor / Actress Name:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${escapeHtml(reqItem.actor || '')}</td>
+            </tr>
+          </table>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1; margin-top: 1.25rem;">We are preparing the video for upload now. You will receive a final confirmation email containing the watch link as soon as it is delivered and ready!</p>
+        </div>
+        <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+          You'll receive an email as soon as the video is ready to watch.<br>
+          © 2026 StreamXvault. All rights reserved.
+        </p>
+      </div>
+    `;
+    mailResult = await sendMail({
+      to: reqItem.email,
+      subject: 'Your VOD Request has been Approved! — StreamXvault',
+      text: `Hello,\n\nGreat news! Your video request has been approved by the admin team:\n\n- Video Title: ${reqItem.title}\n- Genre: ${reqItem.genre}\n- Model / Actor / Actress Name: ${reqItem.actor}\n\nWe are preparing the video for upload. We will notify you as soon as it is delivered and ready to watch!\n\nBest regards,\nThe StreamXvault Team`,
+      html: emailHtml
+    });
+  }
+
+  // Trigger automated rejection email
+  if (status === 'Rejected' && oldStatus !== 'Rejected' && reqItem.email) {
+    const rejectionHtml = `
+      <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+          <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Video on Demand Request</p>
+        </div>
+        <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+          <h2 style="color: #ef4444; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Request Not Approved ⚠️</h2>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Thank you for your video request. We regret to inform you that your request could not be approved at this time:</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin-top: 1rem;">
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold; width: 35%;">Category / Genre:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${escapeHtml(reqItem.genre || '')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Video Title:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9; font-weight: 600;">${escapeHtml(reqItem.title || '')}</td>
+            </tr>
+            <tr>
+              <td style="padding: 0.5rem 0; font-weight: bold;">Actor / Actress Name:</td>
+              <td style="padding: 0.5rem 0; color: #f1f5f9;">${escapeHtml(reqItem.actor || '')}</td>
+            </tr>
+          </table>
+          <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1; margin-top: 1.25rem;">This can occur due to content licensing restrictions, lack of quality sources, or availability. You are welcome to submit another request in the future.</p>
+        </div>
+        <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+          Thank you for your understanding.<br>
+          © 2026 StreamXvault. All rights reserved.
+        </p>
+      </div>
+    `;
+    mailResult = await sendMail({
+      to: reqItem.email,
+      subject: 'VOD Request Status Update — StreamXvault',
+      text: `Hello,\n\nThank you for your video request. We regret to inform you that your request could not be approved at this time:\n\n- Video Title: ${reqItem.title}\n- Genre: ${reqItem.genre}\n- Model / Actor / Actress Name: ${reqItem.actor}\n\nThis can occur due to licensing or source availability restrictions. You are welcome to submit another request in the future.\n\nBest regards,\nThe StreamXvault Team`,
+      html: rejectionHtml
+    });
+  }
+
+  res.json({
+    success: true,
+    emailSent: mailResult ? (mailResult.ok && !mailResult.simulated) : false,
+    warning: mailResult && (!mailResult.ok || mailResult.simulated) ? mailResult.error : undefined
+  });
 });
+
 app.post('/api/admin/vod/requests/:id/notify', requireAdmin, async (req, res) => {
-  res.json({ success: true });
+  const { message } = req.body || {};
+  if (!message || !String(message).trim()) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  const requests = loadVodRequests();
+  const reqItem = requests.find(r => r.id === req.params.id);
+  if (!reqItem) return res.status(404).json({ error: 'Request not found' });
+  if (!reqItem.email) return res.status(400).json({ error: 'Request has no associated email' });
+
+  const cleanMessage = String(message).trim();
+  const safeHtmlMessage = escapeHtml(cleanMessage).replace(/\r?\n/g, '<br>');
+
+  const emailHtml = `
+    <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Update Regarding Your Request</p>
+      </div>
+      <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+        <h2 style="color: #22d3ee; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Video Request Status Update 🔔</h2>
+        <p style="font-size: 0.95rem; line-height: 1.6; color: #f1f5f9; white-space: pre-wrap; font-weight: 500;">${safeHtmlMessage}</p>
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #232338; font-size: 0.85rem; color: #94a3b8;">
+          <strong>Request Reference:</strong><br>
+          Title: ${escapeHtml(reqItem.title || '')}<br>
+          Genre: ${escapeHtml(reqItem.genre || '')}
+        </div>
+      </div>
+      <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+        This email was sent by the administrator regarding your request.<br>
+        © 2026 StreamXvault. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  const mailResult = await sendMail({
+    to: reqItem.email,
+    subject: `Update regarding your VOD Request "${reqItem.title}" — StreamXvault`,
+    text: `Hello,\n\nHere is an update from the StreamXvault administrator regarding your video request "${reqItem.title}":\n\n${cleanMessage}\n\nBest regards,\nThe StreamXvault Team`,
+    html: emailHtml
+  });
+
+  if (mailResult && mailResult.ok && !mailResult.simulated) {
+    reqItem.lastNotifiedAt = new Date().toISOString();
+    await saveVodRequests(requests);
+    return res.json({ success: true, emailSent: true });
+  } else if (mailResult && mailResult.simulated) {
+    return res.status(500).json({ error: mailResult.error || 'Email service is not configured on the server.' });
+  } else {
+    return res.status(500).json({ error: (mailResult && mailResult.error) || 'Failed to send notification email.' });
+  }
 });
+
 app.delete('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
   let requests = loadVodRequests();
   requests = requests.filter(r => r.id !== req.params.id);
