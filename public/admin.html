@@ -331,6 +331,21 @@
         <div class="admin-tab" id="tab-vod" style="display: none;">
           <h2 style="margin-bottom: 1.5rem; font-weight: 700;">📺 VOD Management</h2>
           
+          <!-- Email Service Status & Live Tester -->
+          <div id="vod-email-status-card" style="margin-bottom: 1.5rem; background: var(--bg-card); padding: 1.25rem 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
+            <div>
+              <div style="font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <span>📧 Email Notification Service</span>
+                <span id="email-status-badge" class="badge" style="background: rgba(255,255,255,0.1); color: var(--text-muted);">Checking...</span>
+              </div>
+              <p id="email-status-desc" style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-muted);">Verifying configuration...</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <input type="email" id="test-email-input" placeholder="Enter recipient email..." style="padding: 0.45rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); font-size: 0.85rem; width: 220px;">
+              <button type="button" class="btn btn-secondary btn-sm" id="test-email-btn" onclick="sendTestEmail()">🧪 Send Test Email</button>
+            </div>
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
             <!-- Rules Section -->
             <div class="vod-rules" style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
@@ -483,7 +498,7 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=55"></script>
+  <script src="/js/admin.js?v=56"></script>
 </body>
 </html>
 

@@ -50,6 +50,8 @@ async function sendMail({ to, subject, text, html }) {
       fromCandidates.push(process.env.SMTP_FROM.trim());
     }
     fromCandidates.push('StreamXvault <noreply@streamxvault.online>');
+    fromCandidates.push('StreamXvault <noreply@send.streamxvault.online>');
+    fromCandidates.push('StreamXvault <support@streamxvault.online>');
     fromCandidates.push('StreamXvault <onboarding@resend.dev>');
 
     const uniqueFroms = [...new Set(fromCandidates.filter(Boolean))];
@@ -1179,6 +1181,56 @@ app.post('/api/admin/vod/rules', requireAdmin, async (req, res) => {
   if (!Array.isArray(rules)) return res.status(400).json({ error: 'Rules must be an array' });
   await saveVodRules(rules);
   res.json({ success: true });
+});
+
+app.get('/api/admin/email/status', requireAdmin, (req, res) => {
+  const hasResend = Boolean(RESEND_API_KEY);
+  const maskedKey = hasResend ? (RESEND_API_KEY.slice(0, 7) + '...' + RESEND_API_KEY.slice(-4)) : null;
+  res.json({
+    hasResend,
+    maskedKey,
+    hasSmtp: Boolean(smtpTransporter),
+    smtpUser: smtpConfig.auth.user ? (smtpConfig.auth.user.replace(/(.{2})(.*)(@.*)/, '$1***$3')) : null,
+    resendFrom: process.env.RESEND_FROM || null,
+    smtpFrom: process.env.SMTP_FROM || null
+  });
+});
+
+app.post('/api/admin/email/test', requireAdmin, async (req, res) => {
+  const targetEmail = String((req.body && req.body.email) || '').trim();
+  if (!targetEmail) return res.status(400).json({ error: 'Recipient email address is required' });
+
+  const emailHtml = `
+    <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Email System Diagnostic</p>
+      </div>
+      <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+        <h2 style="color: #4ade80; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">Delivery Test Successful! 🎉</h2>
+        <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Your StreamXvault email delivery system is functioning and emails are delivering successfully.</p>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 1rem;">Timestamp: ${new Date().toISOString()}</p>
+      </div>
+      <p style="font-size: 0.85rem; color: #64748b; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+        © 2026 StreamXvault. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  const result = await sendMail({
+    to: targetEmail,
+    subject: 'StreamXvault Email Delivery Test ✅',
+    text: `StreamXvault Email Test: Your email delivery system is functioning correctly! Sent at ${new Date().toISOString()}`,
+    html: emailHtml
+  });
+
+  if (result.ok && !result.simulated) {
+    res.json({ success: true, message: `Email delivered successfully via ${result.provider} from ${result.from || 'configured sender'}! (ID: ${result.id || 'ok'})`, details: result });
+  } else if (result.simulated) {
+    res.status(400).json({ success: false, error: 'Neither RESEND_API_KEY nor SMTP credentials are set in environment variables on Northflank.' });
+  } else {
+    res.status(500).json({ success: false, error: result.error || 'Failed to send test email' });
+  }
 });
 
 app.get('/api/admin/vod/requests', requireAdmin, (req, res) => {

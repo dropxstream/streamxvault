@@ -1132,7 +1132,75 @@ window.addEventListener('scroll', () => {
 let vodRules = [];
 let vodRequests = [];
 
+async function checkEmailStatus() {
+  const badgeEl = document.getElementById('email-status-badge');
+  const descEl = document.getElementById('email-status-desc');
+  if (!badgeEl || !descEl) return;
+
+  try {
+    const res = await fetch('/api/admin/email/status', { headers: authHeaders() });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.hasResend) {
+      badgeEl.className = 'badge badge-success';
+      badgeEl.style.background = '#22c55e';
+      badgeEl.style.color = '#ffffff';
+      badgeEl.textContent = `✅ Resend API (${data.maskedKey})`;
+      descEl.textContent = 'Resend HTTPS API is active on production. You can send live notification emails or run a test below.';
+    } else if (data.hasSmtp) {
+      badgeEl.className = 'badge badge-success';
+      badgeEl.style.background = '#06b6d4';
+      badgeEl.style.color = '#ffffff';
+      badgeEl.textContent = `📧 SMTP (${data.smtpUser || 'configured'})`;
+      descEl.textContent = 'SMTP mail transporter is active. You can send live notification emails or run a test below.';
+    } else {
+      badgeEl.className = 'badge badge-warning';
+      badgeEl.style.background = '#f59e0b';
+      badgeEl.style.color = '#000000';
+      badgeEl.textContent = '⚠️ Simulated (No Key in Northflank)';
+      descEl.textContent = 'RESEND_API_KEY is missing in Northflank environment variables. Add RESEND_API_KEY to Northflank to enable live emails.';
+    }
+  } catch (err) {
+    badgeEl.textContent = 'Unknown';
+  }
+}
+
+window.sendTestEmail = async function() {
+  const input = document.getElementById('test-email-input');
+  const btn = document.getElementById('test-email-btn');
+  const email = (input ? input.value : '').trim();
+
+  if (!email || !email.includes('@')) {
+    showToast('Please enter a valid email address to test', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = '⏳ Sending test...';
+
+  try {
+    const res = await fetch('/api/admin/email/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showToast(data.message || 'Test email sent successfully! Check your inbox/spam.', 'success');
+    } else {
+      showToast(data.error || 'Test email failed. Check Resend configuration.', 'error');
+    }
+  } catch (err) {
+    showToast('Network error while testing email delivery', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+};
+
 async function loadVodData() {
+  checkEmailStatus();
   try {
     const rulesRes = await fetch('/api/admin/vod/rules', { headers: authHeaders() });
     if (rulesRes.ok) {
