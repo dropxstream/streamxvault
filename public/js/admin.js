@@ -141,6 +141,7 @@ function switchTab(tabName, element) {
   if (tabName === 'upload') loadGenres();
   if (tabName === 'manage') { loadGenres(); loadAdminVideos(); }
   if (tabName === 'vod') loadVodData();
+  if (tabName === 'contact') loadContactAdminData();
 }
 
 // ==================== Dashboard ====================
@@ -1432,6 +1433,224 @@ window.sendNotification = async function() {
   } finally {
     sendBtn.disabled = false;
     sendBtn.textContent = '✉️ Send Email';
+  }
+};
+
+// ==================== Contact & Telegram Management ====================
+let contactMessages = [];
+let currentContactMessageId = null;
+
+async function loadContactAdminData() {
+  await Promise.all([loadContactConfigAdmin(), loadContactMessagesAdmin()]);
+}
+
+async function loadContactConfigAdmin() {
+  try {
+    const res = await fetch('/api/admin/contact/config', { headers: authHeaders() });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.ok) {
+      const cfg = await res.json();
+      if (document.getElementById('admin-tg-url')) document.getElementById('admin-tg-url').value = cfg.telegramChannelUrl || '';
+      if (document.getElementById('admin-tg-name')) document.getElementById('admin-tg-name').value = cfg.telegramChannelName || '';
+      if (document.getElementById('admin-tg-desc')) document.getElementById('admin-tg-desc').value = cfg.telegramChannelDescription || '';
+      if (document.getElementById('admin-tg-support-url')) document.getElementById('admin-tg-support-url').value = cfg.telegramSupportUrl || '';
+      if (document.getElementById('admin-tg-support-user')) document.getElementById('admin-tg-support-user').value = cfg.telegramSupportUsername || '';
+      if (document.getElementById('admin-support-email')) document.getElementById('admin-support-email').value = cfg.supportEmail || '';
+      if (document.getElementById('admin-business-email')) document.getElementById('admin-business-email').value = cfg.businessEmail || '';
+      if (document.getElementById('admin-dmca-notice')) document.getElementById('admin-dmca-notice').value = cfg.dmcaNotice || '';
+    }
+  } catch (err) {
+    console.error('Error loading contact config:', err);
+  }
+}
+
+window.saveContactSettings = async function() {
+  const payload = {
+    telegramChannelUrl: document.getElementById('admin-tg-url').value.trim(),
+    telegramChannelName: document.getElementById('admin-tg-name').value.trim(),
+    telegramChannelDescription: document.getElementById('admin-tg-desc').value.trim(),
+    telegramSupportUrl: document.getElementById('admin-tg-support-url').value.trim(),
+    telegramSupportUsername: document.getElementById('admin-tg-support-user').value.trim(),
+    supportEmail: document.getElementById('admin-support-email').value.trim(),
+    businessEmail: document.getElementById('admin-business-email').value.trim(),
+    dmcaNotice: document.getElementById('admin-dmca-notice').value.trim()
+  };
+
+  const btn = document.getElementById('save-contact-settings-btn');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Saving...';
+
+  try {
+    const res = await fetch('/api/admin/contact/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(payload)
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Contact & Telegram settings saved successfully! 🚀', 'success');
+    } else {
+      showToast(data.error || 'Failed to save contact settings', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to save contact settings', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+};
+
+window.loadContactMessagesAdmin = async function() {
+  const tbody = document.getElementById('contact-messages-table');
+  const countEl = document.getElementById('contact-inbox-count');
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">Loading inquiries...</td></tr>';
+
+  try {
+    const res = await fetch('/api/admin/contact/messages', { headers: authHeaders() });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (!res.ok) throw new Error('Failed to fetch messages');
+
+    contactMessages = await res.json();
+    if (countEl) countEl.textContent = `${contactMessages.length} inquiry(s)`;
+    renderContactMessages();
+  } catch (err) {
+    console.error('Failed to load contact messages:', err);
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #ef4444;">Failed to load messages.</td></tr>';
+  }
+};
+
+function renderContactMessages() {
+  const tbody = document.getElementById('contact-messages-table');
+  if (!tbody) return;
+
+  if (contactMessages.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">No inquiries yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = contactMessages.map(msg => {
+    const statusStyle = msg.status === 'New' 
+      ? 'background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);' 
+      : (msg.status === 'Replied' 
+        ? 'background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);' 
+        : 'background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);');
+
+    const tgBadge = msg.telegram ? `<span style="display: inline-block; font-size: 0.75rem; color: #38bdf8; background: rgba(56,189,248,0.1); padding: 0.1rem 0.4rem; border-radius: 4px; margin-top: 0.2rem;">✈️ ${escapeHtml(msg.telegram)}</span>` : '';
+    const dateFormatted = getTimeAgo(msg.createdAt || Date.now());
+
+    return `
+      <tr style="border-bottom: 1px solid var(--border-color); ${msg.status === 'New' ? 'background: rgba(56, 189, 248, 0.03);' : ''}">
+        <td style="padding: 0.75rem;">
+          <div style="font-weight: 600; color: var(--text-primary);">${escapeHtml(msg.name)}</div>
+          <a href="mailto:${escapeHtml(msg.email)}" style="font-size: 0.8rem; color: var(--accent-cyan); text-decoration: none;">${escapeHtml(msg.email)}</a>
+          <div>${tgBadge}</div>
+        </td>
+        <td style="padding: 0.75rem; max-width: 250px;">
+          <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(msg.subject || 'General Inquiry')}</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(msg.message)}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem;">${dateFormatted}</div>
+        </td>
+        <td style="padding: 0.75rem;">
+          <span style="font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 12px; font-weight: 600; ${statusStyle}">${escapeHtml(msg.status || 'New')}</span>
+        </td>
+        <td style="padding: 0.75rem; text-align: right;">
+          <div style="display: flex; gap: 0.4rem; justify-content: flex-end;">
+            <button class="btn btn-secondary btn-sm" onclick="openMessageModal('${msg.id}')" title="View Details">👁️ View</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteContactMessage('${msg.id}')" title="Delete Inquiry">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+window.openMessageModal = function(id) {
+  const msg = contactMessages.find(m => m.id === id);
+  if (!msg) return;
+
+  currentContactMessageId = id;
+  document.getElementById('msg-detail-name').textContent = msg.name || 'Anonymous';
+  const emailEl = document.getElementById('msg-detail-email');
+  emailEl.textContent = msg.email;
+  emailEl.href = `mailto:${msg.email}?subject=${encodeURIComponent('Re: ' + (msg.subject || 'Inquiry'))}`;
+  document.getElementById('msg-detail-subject').textContent = msg.subject || 'General Inquiry';
+  document.getElementById('msg-detail-telegram').textContent = msg.telegram || 'Not provided';
+  document.getElementById('msg-detail-date').textContent = new Date(msg.createdAt).toLocaleString();
+  document.getElementById('msg-detail-body').textContent = msg.message;
+
+  const mailtoLink = document.getElementById('msg-mailto-link');
+  mailtoLink.href = `mailto:${msg.email}?subject=${encodeURIComponent('Re: ' + (msg.subject || 'StreamXvault Inquiry'))}&body=${encodeURIComponent('\n\n--- Original Message ---\nFrom: ' + msg.name + '\n' + msg.message)}`;
+
+  document.getElementById('message-modal').classList.add('active');
+
+  // If status was New, automatically mark as Read in backend
+  if (msg.status === 'New') {
+    toggleMessageStatus('Read', false);
+  }
+};
+
+window.closeMessageModal = function() {
+  currentContactMessageId = null;
+  const modal = document.getElementById('message-modal');
+  if (modal) modal.classList.remove('active');
+};
+
+const messageModalEl = document.getElementById('message-modal');
+if (messageModalEl) {
+  messageModalEl.addEventListener('click', (e) => {
+    if (e.target === messageModalEl) closeMessageModal();
+  });
+}
+
+window.toggleMessageStatus = async function(newStatus, showFeedback = true) {
+  if (!currentContactMessageId) return;
+
+  try {
+    const res = await fetch(`/api/admin/contact/messages/${currentContactMessageId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+
+    if (res.ok) {
+      const msg = contactMessages.find(m => m.id === currentContactMessageId);
+      if (msg) msg.status = newStatus;
+      renderContactMessages();
+      if (showFeedback) showToast(`Marked as ${newStatus}`, 'success');
+    }
+  } catch (err) {
+    if (showFeedback) showToast('Failed to update status', 'error');
+  }
+};
+
+window.deleteContactMessage = async function(id) {
+  if (!confirm('Are you sure you want to delete this inquiry?')) return;
+
+  try {
+    const res = await fetch(`/api/admin/contact/messages/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+
+    if (res.ok) {
+      showToast('Inquiry deleted', 'success');
+      contactMessages = contactMessages.filter(m => m.id !== id);
+      const countEl = document.getElementById('contact-inbox-count');
+      if (countEl) countEl.textContent = `${contactMessages.length} inquiry(s)`;
+      renderContactMessages();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Failed to delete inquiry', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to delete inquiry', 'error');
   }
 };
 

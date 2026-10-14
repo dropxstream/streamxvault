@@ -135,6 +135,21 @@ const GENRES_FILE = path.join(DATA_DIR, 'genres.json');
 const GENRES_KEY = '_database/genres.json';
 const DEFAULT_GENRES = ['Trueanal', 'Analonly', 'Nympho', 'Analvids', 'Tushy Raw'];
 
+const CONTACT_CONFIG_FILE = path.join(DATA_DIR, 'contact_config.json');
+const CONTACT_CONFIG_KEY = '_database/contact_config.json';
+const CONTACT_MESSAGES_FILE = path.join(DATA_DIR, 'contact_messages.json');
+const CONTACT_MESSAGES_KEY = '_database/contact_messages.json';
+const DEFAULT_CONTACT_CONFIG = {
+  telegramChannelUrl: 'https://t.me/streamxvault',
+  telegramChannelName: 'StreamXvault Official',
+  telegramChannelDescription: 'Join our official Telegram channel for exclusive updates, instant daily scene alerts, and direct community chat.',
+  telegramSupportUrl: 'https://t.me/streamxvault_support',
+  telegramSupportUsername: '@streamxvault_support',
+  supportEmail: 'support@streamxvault.online',
+  businessEmail: 'contact@streamxvault.online',
+  dmcaNotice: 'For copyright inquiries or DMCA takedown requests, please email with valid proof of ownership.'
+};
+
 const ALLOWED_THUMB_HOSTS = new Set([
   'pub-35e5e185c71b4d2292a6cae626c19d3d.r2.dev',
   'streamxvault.online',
@@ -202,6 +217,13 @@ function decorateHtml(html, extraScripts) {
 app.get(['/demand.html', '/demand-form.html'], (req, res) => {
   const name = req.path === '/demand-form.html' ? 'demand-form.html' : 'demand.html';
   const file = path.join(__dirname, 'public', name);
+  if (!fs.existsSync(file)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
+  res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
+});
+
+app.get(['/contact', '/contact.html'], (req, res) => {
+  const file = path.join(__dirname, 'public', 'contact.html');
   if (!fs.existsSync(file)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
   res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
@@ -350,6 +372,32 @@ function ensureGenreExists(genreName) {
   }
 }
 
+function loadContactConfig() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(CONTACT_CONFIG_FILE, 'utf-8'));
+    return Object.assign({}, DEFAULT_CONTACT_CONFIG, raw);
+  } catch (e) {
+    return Object.assign({}, DEFAULT_CONTACT_CONFIG);
+  }
+}
+async function saveContactConfig(cfg) {
+  const merged = Object.assign({}, DEFAULT_CONTACT_CONFIG, cfg);
+  fs.writeFileSync(CONTACT_CONFIG_FILE, JSON.stringify(merged, null, 2));
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try { await storage.upload(CONTACT_CONFIG_KEY, Buffer.from(JSON.stringify(merged, null, 2)), 'application/json'); } catch(e){}
+  }
+  return merged;
+}
+
+function loadContactMessages() {
+  try { return JSON.parse(fs.readFileSync(CONTACT_MESSAGES_FILE, 'utf-8')); } catch (e) { return []; }
+}
+async function saveContactMessages(msgs) {
+  fs.writeFileSync(CONTACT_MESSAGES_FILE, JSON.stringify(msgs, null, 2));
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try { await storage.upload(CONTACT_MESSAGES_KEY, Buffer.from(JSON.stringify(msgs, null, 2)), 'application/json'); } catch(e){}
+  }
+}
 
 async function syncVideosFromR2() {
   if (!storage || storage.mode !== 'r2') {
@@ -393,6 +441,12 @@ async function syncVideosFromR2() {
 
     const remoteGenres = await storage.download(GENRES_KEY);
     if (remoteGenres && remoteGenres.length > 2) fs.writeFileSync(GENRES_FILE, remoteGenres);
+
+    const remoteContactConfig = await storage.download(CONTACT_CONFIG_KEY);
+    if (remoteContactConfig && remoteContactConfig.length > 2) fs.writeFileSync(CONTACT_CONFIG_FILE, remoteContactConfig);
+
+    const remoteContactMessages = await storage.download(CONTACT_MESSAGES_KEY);
+    if (remoteContactMessages && remoteContactMessages.length > 2) fs.writeFileSync(CONTACT_MESSAGES_FILE, remoteContactMessages);
   } catch (err) {
     console.error('❌ R2 Sync failed:', err.message);
   }
@@ -1049,6 +1103,14 @@ app.get('/sitemap.xml', (req, res) => {
   xml += '    <priority>0.6</priority>\n';
   xml += '  </url>\n';
 
+  // Contact page
+  xml += '  <url>\n';
+  xml += '    <loc>' + SITE + '/contact</loc>\n';
+  xml += '    <lastmod>' + now + '</lastmod>\n';
+  xml += '    <changefreq>monthly</changefreq>\n';
+  xml += '    <priority>0.7</priority>\n';
+  xml += '  </url>\n';
+
   // Video pages
   videos.forEach(function (v) {
     xml += '  <url>\n';
@@ -1396,6 +1458,142 @@ app.delete('/api/admin/vod/requests/:id', requireAdmin, async (req, res) => {
   let requests = loadVodRequests();
   requests = requests.filter(r => r.id !== req.params.id);
   await saveVodRequests(requests);
+  res.json({ success: true });
+});
+
+// ==================== CONTACT & TELEGRAM API ====================
+app.get('/api/contact/config', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json(loadContactConfig());
+});
+
+app.post('/api/contact', async (req, res) => {
+  if (isRequestBot(req)) return res.json({ success: false });
+  const body = req.body || {};
+  const name = String(body.name || '').trim();
+  const email = String(body.email || '').trim();
+  const subject = String(body.subject || 'General Inquiry').trim();
+  const telegram = String(body.telegram || '').trim();
+  const message = String(body.message || '').trim();
+
+  if (!name || !email || !message) {
+    return res.status(400).json({ error: 'Name, email, and message are required.' });
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+
+  const messages = loadContactMessages();
+  const newMsg = {
+    id: crypto.randomUUID(),
+    name,
+    email,
+    subject,
+    telegram: telegram || 'N/A',
+    message,
+    status: 'New',
+    createdAt: new Date().toISOString()
+  };
+  messages.unshift(newMsg);
+  await saveContactMessages(messages);
+
+  const config = loadContactConfig();
+
+  // 1. Send receipt confirmation email to user
+  const userHtml = `
+    <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #a855f7; margin: 0; font-size: 1.8rem; letter-spacing: 1px;">StreamXvault</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0; font-size: 0.9rem;">Contact & Support Desk</p>
+      </div>
+      <div style="background-color: #131322; padding: 1.5rem; border-radius: 8px; border: 1px solid #232338; margin-bottom: 1.5rem;">
+        <h2 style="color: #22d3ee; margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #232338; padding-bottom: 0.5rem;">We've received your message! ✉️</h2>
+        <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Hi <strong>${escapeHtml(name)}</strong>,</p>
+        <p style="font-size: 0.95rem; line-height: 1.5; color: #cbd5e1;">Thank you for getting in touch with us regarding <strong>${escapeHtml(subject)}</strong>. Our team has received your inquiry and will review it shortly.</p>
+        <div style="margin: 1.25rem 0; padding: 1rem; background: #080811; border-radius: 6px; border-left: 3px solid #22d3ee; color: #94a3b8; font-size: 0.88rem; white-space: pre-wrap;">${escapeHtml(message)}</div>
+        <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(34, 158, 217, 0.1); border: 1px solid rgba(34, 158, 217, 0.25); border-radius: 8px; text-align: center;">
+          <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: #38bdf8; font-size: 0.9rem;">🚀 Stay Updated on Telegram</p>
+          <p style="margin: 0 0 0.75rem 0; font-size: 0.8rem; color: #94a3b8;">Join our official channel for 4K release alerts and instant support.</p>
+          <a href="${escapeHtml(config.telegramChannelUrl)}" style="display: inline-block; background: #229ED9; color: #ffffff; padding: 0.5rem 1.2rem; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.85rem;">Join ${escapeHtml(config.telegramChannelName)} →</a>
+        </div>
+      </div>
+      <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; text-align: center; margin-top: 2rem; border-top: 1px solid #1f1f2e; padding-top: 1rem;">
+        StreamXvault Support Desk<br>
+        © 2026 StreamXvault. All rights reserved.
+      </p>
+    </div>
+  `;
+
+  sendMail({
+    to: email,
+    subject: `We received your message: "${subject}" — StreamXvault`,
+    text: `Hello ${name},\n\nThank you for reaching out to StreamXvault. We have received your inquiry regarding "${subject}". Our team will review it and reply as soon as possible.\n\nBest regards,\nThe StreamXvault Team`,
+    html: userHtml
+  }).catch(() => {});
+
+  // 2. Forward notification to support email if configured
+  if (config.supportEmail && config.supportEmail !== email) {
+    const adminAlertHtml = `
+      <div style="background-color: #0b0b14; color: #ffffff; font-family: 'Inter', Arial, sans-serif; padding: 2rem; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #1f1f2e;">
+        <h2 style="color: #a855f7; margin-top: 0;">New Contact Form Inquiry 📬</h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; color: #94a3b8; margin: 1rem 0;">
+          <tr><td style="padding: 0.4rem 0; font-weight: bold; width: 30%;">Name:</td><td style="color: #f1f5f9;">${escapeHtml(name)}</td></tr>
+          <tr><td style="padding: 0.4rem 0; font-weight: bold;">Email:</td><td style="color: #f1f5f9;"><a href="mailto:${escapeHtml(email)}" style="color: #38bdf8;">${escapeHtml(email)}</a></td></tr>
+          <tr><td style="padding: 0.4rem 0; font-weight: bold;">Subject:</td><td style="color: #f1f5f9;">${escapeHtml(subject)}</td></tr>
+          <tr><td style="padding: 0.4rem 0; font-weight: bold;">Telegram:</td><td style="color: #f1f5f9;">${escapeHtml(telegram || 'None')}</td></tr>
+        </table>
+        <div style="padding: 1rem; background: #131322; border-radius: 6px; border: 1px solid #232338; color: #f1f5f9; font-size: 0.95rem; white-space: pre-wrap;">${escapeHtml(message)}</div>
+      </div>
+    `;
+    sendMail({
+      to: config.supportEmail,
+      subject: `[Contact Form] ${subject} — from ${name}`,
+      text: `New contact form submission:\nName: ${name}\nEmail: ${email}\nTelegram: ${telegram || 'None'}\nSubject: ${subject}\n\nMessage:\n${message}`,
+      html: adminAlertHtml
+    }).catch(() => {});
+  }
+
+  res.json({ success: true, message: 'Message sent successfully! Thank you for contacting us.' });
+});
+
+app.get('/api/admin/contact/config', requireAdmin, (req, res) => {
+  res.json(loadContactConfig());
+});
+
+app.post('/api/admin/contact/config', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const saved = await saveContactConfig({
+    telegramChannelUrl: String(body.telegramChannelUrl || '').trim(),
+    telegramChannelName: String(body.telegramChannelName || '').trim(),
+    telegramChannelDescription: String(body.telegramChannelDescription || '').trim(),
+    telegramSupportUrl: String(body.telegramSupportUrl || '').trim(),
+    telegramSupportUsername: String(body.telegramSupportUsername || '').trim(),
+    supportEmail: String(body.supportEmail || '').trim(),
+    businessEmail: String(body.businessEmail || '').trim(),
+    dmcaNotice: String(body.dmcaNotice || '').trim()
+  });
+  res.json({ ok: true, config: saved });
+});
+
+app.get('/api/admin/contact/messages', requireAdmin, (req, res) => {
+  res.json(loadContactMessages());
+});
+
+app.put('/api/admin/contact/messages/:id', requireAdmin, async (req, res) => {
+  const { status } = req.body || {};
+  const messages = loadContactMessages();
+  const item = messages.find(m => m.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Message not found' });
+  if (status) item.status = status;
+  await saveContactMessages(messages);
+  res.json({ success: true, message: item });
+});
+
+app.delete('/api/admin/contact/messages/:id', requireAdmin, async (req, res) => {
+  let messages = loadContactMessages();
+  messages = messages.filter(m => m.id !== req.params.id);
+  await saveContactMessages(messages);
   res.json({ success: true });
 });
 

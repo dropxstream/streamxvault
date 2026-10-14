@@ -75,6 +75,9 @@
           <a href="#" class="sidebar-link" data-tab="vod" onclick="switchTab('vod', this)">
             <span class="link-icon">📺</span> VOD Management
           </a>
+          <a href="#" class="sidebar-link" data-tab="contact" onclick="switchTab('contact', this)">
+            <span class="link-icon">💬</span> Contact &amp; Telegram
+          </a>
         </nav>
       </aside>
 
@@ -381,6 +384,107 @@
           </div>
         </div>
 
+        <!-- Contact & Telegram Tab -->
+        <div class="admin-tab" id="tab-contact" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="font-weight: 700; margin: 0;">💬 Contact &amp; Telegram Management</h2>
+              <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-muted);">Manage your official Telegram channel, direct support handles, and view user inquiries submitted on the Contact Us page.</p>
+            </div>
+            <a href="/contact" target="_blank" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem;">🌐 Preview Contact Page ↗</a>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 2rem;">
+            
+            <!-- Telegram & Contact Settings Form -->
+            <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.25rem;">
+                <span style="font-size: 1.5rem;">✈️</span>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;">Telegram &amp; Support Settings</h3>
+                  <p style="margin: 0.15rem 0 0; font-size: 0.8rem; color: var(--text-muted);">Shown on public /contact page</p>
+                </div>
+              </div>
+
+              <form id="contact-settings-form" onsubmit="event.preventDefault(); saveContactSettings();">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                  <label for="admin-tg-url" style="font-size: 0.8rem; font-weight: 600;">Official Telegram Channel Link</label>
+                  <input type="url" id="admin-tg-url" placeholder="https://t.me/streamxvault" required style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                  <label for="admin-tg-name" style="font-size: 0.8rem; font-weight: 600;">Channel Display Name</label>
+                  <input type="text" id="admin-tg-name" placeholder="StreamXvault Official" required style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                  <label for="admin-tg-desc" style="font-size: 0.8rem; font-weight: 600;">Channel Tagline / Description</label>
+                  <textarea id="admin-tg-desc" rows="2" placeholder="Join our official Telegram channel for 4K release drops & direct community chat..." style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box; resize: vertical;"></textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                  <div class="form-group">
+                    <label for="admin-tg-support-url" style="font-size: 0.8rem; font-weight: 600;">Support Chat Link</label>
+                    <input type="url" id="admin-tg-support-url" placeholder="https://t.me/admin" style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box;">
+                  </div>
+                  <div class="form-group">
+                    <label for="admin-tg-support-user" style="font-size: 0.8rem; font-weight: 600;">Support Handle</label>
+                    <input type="text" id="admin-tg-support-user" placeholder="@streamxvault_support" style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box;">
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                  <div class="form-group">
+                    <label for="admin-support-email" style="font-size: 0.8rem; font-weight: 600;">Support Email</label>
+                    <input type="email" id="admin-support-email" placeholder="support@streamxvault.online" style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box;">
+                  </div>
+                  <div class="form-group">
+                    <label for="admin-business-email" style="font-size: 0.8rem; font-weight: 600;">Business Email</label>
+                    <input type="email" id="admin-business-email" placeholder="contact@streamxvault.online" style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box;">
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                  <label for="admin-dmca-notice" style="font-size: 0.8rem; font-weight: 600;">DMCA / Copyright Notice</label>
+                  <textarea id="admin-dmca-notice" rows="2" placeholder="DMCA instructions..." style="width: 100%; padding: 0.6rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-body); color: var(--text-primary); box-sizing: border-box; resize: vertical;"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="save-contact-settings-btn" style="width: 100%; padding: 0.75rem; font-weight: 700;">
+                  💾 Save Telegram &amp; Contact Settings
+                </button>
+              </form>
+            </div>
+
+            <!-- Inquiries Inbox Table -->
+            <div style="background: var(--bg-card); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;">User Inquiries Inbox</h3>
+                  <div style="font-size: 0.8rem; color: var(--text-muted);" id="contact-inbox-count">0 messages</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="loadContactMessagesAdmin()">🔄 Refresh</button>
+              </div>
+
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                      <th style="padding: 0.75rem;">Sender &amp; Contact</th>
+                      <th style="padding: 0.75rem;">Subject &amp; Message</th>
+                      <th style="padding: 0.75rem;">Status</th>
+                      <th style="padding: 0.75rem; text-align: right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="contact-messages-table">
+                    <!-- Populated via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
@@ -495,10 +599,43 @@
     </div>
   </div>
 
+  <!-- Contact Message Detail Modal -->
+  <div class="modal-overlay" id="message-modal">
+    <div class="modal" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>📬 User Inquiry Details</h3>
+        <button class="btn-icon" onclick="closeMessageModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; background: var(--bg-body); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: 1rem;">
+          <div><span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Sender:</span><strong id="msg-detail-name">Alex</strong></div>
+          <div><span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Email:</span><a id="msg-detail-email" href="#" style="color: var(--accent-cyan); font-weight: 600;">alex@example.com</a></div>
+          <div><span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Subject:</span><span id="msg-detail-subject" style="font-weight: 600;">General Inquiry</span></div>
+          <div><span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Telegram:</span><span id="msg-detail-telegram" style="color: #38bdf8; font-weight: 600;">@handle</span></div>
+          <div style="grid-column: span 2;"><span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Received:</span><span id="msg-detail-date" style="font-size: 0.85rem; color: var(--text-muted);">Timestamp</span></div>
+        </div>
+        <div class="form-group">
+          <label style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; display: block;">Message Content:</label>
+          <div id="msg-detail-body" style="padding: 1rem; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.92rem; line-height: 1.6; white-space: pre-wrap; max-height: 250px; overflow-y: auto;"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary btn-sm" id="msg-mark-read-btn" onclick="toggleMessageStatus('Read')">✓ Mark Read</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="msg-mark-replied-btn" onclick="toggleMessageStatus('Replied')">✓ Mark Replied</button>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <a id="msg-mailto-link" href="#" class="btn btn-primary btn-sm">✉️ Open Email Client</a>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="closeMessageModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=56"></script>
+  <script src="/js/admin.js?v=57"></script>
 </body>
 </html>
 
