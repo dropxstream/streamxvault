@@ -27,6 +27,18 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   const qualityIndicator = document.getElementById('quality-indicator');
   const poster = thumbUrl || (video && video.getAttribute('poster')) || '';
 
+  // Background pre-fetch of VAST pre-roll ad
+  let prerollAdPromise = null;
+  try {
+    prerollAdPromise = fetch('/api/vast/preroll', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : { hasAd: false })
+      .catch(() => ({ hasAd: false }));
+  } catch (err) {
+    prerollAdPromise = Promise.resolve({ hasAd: false });
+  }
+  let prerollHandled = false;
+  let isPrerollActive = false;
+
   if (hiddenVideo) hiddenVideo.remove();
 
   if (previewEl && previewEl.tagName === 'CANVAS') {
@@ -234,7 +246,42 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  function togglePlay() {
+  async function togglePlay() {
+    if (isPrerollActive) {
+      const adVid = document.getElementById('sxv-preroll-video');
+      if (adVid) {
+        if (adVid.paused) adVid.play();
+        else adVid.pause();
+      }
+      return;
+    }
+
+    if (!prerollHandled) {
+      prerollHandled = true;
+      container.classList.add('loading');
+
+      let adData = { hasAd: false };
+      try {
+        adData = await Promise.race([
+          prerollAdPromise,
+          new Promise(r => setTimeout(() => r({ hasAd: false }), 900))
+        ]);
+      } catch (e) {
+        adData = { hasAd: false };
+      }
+
+      if (adData && adData.hasAd && adData.mediaUrl) {
+        debugLog('Playing VAST Pre-roll ad: ' + adData.mediaUrl);
+        playPrerollAd(adData, () => {
+          isPrerollActive = false;
+          startActualPlayback();
+        });
+        return;
+      } else {
+        debugLog('No VAST ad available, playing video directly');
+      }
+    }
+
     if (video.paused) {
       startActualPlayback();
     } else {
@@ -243,6 +290,182 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       updatePlayBtn();
     }
   }
+
+  function playPrerollAd(adData, onComplete) {
+    isPrerollActive = true;
+    container.classList.remove('loading');
+    container.classList.remove('paused');
+
+    const existing = document.getElementById('sxv-preroll');
+    if (existing) existing.remove();
+
+    const prerollOverlay = document.createElement('div');
+    prerollOverlay.id = 'sxv-preroll';
+    prerollOverlay.className = 'sxv-preroll-overlay';
+
+    prerollOverlay.innerHTML = `
+      <video id="sxv-preroll-video" class="sxv-preroll-video" playsinline webkit-playsinline preload="auto"></video>
+      <div class="sxv-preroll-topbar">
+        <span class="sxv-preroll-badge" id="sxv-preroll-badge">Ad · ${adData.duration || 30}s</span>
+        ${adData.clickUrl ? `<a href="${encodeURI(adData.clickUrl)}" target="_blank" rel="noopener noreferrer" class="sxv-preroll-cta" id="sxv-preroll-cta">Visit Sponsor ↗</a>` : ''}
+      </div>
+      <div class="sxv-preroll-bottombar">
+        <button type="button" class="sxv-preroll-sound-btn" id="sxv-preroll-sound-btn" title="Toggle Sound">
+          <svg id="sxv-ad-vol-on" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+          <svg id="sxv-ad-vol-off" style="display:none;" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm4.5 9l-1.27 1.27L3 5.27 4.27 4 19 18.73 21 21zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+        </button>
+        <div class="sxv-preroll-skip-container" id="sxv-preroll-skip-container"></div>
+      </div>
+    `;
+
+    container.appendChild(prerollOverlay);
+
+    const adVideo = prerollOverlay.querySelector('#sxv-preroll-video');
+    const badge = prerollOverlay.querySelector('#sxv-preroll-badge');
+    const ctaBtn = prerollOverlay.querySelector('#sxv-preroll-cta');
+    const soundBtn = prerollOverlay.querySelector('#sxv-preroll-sound-btn');
+    const volOnIcon = prerollOverlay.querySelector('#sxv-ad-vol-on');
+    const volOffIcon = prerollOverlay.querySelector('#sxv-ad-vol-off');
+    const skipContainer = prerollOverlay.querySelector('#sxv-preroll-skip-container');
+
+    function pingBeacons(urls) {
+      if (!Array.isArray(urls)) return;
+      urls.forEach(url => {
+        if (!url) return;
+        try {
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(url);
+          } else {
+            (new Image()).src = url;
+          }
+        } catch (e) {
+          try { (new Image()).src = url; } catch (err) {}
+        }
+      });
+    }
+
+    let finished = false;
+    function finishPreroll() {
+      if (finished) return;
+      finished = true;
+      clearInterval(skipInterval);
+      clearTimeout(stallTimer);
+      try {
+        adVideo.pause();
+        adVideo.src = '';
+        adVideo.load();
+      } catch (e) {}
+      if (prerollOverlay && prerollOverlay.parentNode) {
+        prerollOverlay.parentNode.removeChild(prerollOverlay);
+      }
+      isPrerollActive = false;
+      onComplete();
+    }
+
+    function updateSoundIcons() {
+      if (adVideo.muted || adVideo.volume === 0) {
+        volOnIcon.style.display = 'none';
+        volOffIcon.style.display = 'block';
+      } else {
+        volOnIcon.style.display = 'block';
+        volOffIcon.style.display = 'none';
+      }
+    }
+
+    soundBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      adVideo.muted = !adVideo.muted;
+      updateSoundIcons();
+    });
+
+    function onAdClick(e) {
+      e.stopPropagation();
+      pingBeacons(adData.clickTracking);
+      if (adData.clickUrl) {
+        window.open(adData.clickUrl, '_blank', 'noopener,noreferrer');
+      }
+      if (!adVideo.paused) adVideo.pause();
+    }
+
+    adVideo.addEventListener('click', onAdClick);
+    if (ctaBtn) {
+      ctaBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        pingBeacons(adData.clickTracking);
+      });
+    }
+
+    let skipRemaining = Math.max(1, parseInt(adData.skipSeconds, 10) || 5);
+    function updateSkipUI() {
+      if (skipRemaining > 0) {
+        skipContainer.innerHTML = `<span class="sxv-skip-badge">Skip Ad in ${skipRemaining}s</span>`;
+      } else {
+        skipContainer.innerHTML = `<button type="button" class="sxv-skip-btn" id="sxv-skip-btn">Skip Ad ⏭</button>`;
+        const skipBtn = skipContainer.querySelector('#sxv-skip-btn');
+        if (skipBtn) {
+          skipBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            finishPreroll();
+          });
+        }
+      }
+    }
+    updateSkipUI();
+
+    const skipInterval = setInterval(() => {
+      if (!adVideo.paused) {
+        skipRemaining--;
+        updateSkipUI();
+        if (skipRemaining <= 0) {
+          clearInterval(skipInterval);
+        }
+      }
+    }, 1000);
+
+    let impFired = false;
+    adVideo.addEventListener('playing', () => {
+      if (!impFired) {
+        impFired = true;
+        pingBeacons(adData.impressions);
+      }
+    });
+
+    adVideo.addEventListener('timeupdate', () => {
+      if (badge && adVideo.duration) {
+        const rem = Math.max(0, Math.ceil(adVideo.duration - adVideo.currentTime));
+        badge.textContent = `Ad · ${rem}s`;
+      }
+    });
+
+    adVideo.addEventListener('ended', finishPreroll);
+    adVideo.addEventListener('error', (e) => {
+      console.warn('[StreamX VAST] Ad video playback error, bypassing to content', e);
+      finishPreroll();
+    });
+
+    const stallTimer = setTimeout(() => {
+      if (adVideo.currentTime === 0 && adVideo.paused) {
+        console.warn('[StreamX VAST] Ad video stalled, bypassing to content');
+        finishPreroll();
+      }
+    }, 4000);
+
+    adVideo.src = adData.mediaUrl;
+    adVideo.volume = video.volume || 1;
+    adVideo.muted = video.muted;
+    updateSoundIcons();
+
+    const playPromise = adVideo.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(err => {
+        debugLog('Ad play muted fallback: ' + err.name);
+        adVideo.muted = true;
+        updateSoundIcons();
+        adVideo.play().catch(finishPreroll);
+      });
+    }
+  }
+
 
   function startActualPlayback() {
     debugLog('Play requested, readyState: ' + video.readyState);
@@ -482,6 +705,13 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   document.addEventListener('keydown', (e) => {
     const activeTag = document.activeElement && document.activeElement.tagName;
     if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+    if (isPrerollActive) {
+      if (e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        togglePlay();
+      }
+      return;
+    }
     switch (e.key.toLowerCase()) {
       case ' ': case 'k': e.preventDefault(); togglePlay(); break;
       case 'f': e.preventDefault(); toggleFullscreen(); break;

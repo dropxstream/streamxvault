@@ -1683,6 +1683,134 @@ app.get('/api/admin/live-traffic', requireAdmin, (req, res) => {
   });
 });
 
+// VAST Pre-roll Resolver for ExoClick & partner exchanges
+async function resolveVast(tagUrl, clientIp, userAgent, referer) {
+  const result = {
+    hasAd: false,
+    mediaUrl: null,
+    clickUrl: null,
+    impressions: [],
+    clickTracking: [],
+    skipSeconds: 5,
+    duration: 30
+  };
+
+  const headers = {
+    'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    'Accept': 'application/xml, text/xml, */*',
+    'Referer': referer || 'https://streamxvault.online/'
+  };
+  if (clientIp) {
+    headers['X-Forwarded-For'] = clientIp;
+    headers['X-Real-IP'] = clientIp;
+  }
+
+  let currentUrl = tagUrl;
+  let depth = 0;
+
+  while (currentUrl && depth < 4) {
+    depth++;
+    try {
+      const resp = await fetch(currentUrl, {
+        headers,
+        timeout: 3500,
+        redirect: 'follow'
+      });
+      if (!resp.ok) break;
+      const xml = await resp.text();
+
+      if (!xml || (!xml.includes('<Ad') && !xml.includes('<VASTAdTagURI>'))) {
+        break;
+      }
+
+      // Collect impressions
+      const impMatches = [...xml.matchAll(/<Impression[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/Impression>/gi)];
+      for (const m of impMatches) {
+        const u = m[1].trim();
+        if (u && !result.impressions.includes(u)) result.impressions.push(u);
+      }
+
+      // Collect ClickTracking
+      const ctMatches = [...xml.matchAll(/<ClickTracking[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/ClickTracking>/gi)];
+      for (const m of ctMatches) {
+        const u = m[1].trim();
+        if (u && !result.clickTracking.includes(u)) result.clickTracking.push(u);
+      }
+
+      // Collect ClickThrough
+      const clickThrough = xml.match(/<ClickThrough[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/ClickThrough>/i);
+      if (clickThrough && clickThrough[1]) {
+        result.clickUrl = clickThrough[1].trim();
+      }
+
+      // Collect skipoffset
+      const skipMatch = xml.match(/skipoffset=["'](\d{2}:\d{2}:\d{2}|\d+)["']/i);
+      if (skipMatch) {
+        const val = skipMatch[1];
+        if (val.includes(':')) {
+          const parts = val.split(':').map(Number);
+          result.skipSeconds = (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        } else {
+          result.skipSeconds = parseInt(val, 10) || 5;
+        }
+      }
+
+      // Collect Duration
+      const durMatch = xml.match(/<Duration>(\d{2}:\d{2}:\d{2})<\/Duration>/i);
+      if (durMatch) {
+        const parts = durMatch[1].split(':').map(Number);
+        result.duration = (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+      }
+
+      // Collect MediaFile
+      const mediaMatches = [...xml.matchAll(/<MediaFile[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/MediaFile>/gi)];
+      for (const mm of mediaMatches) {
+        const mUrl = mm[1].trim();
+        if (mUrl.endsWith('.mp4') || mUrl.includes('.mp4') || mUrl.includes('video')) {
+          result.mediaUrl = mUrl;
+          result.hasAd = true;
+          break;
+        }
+      }
+      if (result.hasAd) {
+        break;
+      }
+
+      // Check wrapper VASTAdTagURI
+      const tagMatch = xml.match(/<VASTAdTagURI[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/VASTAdTagURI>/i);
+      if (tagMatch && tagMatch[1]) {
+        currentUrl = tagMatch[1].trim();
+      } else {
+        break;
+      }
+    } catch (e) {
+      console.error('[VAST Resolve Error at step ' + depth + ']:', e.message);
+      break;
+    }
+  }
+
+  return result;
+}
+
+app.get('/api/vast/preroll', async (req, res) => {
+  try {
+    const clientIp = req.headers['cf-connecting-ip'] || 
+                     req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                     req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    const referer = req.headers['referer'] || 'https://streamxvault.online/';
+    const sub = Date.now();
+    const vastTagUrl = `https://s.magsrv.com/v1/vast.php?idz=6047230&ex-av=name&sub=${sub}`;
+
+    const adData = await resolveVast(vastTagUrl, clientIp, userAgent, referer);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.json(adData);
+  } catch (err) {
+    console.error('[VAST Route Error]:', err.message);
+    res.json({ hasAd: false });
+  }
+});
+
 app.get('/watch', (req, res) => {
   let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
   const video = loadVideos().find((item) => item && item.id === req.query.v);
