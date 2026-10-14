@@ -121,7 +121,6 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       });
       const start = pickStartLevel(hls.levels);
       hls.startLevel = start;
-      hls.currentLevel = -1;
       setQualityLabel(levelLabel(hls.levels[start]));
     });
 
@@ -132,6 +131,9 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
 
     hls.on(Hls.Events.FRAG_LOADED, () => {
       networkRetries = 0;
+      if (!video.paused) {
+        container.classList.remove('loading');
+      }
     });
 
     hls.on(Hls.Events.ERROR, function (event, data) {
@@ -232,23 +234,13 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  let preRollPlayed = false;
-  const vastAdUrl = 'https://s.magsrv.com/v1/vast.php?idz=6047230&ex-av=name';
-
   function togglePlay() {
     if (video.paused) {
-      if (!preRollPlayed && typeof window.playVastAd === 'function') {
-        preRollPlayed = true;
-        container.classList.add('loading');
-        window.playVastAd(container, vastAdUrl, () => {
-          startActualPlayback();
-        });
-        return;
-      }
       startActualPlayback();
     } else {
       video.pause();
       container.classList.remove('loading');
+      updatePlayBtn();
     }
   }
 
@@ -266,8 +258,12 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
         if (e.name === 'NotAllowedError') {
           video.muted = true;
           updateVolumeIcon();
-          video.play().catch(() => {
-            showError("Click to play (playback blocked by browser)");
+          video.play().then(() => {
+            container.classList.remove('loading');
+            updatePlayBtn();
+          }).catch(() => {
+            container.classList.remove('loading');
+            showError("Tap to play");
           });
         }
       });
@@ -276,7 +272,9 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
 
   video.addEventListener('waiting', () => {
     debugLog('Video buffering...');
-    container.classList.add('loading');
+    if (!video.paused && video.readyState < 3) {
+      container.classList.add('loading');
+    }
   });
 
   video.addEventListener('playing', () => {
@@ -291,6 +289,23 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       container.classList.remove('loading');
     }
     updatePlayBtn();
+  });
+
+  video.addEventListener('canplaythrough', () => {
+    if (!video.paused) {
+      container.classList.remove('loading');
+    }
+    updatePlayBtn();
+  });
+
+  video.addEventListener('timeupdate', () => {
+    if (!video.paused && container.classList.contains('loading')) {
+      container.classList.remove('loading');
+    }
+    if (!isScrubbing && video.duration) {
+      currentTimeDisplay.textContent = formatTime(video.currentTime);
+      progressFilled.style.width = `${(video.currentTime / video.duration) * 100}%`;
+    }
   });
 
   function updatePlayBtn() {
@@ -342,13 +357,6 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   });
 
   let isScrubbing = false;
-
-  video.addEventListener('timeupdate', () => {
-    if (!isScrubbing && video.duration) {
-      currentTimeDisplay.textContent = formatTime(video.currentTime);
-      progressFilled.style.width = `${(video.currentTime / video.duration) * 100}%`;
-    }
-  });
 
   function hoverPos(e) {
     const rect = progressContainer.getBoundingClientRect();
