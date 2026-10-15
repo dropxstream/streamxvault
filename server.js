@@ -6,6 +6,7 @@ try { require('dotenv').config(); } catch (e) {}
 const express = require('express');
 const fetch = global.fetch || require('node-fetch');
 const { createStorage } = require('./storage');
+const auth2FA = require('./auth-2fa');
 
 // ==================== EMAIL CONFIGURATION (RESEND API + SMTP FALLBACK) ====================
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
@@ -513,27 +514,239 @@ function bump(map, key, by) {
   map[key] = (map[key] || 0) + (by || 1);
 }
 
+const pending2FASetups = new Map();
+
 app.post('/api/auth/login', (req, res) => {
+  const clientIp = req.headers['cf-connecting-ip'] || 
+                   req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                   req.socket.remoteAddress;
+
+  const rateCheck = auth2FA.checkRateLimit(clientIp);
+  if (!rateCheck.allowed) {
+    return res.status(429).json({
+      error: `Too many failed attempts. Temporarily locked for security. Please try again in ${rateCheck.waitMins} minute(s).`
+    });
+  }
+
   const user = String((req.body && req.body.username) || '');
   const pass = String((req.body && req.body.password) || '');
   const expectUser = process.env.ADMIN_USERNAME || 'admin';
   const expectPass = process.env.ADMIN_PASSWORD || '';
+
   if (!expectPass || user !== expectUser || pass !== expectPass) {
+    auth2FA.recordFailedLogin(clientIp);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+
+  // Credentials are correct. Check if 2FA is enabled.
+  const cfg2FA = auth2FA.load2FAConfig();
+  if (cfg2FA.enabled && cfg2FA.secret) {
+    const tempToken = auth2FA.createPreAuthSession(user);
+    return res.json({
+      requires2FA: true,
+      tempToken,
+      message: 'Please enter the 6-digit verification code from your authenticator app.'
+    });
+  }
+
+  // 2FA is not enabled
+  auth2FA.resetLoginRateLimit(clientIp);
   const token = crypto.randomBytes(24).toString('hex');
   adminTokens.add(token);
   res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400');
-  res.json({ ok: true });
+  res.json({ ok: true, requires2FA: false, requires2FASetup: true });
 });
+
+app.post('/api/auth/verify-2fa', (req, res) => {
+  const clientIp = req.headers['cf-connecting-ip'] || 
+                   req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                   req.socket.remoteAddress;
+
+  const rateCheck = auth2FA.checkRateLimit(clientIp);
+  if (!rateCheck.allowed) {
+    return res.status(429).json({
+      error: `Too many failed attempts. Please try again in ${rateCheck.waitMins} minute(s).`
+    });
+  }
+
+  const tempToken = String((req.body && req.body.tempToken) || '');
+  const code = String((req.body && req.body.code) || '');
+
+  const session = auth2FA.getPreAuthSession(tempToken);
+  if (!session) {
+    return res.status(401).json({ error: '2FA session expired. Please log in again.' });
+  }
+
+  session.attempts = (session.attempts || 0) + 1;
+  if (session.attempts > 5) {
+    auth2FA.consumePreAuthSession(tempToken);
+    auth2FA.recordFailedLogin(clientIp);
+    return res.status(429).json({ error: 'Too many invalid attempts. Session terminated.' });
+  }
+
+  const cfg2FA = auth2FA.load2FAConfig();
+  if (!cfg2FA.enabled || !cfg2FA.secret) {
+    return res.status(400).json({ error: 'Two-factor authentication is not configured.' });
+  }
+
+  const verifyResult = auth2FA.verifyCodeOrBackup(cfg2FA, code);
+  if (!verifyResult.valid) {
+    auth2FA.recordFailedLogin(clientIp);
+    if (verifyResult.replayed) {
+      return res.status(400).json({ error: 'This code was already used. Please wait for the next 30-second code.' });
+    }
+    return res.status(401).json({ error: 'Invalid 2FA code. Please check your authenticator app.' });
+  }
+
+  // 2FA Verification successful
+  auth2FA.consumePreAuthSession(tempToken);
+  auth2FA.resetLoginRateLimit(clientIp);
+
+  const token = crypto.randomBytes(24).toString('hex');
+  adminTokens.add(token);
+  res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400');
+  res.json({
+    ok: true,
+    usedBackupCode: verifyResult.type === 'backup',
+    message: 'Two-Factor Authentication verified successfully.'
+  });
+});
+
 app.post('/api/auth/logout', (req, res) => {
-  adminTokens.delete(parseCookies(req).sxv_admin || '');
+  const token = parseCookies(req).sxv_admin || '';
+  adminTokens.delete(token);
+  pending2FASetups.delete(token);
   res.setHeader('Set-Cookie', 'sxv_admin=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
   res.json({ ok: true });
 });
+
 app.get('/api/auth/status', (req, res) => {
-  res.json({ isAdmin: isAdmin(req) });
+  const loggedIn = isAdmin(req);
+  const cfg2FA = auth2FA.load2FAConfig();
+  res.json({
+    isAdmin: loggedIn,
+    twoFactorEnabled: cfg2FA.enabled && !!cfg2FA.secret
+  });
 });
+
+// ==================== 2FA MANAGEMENT (ADMIN ONLY) ====================
+app.get('/api/admin/2fa/status', requireAdmin, (req, res) => {
+  const cfg = auth2FA.load2FAConfig();
+  const backupCodesTotal = Array.isArray(cfg.backupCodes) ? cfg.backupCodes.length : 0;
+  const backupCodesRemaining = Array.isArray(cfg.backupCodes) 
+    ? cfg.backupCodes.filter(c => typeof c === 'object' ? !c.used : true).length 
+    : 0;
+
+  res.json({
+    enabled: cfg.enabled && !!cfg.secret,
+    configuredAt: cfg.configuredAt,
+    backupCodesTotal,
+    backupCodesRemaining
+  });
+});
+
+app.post('/api/admin/2fa/setup/start', requireAdmin, (req, res) => {
+  const adminToken = parseCookies(req).sxv_admin || '';
+  const secret = auth2FA.generateSecret();
+  const backupCodes = auth2FA.generateBackupCodes(8);
+  const expectUser = process.env.ADMIN_USERNAME || 'admin';
+  const otpauthUri = auth2FA.getOtpauthUri(secret, expectUser, 'StreamXvault');
+
+  pending2FASetups.set(adminToken, {
+    secret,
+    backupCodes,
+    createdAt: Date.now()
+  });
+
+  res.json({
+    secret,
+    formattedSecret: auth2FA.formatSecret(secret),
+    otpauthUri,
+    backupCodes
+  });
+});
+
+app.post('/api/admin/2fa/setup/confirm', requireAdmin, (req, res) => {
+  const adminToken = parseCookies(req).sxv_admin || '';
+  const pending = pending2FASetups.get(adminToken);
+  if (!pending) {
+    return res.status(400).json({ error: '2FA setup session expired. Please click "Enable 2FA" again.' });
+  }
+
+  const code = String((req.body && req.body.code) || '').trim();
+  const totpRes = auth2FA.verifyTOTP(pending.secret, code, 0);
+
+  if (!totpRes.valid) {
+    return res.status(400).json({ error: 'Verification code incorrect. Please verify the 6-digit code on your phone and try again.' });
+  }
+
+  // Save 2FA config
+  const cfg = {
+    enabled: true,
+    secret: pending.secret,
+    backupCodes: pending.backupCodes.map(code => ({ code, used: false, usedAt: null })),
+    configuredAt: new Date().toISOString(),
+    lastUsedStep: totpRes.step
+  };
+
+  if (!auth2FA.save2FAConfig(cfg)) {
+    return res.status(500).json({ error: 'Failed to save 2FA configuration.' });
+  }
+
+  pending2FASetups.delete(adminToken);
+  res.json({
+    ok: true,
+    message: 'Two-Factor Authentication is now active! Your admin panel is fully protected.'
+  });
+});
+
+app.post('/api/admin/2fa/disable', requireAdmin, (req, res) => {
+  const pass = String((req.body && req.body.password) || '');
+  const code = String((req.body && req.body.code) || '');
+  const expectPass = process.env.ADMIN_PASSWORD || '';
+
+  if (!expectPass || pass !== expectPass) {
+    return res.status(401).json({ error: 'Current admin password incorrect.' });
+  }
+
+  const cfg = auth2FA.load2FAConfig();
+  if (cfg.enabled && cfg.secret) {
+    const verifyResult = auth2FA.verifyCodeOrBackup(cfg, code);
+    if (!verifyResult.valid) {
+      return res.status(401).json({ error: 'Invalid 2FA code. Please enter the current code from your phone.' });
+    }
+  }
+
+  cfg.enabled = false;
+  cfg.secret = '';
+  cfg.backupCodes = [];
+  cfg.configuredAt = null;
+  auth2FA.save2FAConfig(cfg);
+
+  res.json({ ok: true, message: 'Two-Factor Authentication has been disabled.' });
+});
+
+app.post('/api/admin/2fa/backup-codes/regenerate', requireAdmin, (req, res) => {
+  const code = String((req.body && req.body.code) || '');
+  const cfg = auth2FA.load2FAConfig();
+
+  if (!cfg.enabled || !cfg.secret) {
+    return res.status(400).json({ error: '2FA is not enabled.' });
+  }
+
+  const totpRes = auth2FA.verifyTOTP(cfg.secret, code, cfg.lastUsedStep);
+  if (!totpRes.valid) {
+    return res.status(401).json({ error: 'Invalid 2FA code. Please provide current authenticator code.' });
+  }
+
+  cfg.lastUsedStep = totpRes.step;
+  const newCodes = auth2FA.generateBackupCodes(8);
+  cfg.backupCodes = newCodes.map(c => ({ code: c, used: false, usedAt: null }));
+  auth2FA.save2FAConfig(cfg);
+
+  res.json({ ok: true, backupCodes: newCodes });
+});
+
 
 app.get('/api/admin/videos', requireAdmin, (req, res) => {
   res.json(loadVideos().sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0)));

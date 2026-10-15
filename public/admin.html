@@ -7,6 +7,7 @@
   <meta name="description" content="StreamXvault Admin Panel — Upload and manage streaming content.">
   <link rel="stylesheet" href="/css/style.css?v=54">
   <link rel="icon" type="image/png" href="/favicon.png">
+  <script src="/js/qrcode.min.js"></script>
 </head>
 <body>
   <!-- Navbar -->
@@ -39,21 +40,45 @@
     <!-- Login Screen -->
     <div class="admin-login" id="login-screen">
       <div class="login-card animate-slide-up">
-        <div class="login-icon">🔐</div>
-        <h2>Admin Access</h2>
-        <p class="login-subtitle">Enter your password to manage content</p>
-        <form id="login-form">
-          <div class="form-group">
-            <label for="admin-username">Username</label>
-            <input type="text" id="admin-username" placeholder="Enter admin username" required autocomplete="username">
-          </div>
-          <div class="form-group">
-            <label for="admin-password">Password</label>
-            <input type="password" id="admin-password" placeholder="Enter admin password" required autocomplete="current-password">
-            <div class="form-error" id="login-error">Invalid credentials. Try again.</div>
-          </div>
-          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">🔓 Login</button>
-        </form>
+        
+        <!-- Step 1: Username & Password -->
+        <div id="login-step-credentials">
+          <div class="login-icon">🔐</div>
+          <h2>Admin Access</h2>
+          <p class="login-subtitle">Enter your admin credentials to continue</p>
+          <form id="login-form">
+            <div class="form-group">
+              <label for="admin-username">Username</label>
+              <input type="text" id="admin-username" placeholder="Enter admin username" required autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="admin-password">Password</label>
+              <input type="password" id="admin-password" placeholder="Enter admin password" required autocomplete="current-password">
+              <div class="form-error" id="login-error">Invalid credentials. Try again.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg" id="login-submit-btn" style="width: 100%;">🔓 Login</button>
+          </form>
+        </div>
+
+        <!-- Step 2: Two-Factor Authentication -->
+        <div id="login-step-2fa" style="display: none;">
+          <div class="login-icon" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);">🛡️</div>
+          <h2>Two-Factor Auth</h2>
+          <p class="login-subtitle" id="two-factor-prompt-text">Open Google Authenticator or Authy on your phone and enter the 6-digit code.</p>
+          <form id="two-factor-form">
+            <div class="form-group">
+              <label for="two-factor-code" id="two-factor-code-label">Authentication Code</label>
+              <input type="text" id="two-factor-code" placeholder="000 000" required autocomplete="one-time-code" inputmode="numeric" maxlength="11" style="text-align: center; font-size: 1.5rem; font-family: monospace; letter-spacing: 4px; font-weight: 700;">
+              <div class="form-error" id="two-factor-error">Invalid 2FA code. Please try again.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg" id="two-factor-submit-btn" style="width: 100%;">🛡️ Verify &amp; Access Dashboard</button>
+            <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; text-align: center; font-size: 0.85rem;">
+              <a href="#" id="toggle-backup-code-btn" style="color: #38bdf8; text-decoration: none; font-weight: 600;">🔑 Use a backup recovery code</a>
+              <a href="#" id="back-to-credentials-btn" style="color: var(--text-muted); text-decoration: none;">← Back to login</a>
+            </div>
+          </form>
+        </div>
+
       </div>
     </div>
 
@@ -78,6 +103,9 @@
           <a href="#" class="sidebar-link" data-tab="contact" onclick="switchTab('contact', this)">
             <span class="link-icon">💬</span> Contact &amp; Telegram
           </a>
+          <a href="#" class="sidebar-link" data-tab="security" onclick="switchTab('security', this)">
+            <span class="link-icon">🔒</span> Security (2FA)
+          </a>
         </nav>
       </aside>
 
@@ -85,6 +113,22 @@
       <div class="admin-main">
         <!-- Dashboard Tab -->
         <div class="admin-tab active" id="tab-dashboard">
+          <!-- Security Alert Banner (shows when 2FA is not enabled) -->
+          <div id="security-banner-2fa" style="display: none; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 1.5rem;">🛡️</span>
+              <div>
+                <strong style="color: #fbbf24; font-size: 0.92rem;">Security Recommendation: Your GitHub Code is Public!</strong>
+                <p style="margin: 0.2rem 0 0; font-size: 0.82rem; color: #e2e8f0; line-height: 1.35;">
+                  Enable Two-Factor Authentication (Google Authenticator / Authy) so only your physical phone can access this admin panel.
+                </p>
+              </div>
+            </div>
+            <button class="btn btn-sm" style="background: #f59e0b; color: #000; font-weight: 700; white-space: nowrap;" onclick="switchTab('security', document.querySelector('.sidebar-link[data-tab=\'security\']'))">
+              Enable 2FA Now →
+            </button>
+          </div>
+
           <h2 style="margin-bottom: 1.5rem; font-weight: 700;">📊 Dashboard</h2>
           <div class="stats-grid" id="stats-grid">
             <div class="stat-card">
@@ -485,6 +529,137 @@
           </div>
         </div>
 
+        <!-- Security (2FA) Tab -->
+        <div class="admin-tab" id="tab-security" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2 style="font-weight: 700; margin: 0;">🔒 Security &amp; Two-Factor Authentication (2FA)</h2>
+              <p style="margin: 0.35rem 0 0; font-size: 0.88rem; color: var(--text-muted);">
+                Protect your admin panel with Google Authenticator, Authy, Apple Passwords, or Microsoft Authenticator.
+              </p>
+            </div>
+            <div id="security-status-badge" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.9rem; border-radius: 20px; font-weight: 700; font-size: 0.82rem; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+              <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+              <span id="security-status-text">2FA Inactive</span>
+            </div>
+          </div>
+
+          <!-- Why 2FA Alert -->
+          <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.75rem;">
+            <div style="display: flex; gap: 1rem; align-items: flex-start;">
+              <span style="font-size: 1.75rem;">🛡️</span>
+              <div>
+                <strong style="color: #38bdf8; font-size: 0.95rem;">Why is Two-Factor Authentication essential?</strong>
+                <p style="margin: 0.35rem 0 0; font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;">
+                  Because your <strong>GitHub repository is public</strong>, anyone can inspect your source code and attempt brute-force login attacks. Enabling 2FA guarantees that <strong>only someone holding your physical phone</strong> can access the admin dashboard, even if someone discovers your password.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2FA Active View -->
+          <div id="twofa-active-container" style="display: none;">
+            <div class="stat-card" style="padding: 1.75rem; margin-bottom: 1.5rem; border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.05);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <span style="font-size: 1.5rem;">✅</span>
+                    <h3 style="margin: 0; font-size: 1.15rem; color: #10b981;">Two-Factor Authentication is Active &amp; Enforced</h3>
+                  </div>
+                  <p style="margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--text-muted);" id="twofa-configured-date">Configured on: Active</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="showRegenerateBackupCodesModal()">🔄 Regenerate Backup Codes</button>
+                  <button type="button" class="btn btn-danger btn-sm" onclick="showDisable2FAModal()">🚫 Disable 2FA</button>
+                </div>
+              </div>
+
+              <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                  <span style="font-size: 0.85rem; color: var(--text-muted); display: block;">Backup Recovery Codes:</span>
+                  <strong style="font-size: 1.1rem; color: #38bdf8;" id="twofa-backup-codes-count">8 of 8 available</strong>
+                  <span style="font-size: 0.78rem; color: var(--text-muted); margin-left: 0.5rem;">(Use if you ever lose access to your phone)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2FA Setup / Inactive View -->
+          <div id="twofa-inactive-container">
+            <div class="stat-card" style="padding: 2rem; border: 1px solid var(--border-color); background: var(--bg-card);">
+              <div id="twofa-start-step">
+                <div style="text-align: center; max-width: 550px; margin: 0 auto; padding: 1rem 0;">
+                  <div style="font-size: 3rem; margin-bottom: 1rem;">📲</div>
+                  <h3 style="font-size: 1.3rem; margin-bottom: 0.6rem;">Set Up Google Authenticator</h3>
+                  <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;">
+                    Link StreamXvault with Google Authenticator, Authy, Apple Passwords, or Microsoft Authenticator to generate one-time login codes on your mobile phone.
+                  </p>
+                  <button type="button" class="btn btn-primary btn-lg" onclick="start2FASetupWizard()">
+                    🛡️ Begin 2FA Setup Wizard
+                  </button>
+                </div>
+              </div>
+
+              <!-- Setup Wizard (revealed after clicking Begin) -->
+              <div id="twofa-wizard-step" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;" class="twofa-wizard-grid">
+                  <!-- Left: QR Code & Key -->
+                  <div>
+                    <h4 style="font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                      <span style="background: var(--accent-gradient); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">1</span>
+                      Scan QR Code in your Authenticator App
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+                      Open Google Authenticator, tap the <strong>+</strong> button, and choose <strong>Scan a QR code</strong>.
+                    </p>
+                    <div style="display: flex; justify-content: center; align-items: center; padding: 1.25rem; background: #ffffff; border-radius: 12px; width: fit-content; margin: 0 auto 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.4);">
+                      <div id="twofa-qr-code"></div>
+                    </div>
+
+                    <div style="margin-top: 1rem;">
+                      <span style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Or enter code manually:</span>
+                      <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <code id="twofa-secret-display" style="flex: 1; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: 6px; font-family: monospace; font-size: 0.88rem; color: #38bdf8; letter-spacing: 2px; text-align: center; word-break: break-all;"></code>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="copy2FASecret(this)">📋 Copy</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Right: Backup Codes & Verification -->
+                  <div>
+                    <h4 style="font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                      <span style="background: var(--accent-gradient); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">2</span>
+                      Save One-Time Backup Recovery Codes
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                      Keep these codes in a safe place. If you ever lose your phone, each code can be used once to log in.
+                    </p>
+                    <div id="twofa-backup-codes-display" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; background: rgba(0,0,0,0.35); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; text-align: center; margin-bottom: 0.75rem;">
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="copyBackupCodes(this)" style="flex: 1;">📋 Copy All Codes</button>
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="downloadBackupCodes()" style="flex: 1;">💾 Download .txt</button>
+                    </div>
+
+                    <h4 style="font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                      <span style="background: var(--accent-gradient); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">3</span>
+                      Verify Code &amp; Activate
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                      Enter the 6-digit code currently shown in your authenticator app to confirm setup.
+                    </p>
+                    <div style="display: flex; gap: 0.5rem;">
+                      <input type="text" id="twofa-confirm-code" placeholder="000000" maxlength="6" inputmode="numeric" style="flex: 1; font-family: monospace; font-size: 1.2rem; text-align: center; letter-spacing: 4px; font-weight: 700;">
+                      <button type="button" class="btn btn-primary" onclick="confirm2FASetup()" id="twofa-activate-btn">✅ Activate 2FA</button>
+                    </div>
+                    <div id="twofa-setup-error" class="form-error" style="margin-top: 0.5rem;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
@@ -632,10 +807,62 @@
     </div>
   </div>
 
+  <!-- Disable 2FA Modal -->
+  <div class="modal-overlay" id="disable-2fa-modal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>🚫 Disable Two-Factor Authentication</h3>
+        <button class="btn-icon" onclick="closeDisable2FAModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: #f87171; font-size: 0.9rem; line-height: 1.4; margin-bottom: 1rem;">
+          ⚠️ <strong>Security Warning:</strong> Disabling 2FA leaves your admin panel protected only by password. Because your GitHub code is public, this reduces your security.
+        </p>
+        <div class="form-group">
+          <label for="disable-2fa-password">Admin Password</label>
+          <input type="password" id="disable-2fa-password" placeholder="Enter current admin password" required>
+        </div>
+        <div class="form-group">
+          <label for="disable-2fa-code">Current 6-Digit Code (or Backup Code)</label>
+          <input type="text" id="disable-2fa-code" placeholder="000 000" maxlength="9" style="font-family: monospace; letter-spacing: 2px; text-align: center; font-weight: 700;">
+          <div class="form-error" id="disable-2fa-error"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDisable2FAModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDisable2FA()">Disable 2FA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regenerate Backup Codes Modal -->
+  <div class="modal-overlay" id="regenerate-codes-modal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>🔄 Regenerate Backup Codes</h3>
+        <button class="btn-icon" onclick="closeRegenerateCodesModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 1rem;">
+          Generating new backup codes will immediately invalidate all existing unused recovery codes. Enter your current 6-digit authenticator code to proceed:
+        </p>
+        <div class="form-group">
+          <label for="regen-codes-code">Current 6-Digit Code</label>
+          <input type="text" id="regen-codes-code" placeholder="000 000" maxlength="6" inputmode="numeric" style="font-family: monospace; letter-spacing: 2px; text-align: center; font-weight: 700;">
+          <div class="form-error" id="regen-codes-error"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeRegenerateCodesModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmRegenerateBackupCodes()">Generate New Codes</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=57"></script>
+  <script src="/js/admin.js?v=59"></script>
 </body>
 </html>
 

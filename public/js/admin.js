@@ -71,36 +71,165 @@ async function checkAuth() {
   }
 }
 
-// Login
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const username = document.getElementById('admin-username').value;
-  const password = document.getElementById('admin-password').value;
-  const errorEl = document.getElementById('login-error');
+// ==================== Auth & 2FA State ====================
+let currentPreAuthToken = null;
+let isUsingBackupCode = false;
 
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
+// Step 1: Login with Username & Password
+const loginForm = document.getElementById('login-form');
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('admin-username').value.trim();
+    const password = document.getElementById('admin-password').value;
+    const errorEl = document.getElementById('login-error');
+    const submitBtn = document.getElementById('login-submit-btn');
 
-    const data = await res.json();
-
-    if (res.ok) {
-      showToast('Welcome, Admin! 🎉', 'success');
-      showDashboard();
-      loadDashboard();
-    } else {
-      errorEl.classList.add('visible');
-      errorEl.textContent = data.error || 'Invalid credentials. Try again.';
-      document.getElementById('admin-password').value = '';
-      setTimeout(() => errorEl.classList.remove('visible'), 3000);
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '⏳ Verifying...';
     }
-  } catch (err) {
-    showToast('Login failed. Please try again.', 'error');
-  }
-});
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '🔓 Login';
+      }
+
+      if (res.ok) {
+        if (data.requires2FA) {
+          // 2FA is required! Transition to Step 2
+          currentPreAuthToken = data.tempToken;
+          document.getElementById('login-step-credentials').style.display = 'none';
+          document.getElementById('login-step-2fa').style.display = 'block';
+          const codeInput = document.getElementById('two-factor-code');
+          codeInput.value = '';
+          codeInput.focus();
+          showToast('Credentials accepted. Please enter your 2FA code.', 'info');
+        } else {
+          // Standard login without 2FA
+          showToast('Welcome, Admin! 🎉', 'success');
+          showDashboard();
+          loadDashboard();
+        }
+      } else {
+        errorEl.classList.add('visible');
+        errorEl.textContent = data.error || 'Invalid credentials. Try again.';
+        document.getElementById('admin-password').value = '';
+        setTimeout(() => errorEl.classList.remove('visible'), 4000);
+      }
+    } catch (err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '🔓 Login';
+      }
+      showToast('Login request failed. Please try again.', 'error');
+    }
+  });
+}
+
+// Step 2: Verify Two-Factor Authentication Code
+const twoFactorForm = document.getElementById('two-factor-form');
+if (twoFactorForm) {
+  twoFactorForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = document.getElementById('two-factor-code').value.trim();
+    const errorEl = document.getElementById('two-factor-error');
+    const submitBtn = document.getElementById('two-factor-submit-btn');
+
+    if (!code) return;
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '⏳ Verifying code...';
+    }
+
+    try {
+      const res = await fetch('/api/auth/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempToken: currentPreAuthToken, code })
+      });
+
+      const data = await res.json();
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '🛡️ Verify & Access Dashboard';
+      }
+
+      if (res.ok) {
+        currentPreAuthToken = null;
+        showToast('Two-Factor Authentication Verified! 🎉', 'success');
+        showDashboard();
+        loadDashboard();
+      } else {
+        errorEl.classList.add('visible');
+        errorEl.textContent = data.error || 'Invalid 2FA code. Please check your app.';
+        document.getElementById('two-factor-code').value = '';
+        document.getElementById('two-factor-code').focus();
+        setTimeout(() => errorEl.classList.remove('visible'), 4000);
+      }
+    } catch (err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '🛡️ Verify & Access Dashboard';
+      }
+      showToast('Verification failed. Please try again.', 'error');
+    }
+  });
+}
+
+// Toggle between 6-digit TOTP code and 8-character Backup Code
+const toggleBackupBtn = document.getElementById('toggle-backup-code-btn');
+if (toggleBackupBtn) {
+  toggleBackupBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    isUsingBackupCode = !isUsingBackupCode;
+    const label = document.getElementById('two-factor-code-label');
+    const input = document.getElementById('two-factor-code');
+    const prompt = document.getElementById('two-factor-prompt-text');
+
+    if (isUsingBackupCode) {
+      label.textContent = 'Backup Recovery Code';
+      input.placeholder = 'XXXX-XXXX';
+      input.maxLength = 9;
+      input.inputMode = 'text';
+      prompt.textContent = 'Enter one of your saved 8-character recovery backup codes.';
+      toggleBackupBtn.textContent = '📱 Use 6-digit Authenticator code';
+    } else {
+      label.textContent = 'Authentication Code';
+      input.placeholder = '000 000';
+      input.maxLength = 6;
+      input.inputMode = 'numeric';
+      prompt.textContent = 'Open Google Authenticator or Authy on your phone and enter the 6-digit code.';
+      toggleBackupBtn.textContent = '🔑 Use a backup recovery code';
+    }
+    input.value = '';
+    input.focus();
+  });
+}
+
+// Back to credentials step
+const backToCredsBtn = document.getElementById('back-to-credentials-btn');
+if (backToCredsBtn) {
+  backToCredsBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    currentPreAuthToken = null;
+    document.getElementById('login-step-2fa').style.display = 'none';
+    document.getElementById('login-step-credentials').style.display = 'block';
+    document.getElementById('admin-password').value = '';
+    document.getElementById('admin-password').focus();
+  });
+}
 
 async function logout() {
   try {
@@ -133,20 +262,22 @@ function switchTab(tabName, element) {
   });
 
   // Show selected tab
-  document.getElementById(`tab-${tabName}`).style.display = 'block';
+  const targetTab = document.getElementById(`tab-${tabName}`);
+  if (targetTab) targetTab.style.display = 'block';
   if (element) element.classList.add('active');
 
   // Load tab data
-  if (tabName === 'dashboard') loadStats();
+  if (tabName === 'dashboard') { loadStats(); load2FAStatus(); }
   if (tabName === 'upload') loadGenres();
   if (tabName === 'manage') { loadGenres(); loadAdminVideos(); }
   if (tabName === 'vod') loadVodData();
   if (tabName === 'contact') loadContactAdminData();
+  if (tabName === 'security') load2FASecurityTab();
 }
 
 // ==================== Dashboard ====================
 async function loadDashboard() {
-  await Promise.all([loadStats(), loadGenres()]);
+  await Promise.all([loadStats(), loadGenres(), load2FAStatus()]);
 }
 
 async function loadStats() {
@@ -1703,3 +1834,423 @@ window.migrateBunnyVideos = async function() {
 };
 
 
+
+
+// ==================== Two-Factor Authentication (2FA) ====================
+let currentGeneratedBackupCodes = [];
+let currentRaw2FASecret = '';
+
+async function load2FAStatus() {
+  try {
+    const res = await fetch('/api/admin/2fa/status', { headers: authHeaders() });
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (!res.ok) return;
+
+    const data = await res.json();
+    render2FAUI(data);
+  } catch (err) {
+    console.error('Failed to load 2FA status:', err);
+  }
+}
+
+function render2FAUI(data) {
+  const isEnabled = !!data.enabled;
+
+  // 1. Dashboard Security Banner
+  const banner = document.getElementById('security-banner-2fa');
+  if (banner) {
+    banner.style.display = isEnabled ? 'none' : 'flex';
+  }
+
+  // 2. Status Badge in Security Tab
+  const badge = document.getElementById('security-status-badge');
+  const badgeText = document.getElementById('security-status-text');
+  if (badge && badgeText) {
+    if (isEnabled) {
+      badge.style.background = 'rgba(16, 185, 129, 0.15)';
+      badge.style.color = '#10b981';
+      badge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+      badgeText.textContent = '2FA Active & Protected';
+    } else {
+      badge.style.background = 'rgba(239, 68, 68, 0.15)';
+      badge.style.color = '#ef4444';
+      badge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      badgeText.textContent = '2FA Inactive';
+    }
+  }
+
+  // 3. Toggle Active vs Inactive Containers
+  const activeContainer = document.getElementById('twofa-active-container');
+  const inactiveContainer = document.getElementById('twofa-inactive-container');
+
+  if (activeContainer && inactiveContainer) {
+    if (isEnabled) {
+      activeContainer.style.display = 'block';
+      inactiveContainer.style.display = 'none';
+
+      // Update details
+      const dateEl = document.getElementById('twofa-configured-date');
+      if (dateEl) {
+        const dateStr = data.configuredAt ? new Date(data.configuredAt).toLocaleString() : 'Active';
+        dateEl.textContent = `Configured on: ${dateStr}`;
+      }
+
+      const backupCountEl = document.getElementById('twofa-backup-codes-count');
+      if (backupCountEl) {
+        backupCountEl.textContent = `${data.backupCodesRemaining} of ${data.backupCodesTotal} available`;
+      }
+    } else {
+      activeContainer.style.display = 'none';
+      inactiveContainer.style.display = 'block';
+
+      // Reset wizard to start step
+      const startStep = document.getElementById('twofa-start-step');
+      const wizardStep = document.getElementById('twofa-wizard-step');
+      if (startStep) startStep.style.display = 'block';
+      if (wizardStep) wizardStep.style.display = 'none';
+    }
+  }
+}
+
+function load2FASecurityTab() {
+  load2FAStatus();
+}
+
+async function start2FASetupWizard() {
+  try {
+    const res = await fetch('/api/admin/2fa/setup/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() }
+    });
+
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Failed to start 2FA setup', 'error');
+      return;
+    }
+
+    currentRaw2FASecret = data.secret;
+    currentGeneratedBackupCodes = Array.isArray(data.backupCodes) ? data.backupCodes : [];
+
+    // Render QR Code
+    const qrContainer = document.getElementById('twofa-qr-code');
+    if (qrContainer) {
+      qrContainer.innerHTML = '';
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(qrContainer, {
+          text: data.otpauthUri,
+          width: 180,
+          height: 180,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } else {
+        qrContainer.innerHTML = `<p style="color:#000;font-size:0.8rem;text-align:center;padding:1rem;">QR library loading...<br><a href="${data.otpauthUri}" target="_blank" style="color:#0284c7;font-weight:700;">Open Authenticator App</a></p>`;
+      }
+    }
+
+    // Display Secret Key
+    const secretDisplay = document.getElementById('twofa-secret-display');
+    if (secretDisplay) {
+      secretDisplay.textContent = data.formattedSecret || data.secret;
+    }
+
+    // Display Backup Codes
+    const backupDisplay = document.getElementById('twofa-backup-codes-display');
+    if (backupDisplay) {
+      backupDisplay.innerHTML = currentGeneratedBackupCodes
+        .map(code => `<div style="padding: 0.4rem; background: rgba(255,255,255,0.06); border-radius: 4px; font-weight: 600; letter-spacing: 1px;">${code}</div>`)
+        .join('');
+    }
+
+    // Clear confirmation input & error
+    const confirmInput = document.getElementById('twofa-confirm-code');
+    if (confirmInput) confirmInput.value = '';
+    const errorEl = document.getElementById('twofa-setup-error');
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+
+    // Switch step
+    const startStep = document.getElementById('twofa-start-step');
+    const wizardStep = document.getElementById('twofa-wizard-step');
+    if (startStep) startStep.style.display = 'none';
+    if (wizardStep) wizardStep.style.display = 'block';
+    if (confirmInput) confirmInput.focus();
+
+  } catch (err) {
+    showToast('Failed to begin 2FA setup', 'error');
+  }
+}
+
+async function confirm2FASetup() {
+  const codeInput = document.getElementById('twofa-confirm-code');
+  const errorEl = document.getElementById('twofa-setup-error');
+  const btn = document.getElementById('twofa-activate-btn');
+  const code = (codeInput ? codeInput.value : '').trim();
+
+  if (!code || code.length < 6) {
+    if (errorEl) {
+      errorEl.textContent = 'Please enter the 6-digit code shown in your authenticator app.';
+      errorEl.classList.add('visible');
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Activating...';
+  }
+
+  try {
+    const res = await fetch('/api/admin/2fa/setup/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ code })
+    });
+
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    const data = await res.json();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '✅ Activate 2FA';
+    }
+
+    if (res.ok) {
+      showToast(data.message || 'Two-Factor Authentication is now active! 🎉', 'success');
+      await load2FAStatus();
+    } else {
+      if (errorEl) {
+        errorEl.textContent = data.error || 'Verification code incorrect. Try again.';
+        errorEl.classList.add('visible');
+      }
+    }
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '✅ Activate 2FA';
+    }
+    showToast('Failed to confirm 2FA setup', 'error');
+  }
+}
+
+function copy2FASecret(btn) {
+  const secret = currentRaw2FASecret || (document.getElementById('twofa-secret-display')?.textContent || '').replace(/\s+/g, '');
+  if (!secret) return;
+  navigator.clipboard.writeText(secret).then(() => {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+  }).catch(() => {
+    showToast('Could not copy to clipboard', 'error');
+  });
+}
+
+function copyBackupCodes(btn) {
+  if (!currentGeneratedBackupCodes.length) {
+    showToast('No backup codes to copy', 'info');
+    return;
+  }
+  const text = currentGeneratedBackupCodes.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '✓ Copied All!';
+    setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+  }).catch(() => {
+    showToast('Could not copy to clipboard', 'error');
+  });
+}
+
+function downloadBackupCodes() {
+  if (!currentGeneratedBackupCodes.length) {
+    showToast('No backup codes to download', 'info');
+    return;
+  }
+  const dateStr = new Date().toISOString().split('T')[0];
+  const fileContent = `=====================================================
+ StreamXvault Admin - Two-Factor Authentication Backup Codes
+ Generated: ${new Date().toLocaleString()}
+=====================================================
+
+Store these one-time recovery codes in a secure, confidential place.
+If you ever lose access to your phone or authenticator app, each code
+can be used ONCE in place of your 6-digit TOTP code.
+
+Recovery Codes:
+${currentGeneratedBackupCodes.map((code, idx) => `  [${idx + 1}] ${code}`).join('\n')}
+
+Note: Keep these codes secret! Anyone with your password and a recovery
+code can access your admin account.
+=====================================================`;
+
+  const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `streamxvault-2fa-backup-codes-${dateStr}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Backup codes downloaded! 💾', 'success');
+}
+
+// Disable 2FA Modal
+function showDisable2FAModal() {
+  const modal = document.getElementById('disable-2fa-modal');
+  if (!modal) return;
+  document.getElementById('disable-2fa-password').value = '';
+  document.getElementById('disable-2fa-code').value = '';
+  const errorEl = document.getElementById('disable-2fa-error');
+  if (errorEl) {
+    errorEl.textContent = '';
+    errorEl.classList.remove('visible');
+  }
+  modal.classList.add('active');
+}
+
+function closeDisable2FAModal() {
+  const modal = document.getElementById('disable-2fa-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function confirmDisable2FA() {
+  const password = document.getElementById('disable-2fa-password').value;
+  const code = document.getElementById('disable-2fa-code').value.trim();
+  const errorEl = document.getElementById('disable-2fa-error');
+
+  if (!password) {
+    if (errorEl) {
+      errorEl.textContent = 'Please enter your admin password.';
+      errorEl.classList.add('visible');
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/2fa/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ password, code })
+    });
+
+    if (res.status === 401) {
+      const data = await res.json();
+      if (errorEl) {
+        errorEl.textContent = data.error || 'Password or code incorrect.';
+        errorEl.classList.add('visible');
+      }
+      return;
+    }
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || 'Two-Factor Authentication disabled.', 'info');
+      closeDisable2FAModal();
+      await load2FAStatus();
+    } else {
+      if (errorEl) {
+        errorEl.textContent = data.error || 'Failed to disable 2FA.';
+        errorEl.classList.add('visible');
+      }
+    }
+  } catch (err) {
+    showToast('Failed to disable 2FA', 'error');
+  }
+}
+
+// Regenerate Backup Codes Modal
+function showRegenerateBackupCodesModal() {
+  const modal = document.getElementById('regenerate-codes-modal');
+  if (!modal) return;
+  document.getElementById('regen-codes-code').value = '';
+  const errorEl = document.getElementById('regen-codes-error');
+  if (errorEl) {
+    errorEl.textContent = '';
+    errorEl.classList.remove('visible');
+  }
+  modal.classList.add('active');
+}
+
+function closeRegenerateCodesModal() {
+  const modal = document.getElementById('regenerate-codes-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+async function confirmRegenerateBackupCodes() {
+  const code = document.getElementById('regen-codes-code').value.trim();
+  const errorEl = document.getElementById('regen-codes-error');
+
+  if (!code || code.length < 6) {
+    if (errorEl) {
+      errorEl.textContent = 'Please enter your current 6-digit authenticator code.';
+      errorEl.classList.add('visible');
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/2fa/backup-codes/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ code })
+    });
+
+    if (res.status === 401) { clearToken(); location.reload(); return; }
+    const data = await res.json();
+
+    if (res.ok) {
+      currentGeneratedBackupCodes = Array.isArray(data.backupCodes) ? data.backupCodes : [];
+      closeRegenerateCodesModal();
+      showToast('New backup codes generated successfully!', 'success');
+      await load2FAStatus();
+
+      // Offer immediate download of new codes
+      setTimeout(() => {
+        downloadBackupCodes();
+      }, 500);
+    } else {
+      if (errorEl) {
+        errorEl.textContent = data.error || 'Invalid code.';
+        errorEl.classList.add('visible');
+      }
+    }
+  } catch (err) {
+    showToast('Failed to regenerate backup codes', 'error');
+  }
+}
+
+// Modal overlay click handlers
+const disable2FAModalEl = document.getElementById('disable-2fa-modal');
+if (disable2FAModalEl) {
+  disable2FAModalEl.addEventListener('click', (e) => {
+    if (e.target === disable2FAModalEl) closeDisable2FAModal();
+  });
+}
+
+const regenCodesModalEl = document.getElementById('regenerate-codes-modal');
+if (regenCodesModalEl) {
+  regenCodesModalEl.addEventListener('click', (e) => {
+    if (e.target === regenCodesModalEl) closeRegenerateCodesModal();
+  });
+}
+
+// Attach all to window so inline onclick handlers in HTML always find them
+window.load2FAStatus = load2FAStatus;
+window.load2FASecurityTab = load2FASecurityTab;
+window.start2FASetupWizard = start2FASetupWizard;
+window.confirm2FASetup = confirm2FASetup;
+window.copy2FASecret = copy2FASecret;
+window.copyBackupCodes = copyBackupCodes;
+window.downloadBackupCodes = downloadBackupCodes;
+window.showDisable2FAModal = showDisable2FAModal;
+window.closeDisable2FAModal = closeDisable2FAModal;
+window.confirmDisable2FA = confirmDisable2FA;
+window.showRegenerateBackupCodesModal = showRegenerateBackupCodesModal;
+window.closeRegenerateCodesModal = closeRegenerateCodesModal;
+window.confirmRegenerateBackupCodes = confirmRegenerateBackupCodes;
