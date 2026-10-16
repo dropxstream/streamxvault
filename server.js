@@ -237,6 +237,10 @@ app.get('/watch.html', (req, res) => {
 app.get('/index.html', (req, res) => {
   res.redirect(301, '/');
 });
+app.get('/demand', (req, res) => {
+  res.redirect(301, '/demand.html');
+});
+app.get('/sitemap.xml', handleSitemap);
 
 app.use(express.static(path.join(__dirname, 'public'), {
   index: false,
@@ -1286,7 +1290,7 @@ ${items}
 
 app.get('/og-image/:id', handleOgImage);
 // Dynamic Sitemap - auto-generates from the videos database
-app.get('/sitemap.xml', (req, res) => {
+function handleSitemap(req, res) {
   const escapeXml = (str) => String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -1348,7 +1352,7 @@ app.get('/sitemap.xml', (req, res) => {
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.send(xml);
-});
+}
 
 app.get('/api/videos', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
@@ -1814,13 +1818,17 @@ app.get('/api/embed/:id', (req, res) => {
   const videos = loadVideos();
   const video = videos.find(v => v.id === req.params.id);
   if (!video || video.published === false) return res.status(404).send('Video not found');
+  res.removeHeader('X-Frame-Options');
+  res.setHeader('Content-Security-Policy', "frame-ancestors *");
   const title = (video.title || 'Video').replace(/"/g, '&quot;');
   const thumb = video.thumbnailUrl || '';
   const videoUrl = video.videoUrl || '';
+  const canonicalUrl = `${SITE}/watch?v=${encodeURIComponent(video.id)}`;
   const isHls = videoUrl.includes('.m3u8');
   res.send(`<!DOCTYPE html><html><head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <title>${title}</title>
+    <link rel="canonical" href="${canonicalUrl}">
     <style>*{margin:0;padding:0}body{background:#000}video{width:100%;height:100vh;object-fit:contain}</style>
     ${isHls ? '<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>' : ''}
   </head><body>
@@ -2025,21 +2033,36 @@ app.get('/api/vast/preroll', async (req, res) => {
 });
 
 app.get('/watch', (req, res) => {
+  const vidId = typeof req.query.v === 'string' ? req.query.v.trim() : '';
+  if (!vidId) {
+    return res.redirect(301, '/');
+  }
+
+  const video = loadVideos().find((item) => item && item.id === vidId);
+  if (!video || video.published === false) {
+    res.status(404);
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    const notFoundFile = path.join(__dirname, 'public', '404.html');
+    if (fs.existsSync(notFoundFile)) {
+      return res.type('html').send(decorateHtml(fs.readFileSync(notFoundFile, 'utf8')));
+    }
+    return res.type('html').send('<!DOCTYPE html><html><head><title>404 Not Found — StreamXvault</title><meta name="robots" content="noindex, nofollow"></head><body><h1>404 — Video Not Found</h1><p><a href="/">Return to StreamXvault</a></p></body></html>');
+  }
+
   let html = fs.readFileSync(path.join(__dirname, 'public', 'watch.html'), 'utf8');
-  const video = loadVideos().find((item) => item && item.id === req.query.v);
-  const title = video ? (video.title || 'Watch') + ' - StreamXvault' : 'Watch - StreamXvault';
-  let descRaw = (video && (video.description || video.shortDescription)) || '';
+  const title = (video.title || 'Watch') + ' - StreamXvault';
+  let descRaw = video.description || video.shortDescription || '';
   if (descRaw.length < 90) {
-    const videoTitle = (video && video.title) || 'video';
+    const videoTitle = video.title || 'video';
     descRaw = descRaw ? (descRaw + '. Watch ' + videoTitle + ' in full HD streaming with fast download options on StreamXvault.')
                       : ('Watch ' + videoTitle + ' on StreamXvault. Stream exclusive full HD scenes, multiple download resolutions, and fresh daily video updates.');
   }
   const description = clip(descRaw, 160);
-  const url = video ? SITE + '/watch?v=' + encodeURIComponent(video.id) : SITE + '/watch';
+  const url = SITE + '/watch?v=' + encodeURIComponent(video.id);
   html = injectHead(html, {
     title: title,
     description: description,
-    tags: previewTags({ title: title, description: description, url: url, id: video ? video.id : 'home' })
+    tags: previewTags({ title: title, description: description, url: url, id: video.id })
   });
 
   // --- SSR: Inject real content into HTML body for SEO ---
@@ -2112,7 +2135,15 @@ app.get('/', (req, res) => {
       '@type': 'WebSite',
       name: 'StreamXvault',
       url: SITE,
-      description: 'StreamXvault — Your premium streaming vault. Watch exclusive curated video content.'
+      description: 'StreamXvault — Your premium streaming vault. Watch exclusive curated video content.',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: SITE + '/?search={search_term_string}'
+        },
+        'query-input': 'required name=search_term_string'
+      }
     };
     const itemListLd = {
       '@context': 'https://schema.org',
@@ -2150,6 +2181,17 @@ app.get('/', (req, res) => {
 
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.type('html').send(html);
+});
+
+// Custom 404 handler for undefined routes with noindex header
+app.use((req, res) => {
+  res.status(404);
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  const notFoundFile = path.join(__dirname, 'public', '404.html');
+  if (fs.existsSync(notFoundFile)) {
+    return res.type('html').send(decorateHtml(fs.readFileSync(notFoundFile, 'utf8')));
+  }
+  res.type('html').send('<!DOCTYPE html><html><head><title>404 Not Found — StreamXvault</title><meta name="robots" content="noindex, nofollow"></head><body><h1>404 Not Found</h1><p><a href="/">Return to StreamXvault</a></p></body></html>');
 });
 
 app.listen(PORT, '0.0.0.0', () => {

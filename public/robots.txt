@@ -4,6 +4,8 @@ Allow: /api/videos/
 Allow: /api/embed/
 Disallow: /api/
 Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin/
 
 Sitemap: https://streamxvault.online/sitemap.xml
 
@@ -11,8 +13,15 @@ Sitemap: https://streamxvault.online/sitemap.xml
 User-agent: Mediapartners-Google
 Allow: /
 
+# Googlebot - must repeat disallows per RFC 9309 (most specific group match)
 User-agent: Googlebot
 Allow: /
+Allow: /api/videos/
+Allow: /api/embed/
+Disallow: /api/
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin/
 
 # Block AI Crawlers
 User-agent: GPTBot
