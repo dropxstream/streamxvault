@@ -61,6 +61,7 @@ INDEXNOW_KEY = "streamxvault-indexnow-" + hashlib.md5(SITE_URL.encode()).hexdige
 STATIC_PAGES = [
     {"url": "/", "priority": "1.0", "changefreq": "daily"},
     {"url": "/demand.html", "priority": "0.6", "changefreq": "weekly"},
+    {"url": "/contact", "priority": "0.7", "changefreq": "monthly"},
 ]
 
 # ═══════════════════════════════════════════════════════════════
@@ -126,12 +127,13 @@ def generate_sitemap(videos):
     urlset.set("xmlns:video", video_ns)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    latest_upload = (videos[0].get("uploadedAt")[:19] + "+00:00") if videos and videos[0].get("uploadedAt") else now
 
     # Static pages
     for page in STATIC_PAGES:
         url_el = ET.SubElement(urlset, "url")
         ET.SubElement(url_el, "loc").text = SITE_URL + page["url"]
-        ET.SubElement(url_el, "lastmod").text = now
+        ET.SubElement(url_el, "lastmod").text = latest_upload
         ET.SubElement(url_el, "changefreq").text = page["changefreq"]
         ET.SubElement(url_el, "priority").text = page["priority"]
 
@@ -166,6 +168,11 @@ def generate_sitemap(videos):
         ET.SubElement(video_el, "video:family_friendly").text = "no"
         if genre:
             ET.SubElement(video_el, "video:tag").text = genre
+        tags = v.get("tags", [])
+        if isinstance(tags, list):
+            for t in tags[:10]:
+                if t and str(t).lower() != str(genre).lower():
+                    ET.SubElement(video_el, "video:tag").text = str(t)
 
     # Write sitemap
     tree = ET.ElementTree(urlset)
