@@ -216,14 +216,15 @@ function decorateHtml(html, extraScripts) {
 }
 
 app.get(['/demand.html', '/demand-form.html'], (req, res) => {
-  const name = req.path === '/demand-form.html' ? 'demand-form.html' : 'demand.html';
-  const file = path.join(__dirname, 'public', name);
+  if (req.path === '/demand-form.html') return res.redirect(301, '/demand.html');
+  const file = path.join(__dirname, 'public', 'demand.html');
   if (!fs.existsSync(file)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
   res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
 });
 
 app.get(['/contact', '/contact.html'], (req, res) => {
+  if (req.path === '/contact.html') return res.redirect(301, '/contact');
   const file = path.join(__dirname, 'public', 'contact.html');
   if (!fs.existsSync(file)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
@@ -1153,10 +1154,10 @@ app.get('/api/admin/live', requireAdmin, (req, res) => {
 
 function escapeHtml(text) {
   return String(text || '')
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
 function clip(text, max) {
@@ -1305,9 +1306,10 @@ function handleSitemap(req, res) {
   xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n';
 
   // Homepage
+  const latestUpload = (videos[0] && videos[0].uploadedAt) || now;
   xml += '  <url>\n';
   xml += '    <loc>' + SITE + '/</loc>\n';
-  xml += '    <lastmod>' + now + '</lastmod>\n';
+  xml += '    <lastmod>' + latestUpload + '</lastmod>\n';
   xml += '    <changefreq>daily</changefreq>\n';
   xml += '    <priority>1.0</priority>\n';
   xml += '  </url>\n';
@@ -1343,6 +1345,13 @@ function handleSitemap(req, res) {
     xml += '      <video:publication_date>' + (v.uploadedAt || now) + '</video:publication_date>\n';
     xml += '      <video:family_friendly>no</video:family_friendly>\n';
     if (v.genre) xml += '      <video:tag>' + escapeXml(v.genre) + '</video:tag>\n';
+    if (Array.isArray(v.tags)) {
+      v.tags.slice(0, 10).forEach(function (t) {
+        if (t && String(t).toLowerCase() !== String(v.genre || '').toLowerCase()) {
+          xml += '      <video:tag>' + escapeXml(t) + '</video:tag>\n';
+        }
+      });
+    }
     xml += '    </video:video>\n';
     xml += '  </url>\n';
   });
@@ -2075,7 +2084,7 @@ app.get('/watch', (req, res) => {
       description: clip(video.description || video.title || '', 300),
       thumbnailUrl: video.thumbnailUrl || (SITE + '/og-image/' + encodeURIComponent(video.id) + '.jpg'),
       uploadDate: video.uploadedAt || new Date().toISOString(),
-      contentUrl: url,
+      contentUrl: video.videoUrl || url,
       embedUrl: SITE + '/api/embed/' + encodeURIComponent(video.id),
       interactionStatistic: {
         '@type': 'InteractionCounter',
@@ -2091,8 +2100,20 @@ app.get('/watch', (req, res) => {
     };
     if (video.genre) jsonLd.genre = video.genre;
 
-    // JSON-LD script tag in <head>
-    const jsonLdTag = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</script>';
+    // BreadcrumbList JSON-LD
+    const breadcrumbLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: SITE + '/' },
+        ...(video.genre ? [{ '@type': 'ListItem', position: 2, name: video.genre, item: SITE + '/?genre=' + encodeURIComponent(video.genre) }] : []),
+        { '@type': 'ListItem', position: video.genre ? 3 : 2, name: video.title || 'Video', item: url }
+      ]
+    };
+
+    // JSON-LD script tags in <head>
+    const jsonLdTag = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</script>\n' +
+                      '<script type="application/ld+json">' + JSON.stringify(breadcrumbLd) + '</script>';
     html = html.replace(/<\/head>/i, jsonLdTag + '\n</head>');
 
     // SSR: Populate existing elements directly in the HTML template (avoids duplicate h1 tags)
