@@ -216,8 +216,8 @@ function decorateHtml(html, extraScripts) {
 }
 
 app.get(['/demand.html', '/demand-form.html'], (req, res) => {
-  if (req.path === '/demand-form.html') return res.redirect(301, '/demand.html');
-  const file = path.join(__dirname, 'public', 'demand.html');
+  const name = req.path === '/demand-form.html' ? 'demand-form.html' : 'demand.html';
+  const file = path.join(__dirname, 'public', name);
   if (!fs.existsSync(file)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=600');
   res.type('html').send(decorateHtml(fs.readFileSync(file, 'utf8')));
