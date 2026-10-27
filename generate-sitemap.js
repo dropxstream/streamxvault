@@ -59,10 +59,11 @@ videos.forEach(v => {
   xml += '    <video:video>\n';
   xml += '      <video:thumbnail_loc>' + escapeXml(v.thumbnailUrl || (SITE + '/og-image/' + v.id + '.jpg')) + '</video:thumbnail_loc>\n';
   xml += '      <video:title>' + escapeXml(v.title || 'Video') + '</video:title>\n';
-  xml += '      <video:description>' + escapeXml(clip(v.description || v.title || '', 300)) + '</video:description>\n';
+  xml += '      <video:description>' + escapeXml(clip(v.description || v.title || '', 1000)) + '</video:description>\n';
   xml += '      <video:player_loc>' + SITE + '/api/embed/' + escapeXml(v.id) + '</video:player_loc>\n';
   xml += '      <video:publication_date>' + (v.uploadedAt || now) + '</video:publication_date>\n';
   xml += '      <video:family_friendly>no</video:family_friendly>\n';
+  if (v.modelName) xml += '      <video:actor>' + escapeXml(v.modelName) + '</video:actor>\n';
   if (v.genre) xml += '      <video:tag>' + escapeXml(v.genre) + '</video:tag>\n';
   if (Array.isArray(v.tags)) {
     v.tags.slice(0, 10).forEach(t => {

@@ -365,13 +365,17 @@ document.addEventListener('DOMContentLoaded', function () {
   var nav = document.getElementById('search-input');
   var extra = document.getElementById('catalog-search');
 
-  // Read search query from URL
+  // Read search query and genre from URL
   var urlParams = new URLSearchParams(window.location.search);
   var urlSearch = urlParams.get('search');
+  var urlGenre = urlParams.get('genre');
   if (urlSearch) {
     currentSearch = urlSearch.trim();
     if (nav) nav.value = currentSearch;
     if (extra) extra.value = currentSearch;
+  }
+  if (urlGenre) {
+    currentGenre = urlGenre.trim();
   }
 
   function onSearch(val) {

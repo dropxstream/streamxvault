@@ -166,6 +166,23 @@ try { storage = createStorage(); } catch (err) {
   storage = { mode: 'local', download: async () => null };
 }
 
+// Canonical HTTPS redirect — enforce non-www HTTPS
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  const proto = req.headers['x-forwarded-proto'];
+  if (host.startsWith('www.') || (proto && proto !== 'https')) {
+    const cleanHost = host.replace(/^www\./i, '');
+    return res.redirect(301, 'https://' + cleanHost + req.url);
+  }
+  next();
+});
+// Block search indexing of backend JSON API endpoints
+app.use('/api', (req, res, next) => {
+  if (!req.path.startsWith('/embed/')) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
+  next();
+});
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
 
@@ -251,7 +268,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
     if (/\.(?:css|js|png|jpe?g|gif|webp|svg|ico|woff2?|mp4)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
     } else if (/\.html$/i.test(filePath)) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
     }
   }
 }));
@@ -1168,14 +1185,14 @@ function clip(text, max) {
 function previewImageUrl(id) {
   return SITE + '/og-image/' + encodeURIComponent(id || 'home') + '.jpg';
 }
-function previewTags({ title, description, url, id }) {
+function previewTags({ title, description, url, id, isVideo }) {
   const t = escapeHtml(clip(title, 70));
   const d = escapeHtml(clip(description, 160));
   const u = escapeHtml(url);
   const img = escapeHtml(previewImageUrl(id || 'home'));
-  return [
+  const tags = [
     '<link rel="canonical" href="' + u + '">',
-    '<meta property="og:type" content="website">',
+    '<meta property="og:type" content="' + (isVideo ? 'video.other' : 'website') + '">',
     '<meta property="og:site_name" content="StreamXvault">',
     '<meta property="og:title" content="' + t + '">',
     '<meta property="og:description" content="' + d + '">',
@@ -1190,7 +1207,18 @@ function previewTags({ title, description, url, id }) {
     '<meta name="twitter:description" content="' + d + '">',
     '<meta name="twitter:image" content="' + img + '">',
     '<meta name="twitter:image:src" content="' + img + '">'
-  ].join('\n  ');
+  ];
+  if (isVideo && id && id !== 'home') {
+    const embedUrl = escapeHtml(SITE + '/api/embed/' + encodeURIComponent(id));
+    tags.push(
+      '<meta property="og:video" content="' + embedUrl + '">',
+      '<meta property="og:video:secure_url" content="' + embedUrl + '">',
+      '<meta property="og:video:type" content="text/html">',
+      '<meta property="og:video:width" content="1280">',
+      '<meta property="og:video:height" content="720">'
+    );
+  }
+  return tags.join('\n  ');
 }
 function injectHead(html, { title, description, tags }) {
   html = html.replace(/<title>[^<]*<\/title>/i, '<title>' + escapeHtml(title) + '</title>');
@@ -1340,10 +1368,11 @@ function handleSitemap(req, res) {
     xml += '    <video:video>\n';
     xml += '      <video:thumbnail_loc>' + escapeXml(v.thumbnailUrl || (SITE + '/og-image/' + v.id + '.jpg')) + '</video:thumbnail_loc>\n';
     xml += '      <video:title>' + escapeXml(v.title || 'Video') + '</video:title>\n';
-    xml += '      <video:description>' + escapeXml(clip(v.description || v.title || '', 300)) + '</video:description>\n';
+    xml += '      <video:description>' + escapeXml(clip(v.description || v.title || '', 1000)) + '</video:description>\n';
     xml += '      <video:player_loc>' + SITE + '/api/embed/' + escapeXml(v.id) + '</video:player_loc>\n';
     xml += '      <video:publication_date>' + (v.uploadedAt || now) + '</video:publication_date>\n';
     xml += '      <video:family_friendly>no</video:family_friendly>\n';
+    if (v.modelName) xml += '      <video:actor>' + escapeXml(v.modelName) + '</video:actor>\n';
     if (v.genre) xml += '      <video:tag>' + escapeXml(v.genre) + '</video:tag>\n';
     if (Array.isArray(v.tags)) {
       v.tags.slice(0, 10).forEach(function (t) {
@@ -2071,7 +2100,7 @@ app.get('/watch', (req, res) => {
   html = injectHead(html, {
     title: title,
     description: description,
-    tags: previewTags({ title: title, description: description, url: url, id: video.id })
+    tags: previewTags({ title: title, description: description, url: url, id: video.id, isVideo: true })
   });
 
   // --- SSR: Inject real content into HTML body for SEO ---
@@ -2091,6 +2120,8 @@ app.get('/watch', (req, res) => {
         interactionType: { '@type': 'WatchAction' },
         userInteractionCount: Number(video.views || 0)
       },
+      isFamilyFriendly: false,
+      inLanguage: 'en',
       publisher: {
         '@type': 'Organization',
         name: 'StreamXvault',
@@ -2099,6 +2130,12 @@ app.get('/watch', (req, res) => {
       }
     };
     if (video.genre) jsonLd.genre = video.genre;
+    if (video.modelName) {
+      jsonLd.actor = [{ '@type': 'Person', name: video.modelName }];
+    }
+    if (Array.isArray(video.tags) && video.tags.length > 0) {
+      jsonLd.keywords = video.tags.join(', ');
+    }
 
     // BreadcrumbList JSON-LD
     const breadcrumbLd = {
@@ -2132,7 +2169,7 @@ app.get('/watch', (req, res) => {
     html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
   }
 
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
   res.type('html').send(html);
 });
 app.get('/', (req, res) => {
@@ -2200,7 +2237,7 @@ app.get('/', (req, res) => {
     html = html.replace(/<body[^>]*>/i, function (match) { return match + ssrBlock; });
   }
 
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
   res.type('html').send(html);
 });
 

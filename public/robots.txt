@@ -44,6 +44,9 @@ Disallow: /
 User-agent: Omgili
 Disallow: /
 
+User-agent: facebookexternalhit
+Allow: /
+
 User-agent: FacebookBot
 Disallow: /
 

@@ -166,6 +166,8 @@ def generate_sitemap(videos):
         if uploaded:
             ET.SubElement(video_el, "video:publication_date").text = uploaded[:19] + "+00:00"
         ET.SubElement(video_el, "video:family_friendly").text = "no"
+        if v.get("modelName"):
+            ET.SubElement(video_el, "video:actor").text = str(v["modelName"])
         if genre:
             ET.SubElement(video_el, "video:tag").text = genre
         tags = v.get("tags", [])
@@ -213,8 +215,7 @@ def ping_search_engines():
     sitemap_url = f"{SITE_URL}/sitemap.xml"
 
     ping_targets = [
-        ("Google", f"https://www.google.com/ping?sitemap={sitemap_url}"),
-        ("Google (alt)", f"http://www.google.com/webmasters/sitemaps/ping?sitemap={sitemap_url}"),
+        # Google ping endpoint deprecated (returns 404 since 2023) — use Search Console instead
         ("Bing", f"https://www.bing.com/ping?sitemap={sitemap_url}"),
         ("Yandex", f"https://blogs.yandex.ru/pings/?status=success&url={sitemap_url}"),
     ]
