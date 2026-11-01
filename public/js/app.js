@@ -261,7 +261,7 @@ async function loadVideos() {
   var loadingEl = document.getElementById('videos-loading');
   var gridEl = document.getElementById('videos-grid');
   if (!gridEl) return;
-  if (loadingEl) {
+  if (loadingEl && gridEl.children.length === 0) {
     gridEl.style.display = 'none'; loadingEl.style.display = 'grid'; loadingEl.innerHTML = '';
     for (var i = 0; i < 8; i++) {
       var s = document.createElement('div');

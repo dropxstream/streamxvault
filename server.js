@@ -258,6 +258,14 @@ app.get('/index.html', (req, res) => {
 app.get('/demand', (req, res) => {
   res.redirect(301, '/demand.html');
 });
+app.get('/favicon.ico', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  const ico = path.join(__dirname, 'public', 'favicon.ico');
+  if (fs.existsSync(ico)) return res.sendFile(ico);
+  const png = path.join(__dirname, 'public', 'favicon.png');
+  if (fs.existsSync(png)) return res.type('image/png').sendFile(png);
+  res.status(204).end();
+});
 app.get('/sitemap.xml', handleSitemap);
 
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -1345,7 +1353,7 @@ function handleSitemap(req, res) {
   // Demand page
   xml += '  <url>\n';
   xml += '    <loc>' + SITE + '/demand.html</loc>\n';
-  xml += '    <lastmod>' + now + '</lastmod>\n';
+  xml += '    <lastmod>' + latestUpload + '</lastmod>\n';
   xml += '    <changefreq>weekly</changefreq>\n';
   xml += '    <priority>0.6</priority>\n';
   xml += '  </url>\n';
@@ -1353,7 +1361,7 @@ function handleSitemap(req, res) {
   // Contact page
   xml += '  <url>\n';
   xml += '    <loc>' + SITE + '/contact</loc>\n';
-  xml += '    <lastmod>' + now + '</lastmod>\n';
+  xml += '    <lastmod>' + latestUpload + '</lastmod>\n';
   xml += '    <changefreq>monthly</changefreq>\n';
   xml += '    <priority>0.7</priority>\n';
   xml += '  </url>\n';
@@ -2165,6 +2173,67 @@ app.get('/watch', (req, res) => {
       html = html.replace(/<span id="video-date">[^<]*<\/span>/i, '<span id="video-date">' + ssrDate + '</span>');
     }
 
+    // SSR 1: Prominent video player inside #player-wrapper so Google Video indexer recognizes watch page
+    let ssrPlayerHtml = '';
+    const isEmbed = video.videoUrl && (video.videoUrl.includes('<iframe') || video.videoUrl.includes('embed'));
+    if (isEmbed) {
+      const embedSrc = video.videoUrl.includes('<iframe')
+        ? (video.videoUrl.match(/src="([^"]+)"/)?.[1] || video.videoUrl)
+        : video.videoUrl;
+      ssrPlayerHtml = '<div style="position:relative; padding-top:56.25%; background: #000; overflow: hidden;"><iframe src="' + escapeHtml(embedSrc) + '" title="' + ssrTitle + '" style="border:0;position:absolute;top:0;height:100%;width:100%;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen="true"></iframe></div>';
+    } else {
+      const safeThumbnail = escapeHtml(video.thumbnailUrl || (SITE + '/og-image/' + encodeURIComponent(video.id) + '.jpg'));
+      const videoSrc = escapeHtml(video.videoUrl || '');
+      const isHls = videoSrc.includes('.m3u8');
+      const mimeType = isHls ? 'application/x-mpegURL' : 'video/mp4';
+      ssrPlayerHtml = '<div class="video-container" id="video-container">' +
+        '<video id="video-player" class="video-player" preload="metadata" playsinline controls poster="' + safeThumbnail + '">' +
+        (videoSrc ? '<source src="' + videoSrc + '" type="' + mimeType + '">' : '') +
+        'Your browser does not support the video tag.' +
+        '</video>' +
+        '</div>';
+    }
+    html = html.replace(
+      /<div class="video-player-wrapper" id="player-wrapper">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/i,
+      '<div class="video-player-wrapper" id="player-wrapper">\n' + ssrPlayerHtml + '\n      </div>'
+    );
+
+    // SSR 2: Model badge
+    if (video.modelName) {
+      const ssrModel = '<a id="video-model" href="/?search=' + encodeURIComponent(video.modelName) + '" style="display: inline-flex; color: #a77dfa; background: rgba(130, 71, 229, 0.1); font-weight: 600; text-decoration: none; border: 1px solid rgba(130, 71, 229, 0.4); padding: 2px 10px; border-radius: 12px; font-size: 0.85rem; transition: all 0.2s ease;">👤 ' + escapeHtml(video.modelName) + '</a>';
+      html = html.replace(/<a id="video-model"[^>]*><\/a>/i, ssrModel);
+    }
+
+    // SSR 3: Video tags
+    if (Array.isArray(video.tags) && video.tags.length > 0) {
+      const tagPills = video.tags.map(t => '<a href="/?search=' + encodeURIComponent('#' + t) + '" style="display:inline-flex; align-items:center; gap:2px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 3px 10px; border-radius: 20px; font-weight: 700; text-decoration: none; font-size: 0.78rem;">#' + escapeHtml(t) + '</a>').join('');
+      html = html.replace(/<div id="video-tags"[^>]*><\/div>/i, '<div id="video-tags" style="display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center;">' + tagPills + '</div>');
+    }
+
+    // SSR 4: Related videos grid (8 cards with internal links)
+    const allPublished = loadVideos().filter(item => item && item.published !== false && item.id !== video.id);
+    const relatedList = allPublished
+      .filter(item => video.genre && item.genre === video.genre)
+      .concat(allPublished.filter(item => !video.genre || item.genre !== video.genre))
+      .slice(0, 8);
+
+    let ssrRelated = '';
+    relatedList.forEach(rel => {
+      const relThumb = rel.thumbnailUrl || (SITE + '/og-image/' + encodeURIComponent(rel.id) + '.jpg');
+      ssrRelated += '<a href="/watch?v=' + encodeURIComponent(rel.id) + '" class="video-card" aria-label="' + escapeHtml(rel.title || '') + '">' +
+        '<div class="thumbnail" style="position:relative;overflow:hidden;">' +
+          '<img src="' + escapeHtml(relThumb) + '" alt="' + escapeHtml(rel.title || '') + '" width="640" height="360" loading="lazy" decoding="async">' +
+        '</div>' +
+        '<div class="card-info">' +
+          '<div class="card-title">' + escapeHtml(rel.title || 'Video') + '</div>' +
+          (rel.genre ? '<div style="margin-top:4px;"><span style="display:inline-block;font-size:0.68rem;background:var(--accent-gradient-pink);color:#fff;padding:2px 7px;border-radius:4px;text-transform:uppercase;font-weight:700;">' + escapeHtml(rel.genre) + '</span></div>' : '') +
+        '</div>' +
+      '</a>\n';
+    });
+    if (ssrRelated) {
+      html = html.replace(/<div class="video-grid" id="related-grid"><\/div>/i, '<div class="video-grid" id="related-grid">\n' + ssrRelated + '</div>');
+    }
+
     // Attach watch tracking script
     html = html.replace(/<\/body>/i, '<script>document.addEventListener("DOMContentLoaded",function(){if(window.sxvTrackWatch)window.sxvTrackWatch(' + JSON.stringify(video.id) + ',' + JSON.stringify(video.genre || '') + ');});</script>\n</body>');
   }
@@ -2219,22 +2288,38 @@ app.get('/', (req, res) => {
                    '<script type="application/ld+json">' + JSON.stringify(itemListLd) + '</script>';
     html = html.replace(/<\/head>/i, ldTags + '\n</head>');
 
-    // SSR video listing block — visible to Googlebot, hidden by JS for real users
+    // SSR Homepage: Populate the real #videos-grid directly with full semantic video cards!
     let ssrCards = '';
-    videos.slice(0, 20).forEach(function (v) {
-      ssrCards += '  <div><a href="/watch?v=' + escapeHtml(encodeURIComponent(v.id)) + '">' +
-        '<h3>' + escapeHtml(v.title || 'Video') + '</h3>' +
-        (v.thumbnailUrl ? '<img src="' + escapeHtml(v.thumbnailUrl) + '" alt="' + escapeHtml(v.title || '') + '" width="320" height="180" loading="lazy">' : '') +
-        (v.genre ? '<span>' + escapeHtml(v.genre) + '</span>' : '') +
-        '</a></div>\n';
+    videos.forEach(function (v, idx) {
+      const eager = idx < 4;
+      const imgAttrs = eager
+        ? 'loading="eager" fetchpriority="high" decoding="async"'
+        : 'loading="lazy" decoding="async"';
+      const thumbUrl = v.thumbnailUrl || (SITE + '/og-image/' + encodeURIComponent(v.id) + '.jpg');
+      const thumbHtml = '<img src="' + escapeHtml(thumbUrl) + '" alt="' + escapeHtml(v.title || '') + '" width="640" height="360" ' + imgAttrs + '>';
+
+      ssrCards += '<a class="video-card" href="/watch?v=' + escapeHtml(encodeURIComponent(v.id)) + '" aria-label="' + escapeHtml(v.title || '') + '">\n' +
+        '  <div class="thumbnail" style="position:relative;overflow:hidden;">' + thumbHtml + '</div>\n' +
+        '  <div class="card-info">\n' +
+        '    <div class="card-title">' + escapeHtml(v.title || 'Video') + '</div>\n' +
+        '    <div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px;">\n' +
+        (v.genre ? '      <span style="display:inline-block;font-size:0.68rem;background:var(--accent-gradient-pink);color:#fff;padding:2px 7px;border-radius:4px;text-transform:uppercase;font-weight:700;">' + escapeHtml(v.genre) + '</span>\n' : '') +
+        (v.modelName ? '      <span style="display:inline-block;font-size:0.68rem;background:rgba(130, 71, 229, 0.2);color:#a77dfa;border:1px solid rgba(130, 71, 229, 0.4);padding:2px 7px;border-radius:4px;font-weight:700;">👤 ' + escapeHtml(v.modelName) + '</span>\n' : '') +
+        (Array.isArray(v.tags) && v.tags.length ? v.tags.slice(0, 4).map(function (t) { return '      <span style="display:inline-block;font-size:0.65rem;background:rgba(56, 189, 248, 0.12);color:#38bdf8;border:1px solid rgba(56, 189, 248, 0.3);padding:2px 6px;border-radius:4px;font-weight:600;">#' + escapeHtml(t) + '</span>'; }).join('\n') + '\n' : '') +
+        '    </div>\n' +
+        (v.uploadedAt ? '    <div class="card-meta"><span>📅 ' + escapeHtml(new Date(v.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })) + '</span></div>\n' : '') +
+        '  </div>\n' +
+        '</a>\n';
     });
-    const ssrBlock = '\n<!-- SSR Content for SEO -->\n' +
-      '<div id="ssr-content" class="ssr-seo-content">\n' +
-      '<h2>' + escapeHtml(videos.length + ' Videos on StreamXvault') + '</h2>\n' +
-      ssrCards +
-      '</div>\n' +
-      '<script>document.addEventListener("DOMContentLoaded",function(){var s=document.getElementById("ssr-content");if(s)s.style.display="none";});</script>\n';
-    html = html.replace(/<body[^>]*>/i, function (match) { return match + ssrBlock; });
+
+    html = html.replace(
+      /<div class="video-grid" id="videos-grid" style="display: none;"><\/div>/i,
+      '<div class="video-grid" id="videos-grid">\n' + ssrCards + '</div>'
+    );
+    html = html.replace(
+      /<div id="videos-loading" class="video-grid">/i,
+      '<div id="videos-loading" class="video-grid" style="display: none;">'
+    );
   }
 
   res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');

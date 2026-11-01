@@ -1,0 +1,7 @@
+node_modules
+.git
+.env
+uploads
+scratch
+test_*.ts
+server_prev.js
