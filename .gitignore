@@ -6,3 +6,14 @@ data/*.json
 scratch/
 test_*.ts
 server_prev.js
+
+# Legacy local patch and scratch scripts
+add_bot.js
+add_downloads.js
+add_live.js
+fix_routes*.js
+fix_syntax.js
+idm_integration.js
+inject_vod.js
+patch*.js
+
