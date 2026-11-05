@@ -3,12 +3,72 @@
  * Uses JWT tokens for persistent auth & direct R2 uploads
  */
 
-// ==================== Token Management ====================
-// Tokens are now managed securely via HTTP-only cookies
+// ==================== Token & Session Management ====================
+// Dual-transport auth: HMAC signed HTTP-only cookies + Authorization headers for maximum cross-origin / iframe reliability
 function authHeaders() {
+  try {
+    const token = localStorage.getItem('sxv_admin_token') || '';
+    if (token) {
+      return {
+        'X-Admin-Token': token,
+        'Authorization': 'Bearer ' + token
+      };
+    }
+  } catch (e) {}
   return {};
 }
-function clearToken() {}
+
+function clearToken() {
+  try {
+    localStorage.removeItem('sxv_admin_token');
+  } catch (e) {}
+}
+
+function saveEditModalState() {
+  try {
+    const data = {
+      id: document.getElementById('edit-id')?.value,
+      title: document.getElementById('edit-title')?.value,
+      genre: document.getElementById('edit-genre')?.value,
+      model: document.getElementById('edit-model')?.value,
+      tags: document.getElementById('edit-tags')?.value,
+      views: document.getElementById('edit-display-views')?.value,
+      desc: document.getElementById('edit-desc')?.value,
+      videoUrl: document.getElementById('edit-video-url')?.value,
+      thumbUrl: document.getElementById('edit-thumb-url')?.value,
+      dl480: document.getElementById('edit-dl-480')?.value,
+      dl720: document.getElementById('edit-dl-720')?.value,
+      dl1080: document.getElementById('edit-dl-1080')?.value,
+      dl4k: document.getElementById('edit-dl-4k')?.value,
+      published: document.getElementById('edit-published')?.checked
+    };
+    sessionStorage.setItem('sxv_pending_edit', JSON.stringify(data));
+  } catch (e) {}
+}
+
+function restoreEditModalState() {
+  try {
+    const raw = sessionStorage.getItem('sxv_pending_edit');
+    if (!raw) return;
+    sessionStorage.removeItem('sxv_pending_edit');
+    const data = JSON.parse(raw);
+    if (!data || !data.id) return;
+    openEditModal(data.id);
+    if (data.title) document.getElementById('edit-title').value = data.title;
+    if (data.genre) document.getElementById('edit-genre').value = data.genre;
+    if (data.model) document.getElementById('edit-model').value = data.model;
+    if (data.tags) document.getElementById('edit-tags').value = data.tags;
+    if (data.views) document.getElementById('edit-display-views').value = data.views;
+    if (data.desc) document.getElementById('edit-desc').value = data.desc;
+    if (data.videoUrl) document.getElementById('edit-video-url').value = data.videoUrl;
+    if (data.thumbUrl) document.getElementById('edit-thumb-url').value = data.thumbUrl;
+    if (data.dl480) document.getElementById('edit-dl-480').value = data.dl480;
+    if (data.dl720) document.getElementById('edit-dl-720').value = data.dl720;
+    if (data.dl1080) document.getElementById('edit-dl-1080').value = data.dl1080;
+    if (data.dl4k) document.getElementById('edit-dl-4k').value = data.dl4k;
+    showToast('Restored unsaved video edits! ✨', 'info');
+  } catch (e) {}
+}
 
 // ==================== Toast Notifications ====================
 function showToast(message, type = 'info') {
@@ -65,6 +125,7 @@ async function checkAuth() {
     if (data.isAdmin) {
       showDashboard();
       loadDashboard();
+      setTimeout(restoreEditModalState, 400);
     }
   } catch {
     // ignore
@@ -116,9 +177,13 @@ if (loginForm) {
           showToast('Credentials accepted. Please enter your 2FA code.', 'info');
         } else {
           // Standard login without 2FA
+          if (data.token) {
+            try { localStorage.setItem('sxv_admin_token', data.token); } catch (e) {}
+          }
           showToast('Welcome, Admin! 🎉', 'success');
           showDashboard();
           loadDashboard();
+          setTimeout(restoreEditModalState, 400);
         }
       } else {
         errorEl.classList.add('visible');
@@ -168,9 +233,13 @@ if (twoFactorForm) {
 
       if (res.ok) {
         currentPreAuthToken = null;
+        if (data.token) {
+          try { localStorage.setItem('sxv_admin_token', data.token); } catch (e) {}
+        }
         showToast('Two-Factor Authentication Verified! 🎉', 'success');
         showDashboard();
         loadDashboard();
+        setTimeout(restoreEditModalState, 400);
       } else {
         errorEl.classList.add('visible');
         errorEl.textContent = data.error || 'Invalid 2FA code. Please check your app.';
@@ -283,7 +352,12 @@ async function loadDashboard() {
 async function loadStats() {
   try {
     const res = await fetch('/api/stats', { headers: authHeaders() });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     const stats = await res.json();
 
     document.getElementById('stat-total').textContent = stats.totalVideos;
@@ -943,7 +1017,12 @@ window.createGenreCategory = async function(source) {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ genre: newGenre })
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     const data = await res.json();
 
     if (!res.ok) {
@@ -999,7 +1078,12 @@ window.deleteGenreCategory = async function(genreName, event) {
       method: 'DELETE',
       headers: authHeaders()
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     const data = await res.json();
     if (res.ok) {
       if (Array.isArray(data.genres)) adminGenres = data.genres;
@@ -1027,7 +1111,12 @@ window.quickChangeVideoGenre = async function(videoId, newGenre) {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ genre: newGenre })
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     if (res.ok) {
       video.genre = newGenre;
       if (newGenre && !adminGenres.some(g => g.toLowerCase() === newGenre.toLowerCase())) {
@@ -1048,7 +1137,12 @@ window.quickChangeVideoGenre = async function(videoId, newGenre) {
 async function loadAdminVideos() {
   try {
     const res = await fetch('/api/admin/videos', { headers: authHeaders() });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     adminVideos = await res.json();
 
     // Ensure any custom genres on existing videos appear in adminGenres
@@ -1245,6 +1339,12 @@ async function saveEdit() {
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ videoUrl: editVideoUrl, time: 15 })
       });
+      if (autoRes.status === 401) {
+        showToast('Admin session expired. Please log in again.', 'error');
+        saveEditModalState();
+        setTimeout(() => { clearToken(); location.reload(); }, 1500);
+        return;
+      }
       if (autoRes.ok) {
         const autoData = await autoRes.json();
         if (autoData && autoData.thumbnailUrl) {
@@ -1291,7 +1391,12 @@ async function saveEdit() {
       body: JSON.stringify(payload)
     });
 
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     if (res.ok) {
       showToast('Video updated successfully!', 'success');
@@ -1334,7 +1439,12 @@ async function confirmDelete() {
       headers: authHeaders()
     });
 
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     if (res.ok) {
       showToast('Video deleted', 'success');
@@ -1653,7 +1763,12 @@ window.sendNotification = async function() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ message })
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     
     const data = await res.json().catch(() => ({}));
     if (res.ok) {
@@ -1686,7 +1801,12 @@ async function loadContactAdminData() {
 async function loadContactConfigAdmin() {
   try {
     const res = await fetch('/api/admin/contact/config', { headers: authHeaders() });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     if (res.ok) {
       const cfg = await res.json();
       if (document.getElementById('admin-tg-url')) document.getElementById('admin-tg-url').value = cfg.telegramChannelUrl || '';
@@ -1726,7 +1846,12 @@ window.saveContactSettings = async function() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(payload)
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     const data = await res.json();
     if (res.ok) {
@@ -1751,7 +1876,12 @@ window.loadContactMessagesAdmin = async function() {
 
   try {
     const res = await fetch('/api/admin/contact/messages', { headers: authHeaders() });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch messages');
 
     contactMessages = await res.json();
@@ -1855,7 +1985,12 @@ window.toggleMessageStatus = async function(newStatus, showFeedback = true) {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ status: newStatus })
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     if (res.ok) {
       const msg = contactMessages.find(m => m.id === currentContactMessageId);
@@ -1876,7 +2011,12 @@ window.deleteContactMessage = async function(id) {
       method: 'DELETE',
       headers: authHeaders()
     });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     if (res.ok) {
       showToast('Inquiry deleted', 'success');
@@ -1920,7 +2060,12 @@ window.migrateBunnyVideos = async function() {
       body: JSON.stringify({ r2Domain: domain })
     });
 
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     const data = await res.json();
     if (res.ok) {
@@ -1954,7 +2099,12 @@ let isSecretRevealed = false;
 async function load2FAStatus() {
   try {
     const res = await fetch('/api/admin/2fa/status', { headers: authHeaders() });
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     if (!res.ok) return;
 
     const data = await res.json();
@@ -2101,7 +2251,12 @@ async function start2FASetupWizard(isCustom = false) {
       body: JSON.stringify(body)
     });
 
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     const data = await res.json();
 
     if (!res.ok) {
@@ -2191,7 +2346,12 @@ async function confirm2FASetup() {
       body: JSON.stringify({ code })
     });
 
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     const data = await res.json();
 
     if (btn) {
@@ -2416,7 +2576,12 @@ async function confirmRegenerateBackupCodes() {
       body: JSON.stringify({ code })
     });
 
-    if (res.status === 401) { clearToken(); location.reload(); return; }
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
     const data = await res.json();
 
     if (res.ok) {
@@ -2844,6 +3009,14 @@ async function triggerHlsThumbnailFetch(hlsUrl, force = false) {
       body: JSON.stringify({ videoUrl: cleanUrl, time: 15 })
     });
 
+    if (serverRes.status === 401) {
+      if (loading) loading.style.display = 'none';
+      if (badge) { badge.textContent = '🔒 Session Expired'; badge.style.background = '#ef4444'; }
+      showToast('Admin session expired. Please log in again.', 'error');
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
+
     if (serverRes.ok) {
       const data = await serverRes.json();
       if (data && data.thumbnailUrl) {
@@ -3076,6 +3249,18 @@ async function triggerEditModalAutoThumb(seekTime = 15) {
       body: JSON.stringify({ videoUrl, time: seekTime })
     });
 
+    if (res.status === 401) {
+      if (loading) loading.style.display = 'none';
+      if (badge) {
+        badge.textContent = '🔒 Session Expired';
+        badge.style.background = '#ef4444';
+      }
+      showToast('Admin session expired. Please log in again.', 'error');
+      saveEditModalState();
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.error || 'Extraction failed');
@@ -3135,6 +3320,12 @@ async function quickAutoThumbnail(videoId) {
       body: JSON.stringify({ videoUrl: video.videoUrl, time: 15 })
     });
 
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
+
     if (!res.ok) throw new Error('Extraction failed');
     const data = await res.json();
     if (!data.thumbnailUrl) throw new Error('No thumbnail returned');
@@ -3148,6 +3339,12 @@ async function quickAutoThumbnail(videoId) {
         thumbnailUrl: data.thumbnailUrl
       })
     });
+
+    if (updateRes.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
 
     if (!updateRes.ok) throw new Error('Failed to update video record');
 

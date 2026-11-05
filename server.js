@@ -568,8 +568,65 @@ function parseCookies(req) {
   });
   return out;
 }
+const revokedTokens = new Set();
+
+// Persistent HMAC session authentication across server redeploys and restarts
+const SESSION_SECRET = process.env.ADMIN_PASSWORD || process.env.SESSION_SECRET || 'streamxvault-secure-admin-session-2026';
+
+function signAdminSession(username = 'admin') {
+  const exp = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30-day session
+  const nonce = crypto.randomBytes(8).toString('hex');
+  const payload = Buffer.from(JSON.stringify({ u: username, exp, n: nonce })).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyAdminSession(tokenStr) {
+  if (!tokenStr || typeof tokenStr !== 'string') return false;
+  if (revokedTokens.has(tokenStr)) return false;
+  if (adminTokens.has(tokenStr)) return true;
+
+  const parts = tokenStr.split('.');
+  if (parts.length !== 2) return false;
+  const [payload, sig] = parts;
+  if (!payload || !sig) return false;
+
+  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  try {
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expectedSig);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+  } catch (e) {
+    return false;
+  }
+
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data || !data.exp || typeof data.exp !== 'number') return false;
+    if (Date.now() > data.exp) return false;
+    const expectUser = process.env.ADMIN_USERNAME || 'admin';
+    if (data.u && data.u !== expectUser) return false;
+    adminTokens.add(tokenStr);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function getRequestToken(req) {
+  const cookie = parseCookies(req).sxv_admin || '';
+  if (cookie) return cookie;
+  const headerToken = req.headers['x-admin-token'] || '';
+  if (headerToken) return headerToken;
+  const auth = String(req.headers['authorization'] || '');
+  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return '';
+}
+
 function isAdmin(req) {
-  return adminTokens.has(parseCookies(req).sxv_admin || '');
+  const token = getRequestToken(req);
+  if (!token) return false;
+  return verifyAdminSession(token);
 }
 function requireAdmin(req, res, next) {
   if (!isAdmin(req)) return res.status(401).json({ error: 'Unauthorized' });
@@ -629,10 +686,10 @@ app.post('/api/auth/login', async (req, res) => {
 
   // 2FA is not enabled
   auth2FA.resetLoginRateLimit(clientIp);
-  const token = crypto.randomBytes(24).toString('hex');
+  const token = signAdminSession(user);
   adminTokens.add(token);
-  res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400');
-  res.json({ ok: true, requires2FA: false, requires2FASetup: true });
+  res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000');
+  res.json({ ok: true, token, requires2FA: false, requires2FASetup: true });
 });
 
 app.post('/api/auth/verify-2fa', async (req, res) => {
@@ -681,20 +738,24 @@ app.post('/api/auth/verify-2fa', async (req, res) => {
   auth2FA.consumePreAuthSession(tempToken);
   auth2FA.resetLoginRateLimit(clientIp);
 
-  const token = crypto.randomBytes(24).toString('hex');
+  const token = signAdminSession(session.username || 'admin');
   adminTokens.add(token);
-  res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400');
+  res.setHeader('Set-Cookie', 'sxv_admin=' + token + '; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000');
   res.json({
     ok: true,
+    token,
     usedBackupCode: verifyResult.type === 'backup',
     message: 'Two-Factor Authentication verified successfully.'
   });
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  const token = parseCookies(req).sxv_admin || '';
-  adminTokens.delete(token);
-  pending2FASetups.delete(token);
+  const token = getRequestToken(req);
+  if (token) {
+    adminTokens.delete(token);
+    revokedTokens.add(token);
+    pending2FASetups.delete(token);
+  }
   res.setHeader('Set-Cookie', 'sxv_admin=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
   res.json({ ok: true });
 });
@@ -1042,15 +1103,19 @@ app.post('/api/admin/extract-video-thumbnail', requireAdmin, async (req, res) =>
   try {
     const extractFrame = (seek) => new Promise((resolve, reject) => {
       const args = [
+        '-analyzeduration', '2000000',
+        '-probesize', '2000000',
         '-ss', String(seek),
         '-i', videoUrl,
+        '-an',
+        '-sn',
         '-vframes', '1',
         '-f', 'image2',
         '-q:v', '2',
         '-vf', 'scale=1280:-1',
         'pipe:1'
       ];
-      execFile('ffmpeg', args, { maxBuffer: 10 * 1024 * 1024, encoding: 'buffer', timeout: 18000 }, (err, stdout, stderr) => {
+      execFile('ffmpeg', args, { maxBuffer: 10 * 1024 * 1024, encoding: 'buffer', timeout: 45000 }, (err, stdout, stderr) => {
         if (err) return reject(err);
         if (!stdout || stdout.length < 100) return reject(new Error('Empty frame output'));
         resolve(stdout);
