@@ -1135,6 +1135,7 @@ function renderAdminVideoList(videosToRender) {
         <select aria-label="Change Genre Category" onchange="quickChangeVideoGenre('${video.id}', this.value)" style="padding: 0.35rem 0.6rem; background: var(--bg-body); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: var(--radius-sm); font-size: 0.8rem; cursor: pointer; outline: none;" title="Quickly move video to another genre category">
           ${genreOptionsHtml}
         </select>
+        ${!video.thumbnailUrl && video.videoUrl ? `<button class="btn btn-primary btn-sm" onclick="quickAutoThumbnail('${video.id}')" title="Auto-fetch thumbnail from video stream" style="background: linear-gradient(135deg, #0ea5e9, #38bdf8); color: white; border: none; font-weight: 600;">📸 Auto-Thumb</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="openEditModal('${video.id}')">✏️ Edit</button>
         <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${video.id}')">🗑️</button>
       </div>
@@ -1193,6 +1194,31 @@ function openEditModal(videoId) {
   document.getElementById('edit-dl-480').value = (video.downloads && video.downloads.p480) || ''; document.getElementById('edit-dl-720').value = (video.downloads && video.downloads.p720) || ''; document.getElementById('edit-dl-1080').value = (video.downloads && video.downloads.p1080) || ''; document.getElementById('edit-dl-4k').value = (video.downloads && video.downloads.p4k) || '';
   document.getElementById('edit-published').checked = video.published !== false;
 
+  // Manage Thumbnail Preview in Edit Modal
+  const previewCard = document.getElementById('edit-thumb-preview-card');
+  const previewImg = document.getElementById('edit-thumb-preview-img');
+  const badge = document.getElementById('edit-thumb-badge');
+
+  if (video.thumbnailUrl) {
+    if (previewCard) previewCard.style.display = 'block';
+    if (previewImg) previewImg.src = video.thumbnailUrl;
+    if (badge) {
+      badge.textContent = '✨ Active Poster';
+      badge.style.background = 'rgba(16, 185, 129, 0.95)';
+    }
+  } else if (video.videoUrl) {
+    // Missing thumbnail: display preview card and auto-fetch right away!
+    if (previewCard) previewCard.style.display = 'block';
+    if (badge) {
+      badge.textContent = '⚠️ Missing Thumbnail';
+      badge.style.background = '#f59e0b';
+    }
+    // Auto-fetch in background
+    setTimeout(() => { triggerEditModalAutoThumb(15); }, 200);
+  } else {
+    if (previewCard) previewCard.style.display = 'none';
+  }
+
   document.getElementById('edit-modal').classList.add('active');
 }
 
@@ -1203,6 +1229,39 @@ function closeEditModal() {
 async function saveEdit() {
   const videoId = document.getElementById('edit-id').value;
   const editVideoUrl = document.getElementById('edit-video-url').value.trim();
+  let thumbUrl = document.getElementById('edit-thumb-url').value.trim();
+
+  // If thumbnail is empty and video URL exists, auto-fetch and upload to R2 before saving!
+  if (!thumbUrl && editVideoUrl) {
+    const saveBtn = document.querySelector('#edit-modal .modal-footer .btn-primary');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '⏳ Auto-fetching thumbnail...';
+    }
+    showToast('Auto-fetching thumbnail from video stream... ⏳', 'info');
+    try {
+      const autoRes = await fetch('/api/admin/extract-video-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ videoUrl: editVideoUrl, time: 15 })
+      });
+      if (autoRes.ok) {
+        const autoData = await autoRes.json();
+        if (autoData && autoData.thumbnailUrl) {
+          thumbUrl = autoData.thumbnailUrl;
+          document.getElementById('edit-thumb-url').value = thumbUrl;
+          showToast('Thumbnail automatically captured & saved to R2! 🎬', 'success');
+        }
+      }
+    } catch (e) {
+      console.warn('Auto-thumbnail in saveEdit failed:', e);
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 Save Changes';
+      }
+    }
+  }
 
   // If the admin typed a new genre in the edit modal's quick input without clicking "+ Create & Select", use it automatically!
   const pendingNewGenreEl = document.getElementById('edit-new-genre-input');
@@ -1219,7 +1278,7 @@ async function saveEdit() {
     tags: document.getElementById('edit-tags') ? document.getElementById('edit-tags').value.trim() : '',
     description: document.getElementById('edit-desc').value.trim(),
     displayViews: document.getElementById('edit-display-views').value.trim(),
-    thumbnailUrl: document.getElementById('edit-thumb-url').value.trim(),
+    thumbnailUrl: thumbUrl,
     videoUrl: editVideoUrl,
     dl480: document.getElementById('edit-dl-480').value.trim(), dl720: document.getElementById('edit-dl-720').value.trim(), dl1080: document.getElementById('edit-dl-1080').value.trim(), dl4k: document.getElementById('edit-dl-4k').value.trim(),
     published: document.getElementById('edit-published').checked
@@ -2986,6 +3045,124 @@ window.fetchThumbFromExternalUrl = fetchThumbFromExternalUrl;
 window.onHlsInputDebounced = onHlsInputDebounced;
 window.triggerHlsThumbnailFetch = triggerHlsThumbnailFetch;
 window.autoExtractAndUploadHlsThumbnail = autoExtractAndUploadHlsThumbnail;
+
+// ==================== Edit Modal & Quick Auto-Thumbnail ====================
+async function triggerEditModalAutoThumb(seekTime = 15) {
+  const videoUrl = (document.getElementById('edit-video-url')?.value || '').trim();
+  const thumbInput = document.getElementById('edit-thumb-url');
+  const previewCard = document.getElementById('edit-thumb-preview-card');
+  const previewImg = document.getElementById('edit-thumb-preview-img');
+  const loading = document.getElementById('edit-thumb-loading');
+  const badge = document.getElementById('edit-thumb-badge');
+
+  if (!videoUrl) {
+    showToast('Please enter or verify the Video URL first', 'error');
+    return;
+  }
+
+  if (previewCard) previewCard.style.display = 'block';
+  if (loading) loading.style.display = 'flex';
+  if (badge) {
+    badge.textContent = '⏳ Extracting...';
+    badge.style.background = '#64748b';
+  }
+
+  showToast(`Auto-fetching thumbnail from video stream (${seekTime}s)... ⏳`, 'info');
+
+  try {
+    const res = await fetch('/api/admin/extract-video-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ videoUrl, time: seekTime })
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Extraction failed');
+    }
+
+    const data = await res.json();
+    if (data && data.thumbnailUrl) {
+      if (thumbInput) thumbInput.value = data.thumbnailUrl;
+      if (previewImg) previewImg.src = data.thumbnailUrl;
+      if (badge) {
+        badge.textContent = `✨ Best Frame (${seekTime}s)`;
+        badge.style.background = 'rgba(16, 185, 129, 0.95)';
+      }
+      showToast('Thumbnail captured and uploaded to Cloudflare R2! 🎬', 'success');
+    }
+  } catch (err) {
+    console.warn('triggerEditModalAutoThumb error:', err);
+    showToast('Could not auto-extract thumbnail: ' + err.message, 'warning');
+    if (badge) {
+      badge.textContent = '⚠️ Extraction error';
+      badge.style.background = '#ef4444';
+    }
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+function onEditThumbUrlChanged() {
+  const val = (document.getElementById('edit-thumb-url')?.value || '').trim();
+  const previewCard = document.getElementById('edit-thumb-preview-card');
+  const previewImg = document.getElementById('edit-thumb-preview-img');
+  const badge = document.getElementById('edit-thumb-badge');
+
+  if (val) {
+    if (previewCard) previewCard.style.display = 'block';
+    if (previewImg) previewImg.src = val;
+    if (badge) {
+      badge.textContent = 'Custom URL';
+      badge.style.background = '#0284c7';
+    }
+  }
+}
+
+async function quickAutoThumbnail(videoId) {
+  const video = adminVideos.find(v => v.id === videoId);
+  if (!video || !video.videoUrl) {
+    showToast('Video not found or has no video URL', 'error');
+    return;
+  }
+
+  showToast(`Auto-fetching thumbnail for "${video.title}"... ⏳`, 'info');
+
+  try {
+    const res = await fetch('/api/admin/extract-video-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ videoUrl: video.videoUrl, time: 15 })
+    });
+
+    if (!res.ok) throw new Error('Extraction failed');
+    const data = await res.json();
+    if (!data.thumbnailUrl) throw new Error('No thumbnail returned');
+
+    // Save update to video
+    const updateRes = await fetch(`/api/videos/${videoId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        ...video,
+        thumbnailUrl: data.thumbnailUrl
+      })
+    });
+
+    if (!updateRes.ok) throw new Error('Failed to update video record');
+
+    video.thumbnailUrl = data.thumbnailUrl;
+    showToast(`Thumbnail added to "${video.title}"! 🎉`, 'success');
+    loadAdminVideos();
+  } catch (err) {
+    showToast('Failed to auto-fetch thumbnail: ' + err.message, 'error');
+  }
+}
+
+window.autoExtractAndUploadHlsThumbnail = autoExtractAndUploadHlsThumbnail;
+window.triggerEditModalAutoThumb = triggerEditModalAutoThumb;
+window.onEditThumbUrlChanged = onEditThumbUrlChanged;
+window.quickAutoThumbnail = quickAutoThumbnail;
 window.toggleActiveSecretVisibility = toggleActiveSecretVisibility;
 window.copyActive2FASecret = copyActive2FASecret;
 window.showLinkExistingKeyForm = showLinkExistingKeyForm;
