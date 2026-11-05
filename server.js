@@ -1093,11 +1093,22 @@ app.get('/api/admin/proxy-media', requireAdmin, async (req, res) => {
 const { execFile } = require('child_process');
 
 app.post('/api/admin/extract-video-thumbnail', requireAdmin, async (req, res) => {
-  const videoUrl = String((req.body && req.body.videoUrl) || '').trim();
-  const seekTime = Number(req.body && req.body.time) || 15;
+  const rawVideoUrl = String((req.body && req.body.videoUrl) || '').trim();
+  let seekTime = Math.max(1, Math.round(Number(req.body && req.body.time) || 15));
 
-  if (!videoUrl || !videoUrl.startsWith('http')) {
+  if (!rawVideoUrl || !rawVideoUrl.startsWith('http')) {
     return res.status(400).json({ error: 'Valid videoUrl is required' });
+  }
+
+  // Speed optimization: For multi-variant master HLS streams, prefer the 720p variant (video_2.m3u8)
+  // to avoid downloading heavy 4K/1080p chunks over the network when generating 1280px thumbnails
+  let videoUrl = rawVideoUrl;
+  if (videoUrl.includes('/master.m3u8')) {
+    const fastVariant = videoUrl.replace('/master.m3u8', '/video_2.m3u8');
+    try {
+      const headCheck = await fetch(fastVariant, { method: 'HEAD', signal: AbortSignal.timeout(2500) });
+      if (headCheck.ok) videoUrl = fastVariant;
+    } catch (e) {}
   }
 
   try {
@@ -1123,16 +1134,34 @@ app.post('/api/admin/extract-video-thumbnail', requireAdmin, async (req, res) =>
     });
 
     let buffer = null;
+    let actualTime = seekTime;
     try {
       buffer = await extractFrame(seekTime);
     } catch (e1) {
-      if (seekTime > 2) {
+      console.warn(`Extraction at ${seekTime}s failed, trying fallback seek:`, e1.message);
+      // Fallback 1: Half of requested time if requested time was far into video
+      if (seekTime > 60) {
         try {
+          actualTime = Math.round(seekTime / 2);
+          buffer = await extractFrame(actualTime);
+        } catch (e2) {}
+      }
+      // Fallback 2: 15s (standard scene moment)
+      if (!buffer && seekTime !== 15) {
+        try {
+          actualTime = 15;
+          buffer = await extractFrame(15);
+        } catch (e3) {}
+      }
+      // Fallback 3: 2s (early keyframe)
+      if (!buffer && seekTime > 2) {
+        try {
+          actualTime = 2;
           buffer = await extractFrame(2);
-        } catch (e2) {
-          throw new Error('FFmpeg extraction failed: ' + (e2.message || e1.message));
+        } catch (e4) {
+          throw new Error('FFmpeg extraction failed: ' + (e4.message || e1.message));
         }
-      } else {
+      } else if (!buffer) {
         throw e1;
       }
     }
@@ -1156,7 +1185,8 @@ app.post('/api/admin/extract-video-thumbnail', requireAdmin, async (req, res) =>
     return res.json({
       success: true,
       thumbnailUrl: publicUrl,
-      key: filename
+      key: filename,
+      time: actualTime
     });
 
   } catch (err) {

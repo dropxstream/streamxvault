@@ -1317,6 +1317,7 @@ function openEditModal(videoId) {
 }
 
 function closeEditModal() {
+  if (typeof stopLiveScrubber === 'function') stopLiveScrubber('edit');
   document.getElementById('edit-modal').classList.remove('active');
 }
 
@@ -3028,41 +3029,32 @@ async function triggerHlsThumbnailFetch(hlsUrl, force = false) {
         if (thumbInput) thumbInput.value = data.thumbnailUrl;
         showToast('HLS thumbnail automatically captured and saved to R2! 🎬', 'success');
 
-        // Render candidate timestamps (10s, 30s, 60s, 120s)
+        // Render candidate timestamps covering key scenes across the video
         if (candidatesBox) {
           const moments = [
-            { label: '5s', time: 5 },
-            { label: '15s ⭐', time: 15 },
-            { label: '45s', time: 45 },
-            { label: '90s', time: 90 }
+            { label: '15s', time: 15 },
+            { label: '1m', time: 60 },
+            { label: '3m ⭐', time: 180, highlight: true },
+            { label: '5m ⭐', time: 300, highlight: true },
+            { label: '10m ⭐', time: 600, highlight: true },
+            { label: '15m', time: 900 },
+            { label: '25m', time: 1500 },
+            { label: '40m', time: 2400 }
           ];
           candidatesBox.innerHTML = '';
           moments.forEach(m => {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'btn btn-secondary btn-sm';
-            btn.style.padding = '0.25rem 0.55rem';
-            btn.style.fontSize = '0.75rem';
+            btn.style.padding = '0.2rem 0.5rem';
+            btn.style.fontSize = '0.72rem';
+            if (m.highlight) {
+              btn.style.borderColor = '#f59e0b';
+              btn.style.color = '#f59e0b';
+              btn.style.fontWeight = '600';
+            }
             btn.textContent = m.label;
-            btn.onclick = async () => {
-              if (loading) loading.style.display = 'flex';
-              try {
-                const subRes = await fetch('/api/admin/extract-video-thumbnail', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                  body: JSON.stringify({ videoUrl: cleanUrl, time: m.time })
-                });
-                if (subRes.ok) {
-                  const subData = await subRes.json();
-                  if (subData && subData.thumbnailUrl) {
-                    if (img) img.src = subData.thumbnailUrl;
-                    if (thumbInput) thumbInput.value = subData.thumbnailUrl;
-                    if (timeEl) timeEl.textContent = m.label + ' Moment';
-                  }
-                }
-              } catch (e) {}
-              if (loading) loading.style.display = 'none';
-            };
+            btn.onclick = () => triggerUploadAutoThumb(m.time);
             candidatesBox.appendChild(btn);
           });
         }
@@ -3219,7 +3211,192 @@ window.onHlsInputDebounced = onHlsInputDebounced;
 window.triggerHlsThumbnailFetch = triggerHlsThumbnailFetch;
 window.autoExtractAndUploadHlsThumbnail = autoExtractAndUploadHlsThumbnail;
 
-// ==================== Edit Modal & Quick Auto-Thumbnail ====================
+// ==================== Time Parsing & Display Helpers ====================
+function parseTimeToSeconds(input) {
+  if (typeof input === 'number') return Math.max(1, Math.round(input));
+  const s = String(input || '').trim().toLowerCase();
+  if (!s) return 15;
+
+  if (s.includes(':')) {
+    const parts = s.split(':').map(p => parseFloat(p) || 0);
+    if (parts.length === 2) return Math.max(1, Math.round(parts[0] * 60 + parts[1]));
+    if (parts.length === 3) return Math.max(1, Math.round(parts[0] * 3600 + parts[1] * 60 + parts[2]));
+  }
+
+  let total = 0;
+  let matched = false;
+  const hMatch = s.match(/(\d+(?:\.\d+)?)\s*h/);
+  if (hMatch) { total += parseFloat(hMatch[1]) * 3600; matched = true; }
+  const mMatch = s.match(/(\d+(?:\.\d+)?)\s*m/);
+  if (mMatch) { total += parseFloat(mMatch[1]) * 60; matched = true; }
+  const sMatch = s.match(/(\d+(?:\.\d+)?)\s*s/);
+  if (sMatch) { total += parseFloat(sMatch[1]); matched = true; }
+
+  if (matched) return Math.max(1, Math.round(total));
+
+  const num = parseFloat(s);
+  return !isNaN(num) && num > 0 ? Math.round(num) : 15;
+}
+
+function formatSecondsToDisplay(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const remM = m % 60;
+    return `${h}:${String(remM).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ==================== Interactive Live Video Scrubber ====================
+let activeScrubberHls = { edit: null, upload: null };
+
+function toggleLiveScrubber(mode = 'edit') {
+  const boxId = mode === 'edit' ? 'edit-scrubber-box' : 'upload-scrubber-box';
+  const videoId = mode === 'edit' ? 'edit-scrubber-video' : 'upload-scrubber-video';
+  const urlInputId = mode === 'edit' ? 'edit-video-url' : 'r2-video-url';
+  const labelId = mode === 'edit' ? 'edit-scrubber-time-label' : 'upload-scrubber-time-label';
+
+  const box = document.getElementById(boxId);
+  const video = document.getElementById(videoId);
+  const url = (document.getElementById(urlInputId)?.value || '').trim();
+
+  if (!box || !video) return;
+
+  if (box.style.display !== 'none') {
+    stopLiveScrubber(mode);
+    return;
+  }
+
+  if (!url) {
+    showToast('Please enter or verify the Video URL first', 'error');
+    return;
+  }
+
+  box.style.display = 'block';
+
+  // Attach video stream using Hls.js or native HTML5
+  if (typeof Hls !== 'undefined' && Hls.isSupported() && url.includes('.m3u8')) {
+    if (activeScrubberHls[mode]) {
+      try { activeScrubberHls[mode].destroy(); } catch (e) {}
+    }
+    const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+    activeScrubberHls[mode] = hls;
+    hls.loadSource(url);
+    hls.attachMedia(video);
+  } else {
+    video.src = url;
+  }
+
+  video.ontimeupdate = () => {
+    const label = document.getElementById(labelId);
+    if (label) {
+      label.textContent = formatSecondsToDisplay(video.currentTime) + ` (${Math.round(video.currentTime)}s)`;
+    }
+  };
+}
+
+function stopLiveScrubber(mode = 'edit') {
+  const videoId = mode === 'edit' ? 'edit-scrubber-video' : 'upload-scrubber-video';
+  const video = document.getElementById(videoId);
+  if (video) {
+    try {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    } catch (e) {}
+  }
+  if (activeScrubberHls[mode]) {
+    try { activeScrubberHls[mode].destroy(); } catch (e) {}
+    activeScrubberHls[mode] = null;
+  }
+  const box = document.getElementById(mode === 'edit' ? 'edit-scrubber-box' : 'upload-scrubber-box');
+  if (box) box.style.display = 'none';
+}
+
+function captureFromScrubber(mode = 'edit') {
+  const videoId = mode === 'edit' ? 'edit-scrubber-video' : 'upload-scrubber-video';
+  const video = document.getElementById(videoId);
+  if (!video || isNaN(video.currentTime) || video.currentTime <= 0) {
+    showToast('Please play or seek to your desired video moment first', 'warning');
+    return;
+  }
+  const seekSec = Math.max(1, Math.round(video.currentTime));
+  if (mode === 'edit') {
+    triggerEditModalAutoThumb(seekSec);
+  } else {
+    triggerUploadAutoThumb(seekSec);
+  }
+}
+
+function triggerCustomTimeCapture(mode = 'edit') {
+  const inputId = mode === 'edit' ? 'edit-custom-time-input' : 'upload-custom-time-input';
+  const raw = (document.getElementById(inputId)?.value || '').trim();
+  if (!raw) {
+    showToast('Please enter a time (e.g. 05:30, 12m, or 350s)', 'warning');
+    return;
+  }
+  const sec = parseTimeToSeconds(raw);
+  if (mode === 'edit') {
+    triggerEditModalAutoThumb(sec);
+  } else {
+    triggerUploadAutoThumb(sec);
+  }
+}
+
+// Upload Tab HLS auto-thumbnail extraction at specific moment
+async function triggerUploadAutoThumb(seekTime = 15) {
+  const cleanUrl = (document.getElementById('r2-video-url')?.value || '').trim();
+  if (!cleanUrl) {
+    showToast('Please enter an HLS video URL first', 'error');
+    return;
+  }
+  const img = document.getElementById('r2-hls-thumb-img');
+  const loading = document.getElementById('r2-hls-thumb-loading');
+  const badge = document.getElementById('r2-hls-thumb-badge');
+  const timeEl = document.getElementById('r2-hls-thumb-time');
+  const thumbInput = document.getElementById('r2-thumb-url');
+
+  const seconds = parseTimeToSeconds(seekTime);
+  const displayLabel = formatSecondsToDisplay(seconds);
+
+  if (loading) loading.style.display = 'flex';
+  showToast(`Auto-fetching thumbnail at ${displayLabel} (${seconds}s)... ⏳`, 'info');
+
+  try {
+    const res = await fetch('/api/admin/extract-video-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ videoUrl: cleanUrl, time: seconds })
+    });
+    if (res.status === 401) {
+      showToast('Admin session expired. Please log in again.', 'error');
+      setTimeout(() => { clearToken(); location.reload(); }, 1500);
+      return;
+    }
+    if (!res.ok) throw new Error('Extraction failed');
+    const data = await res.json();
+    if (data && data.thumbnailUrl) {
+      if (img) img.src = data.thumbnailUrl;
+      if (thumbInput) thumbInput.value = data.thumbnailUrl;
+      const actualDisplay = formatSecondsToDisplay(data.time || seconds);
+      if (badge) {
+        badge.textContent = `✨ Best Frame (${actualDisplay})`;
+        badge.style.background = 'rgba(16, 185, 129, 0.95)';
+      }
+      if (timeEl) timeEl.textContent = `Moment Captured (${actualDisplay})`;
+      showToast(`Thumbnail captured at ${actualDisplay} and saved to Cloudflare R2! 🎬`, 'success');
+    }
+  } catch (err) {
+    showToast('Could not extract thumbnail: ' + err.message, 'warning');
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
+
+// ==================== Edit Modal Auto-Thumbnail ====================
 async function triggerEditModalAutoThumb(seekTime = 15) {
   const videoUrl = (document.getElementById('edit-video-url')?.value || '').trim();
   const thumbInput = document.getElementById('edit-thumb-url');
@@ -3233,20 +3410,23 @@ async function triggerEditModalAutoThumb(seekTime = 15) {
     return;
   }
 
+  const seconds = parseTimeToSeconds(seekTime);
+  const displayLabel = formatSecondsToDisplay(seconds);
+
   if (previewCard) previewCard.style.display = 'block';
   if (loading) loading.style.display = 'flex';
   if (badge) {
-    badge.textContent = '⏳ Extracting...';
+    badge.textContent = `⏳ Fetching ${displayLabel}...`;
     badge.style.background = '#64748b';
   }
 
-  showToast(`Auto-fetching thumbnail from video stream (${seekTime}s)... ⏳`, 'info');
+  showToast(`Auto-fetching thumbnail from stream at ${displayLabel} (${seconds}s)... ⏳`, 'info');
 
   try {
     const res = await fetch('/api/admin/extract-video-thumbnail', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ videoUrl, time: seekTime })
+      body: JSON.stringify({ videoUrl, time: seconds })
     });
 
     if (res.status === 401) {
@@ -3270,11 +3450,12 @@ async function triggerEditModalAutoThumb(seekTime = 15) {
     if (data && data.thumbnailUrl) {
       if (thumbInput) thumbInput.value = data.thumbnailUrl;
       if (previewImg) previewImg.src = data.thumbnailUrl;
+      const actualDisplay = formatSecondsToDisplay(data.time || seconds);
       if (badge) {
-        badge.textContent = `✨ Best Frame (${seekTime}s)`;
+        badge.textContent = `✨ Best Frame (${actualDisplay})`;
         badge.style.background = 'rgba(16, 185, 129, 0.95)';
       }
-      showToast('Thumbnail captured and uploaded to Cloudflare R2! 🎬', 'success');
+      showToast(`Thumbnail captured at ${actualDisplay} and saved to Cloudflare R2! 🎬`, 'success');
     }
   } catch (err) {
     console.warn('triggerEditModalAutoThumb error:', err);
@@ -3358,6 +3539,13 @@ async function quickAutoThumbnail(videoId) {
 
 window.autoExtractAndUploadHlsThumbnail = autoExtractAndUploadHlsThumbnail;
 window.triggerEditModalAutoThumb = triggerEditModalAutoThumb;
+window.triggerUploadAutoThumb = triggerUploadAutoThumb;
+window.toggleLiveScrubber = toggleLiveScrubber;
+window.stopLiveScrubber = stopLiveScrubber;
+window.captureFromScrubber = captureFromScrubber;
+window.triggerCustomTimeCapture = triggerCustomTimeCapture;
+window.parseTimeToSeconds = parseTimeToSeconds;
+window.formatSecondsToDisplay = formatSecondsToDisplay;
 window.onEditThumbUrlChanged = onEditThumbUrlChanged;
 window.quickAutoThumbnail = quickAutoThumbnail;
 window.toggleActiveSecretVisibility = toggleActiveSecretVisibility;
