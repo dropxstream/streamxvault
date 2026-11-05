@@ -1839,6 +1839,9 @@ window.migrateBunnyVideos = async function() {
 // ==================== Two-Factor Authentication (2FA) ====================
 let currentGeneratedBackupCodes = [];
 let currentRaw2FASecret = '';
+let activeSecretKey = '';
+let activeFormattedSecret = '';
+let isSecretRevealed = false;
 
 async function load2FAStatus() {
   try {
@@ -1899,6 +1902,28 @@ function render2FAUI(data) {
       if (backupCountEl) {
         backupCountEl.textContent = `${data.backupCodesRemaining} of ${data.backupCodesTotal} available`;
       }
+
+      // Update Active Secret Key display
+      activeSecretKey = data.secret || '';
+      activeFormattedSecret = data.formattedSecret || data.secret || '';
+      isSecretRevealed = false;
+      const secretDisp = document.getElementById('twofa-active-secret-display');
+      if (secretDisp) {
+        secretDisp.textContent = '•••• •••• •••• •••• •••• •••• •••• ••••';
+      }
+      const toggleBtn = document.getElementById('btn-toggle-active-secret');
+      if (toggleBtn) toggleBtn.innerHTML = '👁️ Reveal Key';
+
+      // Storage badge
+      const storageBadge = document.getElementById('twofa-storage-badge');
+      if (storageBadge) {
+        if (data.storagePersistent) {
+          storageBadge.textContent = '☁️ Backed up to Cloudflare R2 Storage (Persistent across restarts)';
+          storageBadge.style.display = 'inline-block';
+        } else {
+          storageBadge.textContent = '💾 Stored locally on container disk';
+        }
+      }
     } else {
       activeContainer.style.display = 'none';
       inactiveContainer.style.display = 'block';
@@ -1916,11 +1941,27 @@ function load2FASecurityTab() {
   load2FAStatus();
 }
 
-async function start2FASetupWizard() {
+async function start2FASetupWizard(isCustom = false) {
   try {
+    let body = {};
+    if (isCustom) {
+      const customInput = document.getElementById('twofa-custom-secret-input');
+      const val = (customInput ? customInput.value : '').trim().replace(/\s+/g, '').toUpperCase();
+      if (!val) {
+        showToast('Please enter your existing Base32 secret key', 'error');
+        return;
+      }
+      if (val.length < 16) {
+        showToast('Secret key is too short. Minimum 16 characters required.', 'error');
+        return;
+      }
+      body.customSecret = val;
+    }
+
     const res = await fetch('/api/admin/2fa/setup/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() }
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body)
     });
 
     if (res.status === 401) { clearToken(); location.reload(); return; }
@@ -2100,6 +2141,43 @@ code can access your admin account.
   showToast('Backup codes downloaded! 💾', 'success');
 }
 
+function toggleActiveSecretVisibility() {
+  const secretDisp = document.getElementById('twofa-active-secret-display');
+  const toggleBtn = document.getElementById('btn-toggle-active-secret');
+  if (!secretDisp || !toggleBtn) return;
+  isSecretRevealed = !isSecretRevealed;
+  if (isSecretRevealed) {
+    secretDisp.textContent = activeFormattedSecret || activeSecretKey || 'Not available';
+    toggleBtn.innerHTML = '🙈 Hide Key';
+  } else {
+    secretDisp.textContent = '•••• •••• •••• •••• •••• •••• •••• ••••';
+    toggleBtn.innerHTML = '👁️ Reveal Key';
+  }
+}
+
+function copyActive2FASecret(btn) {
+  if (!activeSecretKey) return;
+  navigator.clipboard.writeText(activeSecretKey).then(() => {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+  }).catch(() => {
+    showToast('Could not copy to clipboard', 'error');
+  });
+}
+
+function showLinkExistingKeyForm() {
+  const box = document.getElementById('twofa-link-existing-box');
+  if (box) {
+    const isHidden = box.style.display === 'none' || !box.style.display;
+    box.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      const inp = document.getElementById('twofa-custom-secret-input');
+      if (inp) inp.focus();
+    }
+  }
+}
+
 // Disable 2FA Modal
 function showDisable2FAModal() {
   const modal = document.getElementById('disable-2fa-modal');
@@ -2251,6 +2329,9 @@ window.downloadBackupCodes = downloadBackupCodes;
 window.showDisable2FAModal = showDisable2FAModal;
 window.closeDisable2FAModal = closeDisable2FAModal;
 window.confirmDisable2FA = confirmDisable2FA;
+window.toggleActiveSecretVisibility = toggleActiveSecretVisibility;
+window.copyActive2FASecret = copyActive2FASecret;
+window.showLinkExistingKeyForm = showLinkExistingKeyForm;
 window.showRegenerateBackupCodesModal = showRegenerateBackupCodesModal;
 window.closeRegenerateCodesModal = closeRegenerateCodesModal;
 window.confirmRegenerateBackupCodes = confirmRegenerateBackupCodes;

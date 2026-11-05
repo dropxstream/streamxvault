@@ -140,6 +140,7 @@ const CONTACT_CONFIG_FILE = path.join(DATA_DIR, 'contact_config.json');
 const CONTACT_CONFIG_KEY = '_database/contact_config.json';
 const CONTACT_MESSAGES_FILE = path.join(DATA_DIR, 'contact_messages.json');
 const CONTACT_MESSAGES_KEY = '_database/contact_messages.json';
+const AUTH_2FA_KEY = '_database/auth_2fa.json';
 const DEFAULT_CONTACT_CONFIG = {
   telegramChannelUrl: 'https://t.me/streamxvault',
   telegramChannelName: 'StreamXvault Official',
@@ -165,6 +166,18 @@ try { storage = createStorage(); } catch (err) {
   console.error('storage init failed', err.message);
   storage = { mode: 'local', download: async () => null };
 }
+
+// Automatically mirror 2FA configuration to Cloudflare R2
+auth2FA.setOnSaveHook(async (cfg) => {
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try {
+      await storage.upload(AUTH_2FA_KEY, Buffer.from(JSON.stringify(cfg, null, 2)), 'application/json');
+      console.log('🔒 2FA security config synced to Cloudflare R2');
+    } catch (e) {
+      console.error('❌ Failed to backup 2FA to R2:', e.message);
+    }
+  }
+});
 
 // Canonical HTTPS redirect — enforce non-www HTTPS
 app.use((req, res, next) => {
@@ -478,9 +491,43 @@ async function syncVideosFromR2() {
 
     const remoteContactMessages = await storage.download(CONTACT_MESSAGES_KEY);
     if (remoteContactMessages && remoteContactMessages.length > 2) fs.writeFileSync(CONTACT_MESSAGES_FILE, remoteContactMessages);
+
+    // Sync 2FA Authentication config from R2
+    const remoteAuth2FA = await storage.download(AUTH_2FA_KEY);
+    if (remoteAuth2FA && remoteAuth2FA.length > 2) {
+      try {
+        const parsed = JSON.parse(remoteAuth2FA.toString('utf8'));
+        if (parsed && typeof parsed === 'object') {
+          const authDir = path.dirname(auth2FA.CONFIG_FILE);
+          if (!fs.existsSync(authDir)) fs.mkdirSync(authDir, { recursive: true });
+          fs.writeFileSync(auth2FA.CONFIG_FILE, remoteAuth2FA);
+          console.log('🔒 2FA security config synced from Cloudflare R2');
+        }
+      } catch (e) {
+        console.error('⚠️ Failed to parse 2FA config from R2:', e.message);
+      }
+    } else {
+      // If R2 has no 2FA config yet, but local disk has an active config, seed R2
+      const localCfg = auth2FA.load2FAConfig();
+      if (localCfg.enabled && localCfg.secret && typeof storage.upload === 'function') {
+        try {
+          await storage.upload(AUTH_2FA_KEY, Buffer.from(JSON.stringify(localCfg, null, 2)), 'application/json');
+          console.log('🔒 Seeded local 2FA config to Cloudflare R2');
+        } catch (e) {
+          console.error('⚠️ Failed to seed 2FA config to R2:', e.message);
+        }
+      }
+    }
   } catch (err) {
     console.error('❌ R2 Sync failed:', err.message);
   }
+}
+
+let r2SyncPromise = null;
+function ensureR2Sync() {
+  if (r2SyncPromise) return r2SyncPromise;
+  r2SyncPromise = syncVideosFromR2();
+  return r2SyncPromise;
 }
 
 function emptyAnalytics() {
@@ -546,7 +593,8 @@ function bump(map, key, by) {
 
 const pending2FASetups = new Map();
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
+  await ensureR2Sync();
   const clientIp = req.headers['cf-connecting-ip'] || 
                    req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
                    req.socket.remoteAddress;
@@ -587,7 +635,8 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ ok: true, requires2FA: false, requires2FASetup: true });
 });
 
-app.post('/api/auth/verify-2fa', (req, res) => {
+app.post('/api/auth/verify-2fa', async (req, res) => {
+  await ensureR2Sync();
   const clientIp = req.headers['cf-connecting-ip'] || 
                    req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
                    req.socket.remoteAddress;
@@ -650,7 +699,8 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/auth/status', (req, res) => {
+app.get('/api/auth/status', async (req, res) => {
+  await ensureR2Sync();
   const loggedIn = isAdmin(req);
   const cfg2FA = auth2FA.load2FAConfig();
   res.json({
@@ -660,7 +710,8 @@ app.get('/api/auth/status', (req, res) => {
 });
 
 // ==================== 2FA MANAGEMENT (ADMIN ONLY) ====================
-app.get('/api/admin/2fa/status', requireAdmin, (req, res) => {
+app.get('/api/admin/2fa/status', requireAdmin, async (req, res) => {
+  await ensureR2Sync();
   const cfg = auth2FA.load2FAConfig();
   const backupCodesTotal = Array.isArray(cfg.backupCodes) ? cfg.backupCodes.length : 0;
   const backupCodesRemaining = Array.isArray(cfg.backupCodes) 
@@ -671,13 +722,25 @@ app.get('/api/admin/2fa/status', requireAdmin, (req, res) => {
     enabled: cfg.enabled && !!cfg.secret,
     configuredAt: cfg.configuredAt,
     backupCodesTotal,
-    backupCodesRemaining
+    backupCodesRemaining,
+    formattedSecret: cfg.secret ? auth2FA.formatSecret(cfg.secret) : '',
+    secret: cfg.secret || '',
+    storagePersistent: !!(storage && storage.mode === 'r2')
   });
 });
 
 app.post('/api/admin/2fa/setup/start', requireAdmin, (req, res) => {
   const adminToken = parseCookies(req).sxv_admin || '';
-  const secret = auth2FA.generateSecret();
+  let secret = '';
+  const customSecret = String((req.body && req.body.customSecret) || '').trim().replace(/\s+/g, '').toUpperCase();
+  if (customSecret) {
+    if (!/^[A-Z2-7]{16,64}$/.test(customSecret)) {
+      return res.status(400).json({ error: 'Invalid secret format. Base32 secrets must be 16 to 64 letters (A-Z) and digits (2-7).' });
+    }
+    secret = customSecret;
+  } else {
+    secret = auth2FA.generateSecret();
+  }
   const backupCodes = auth2FA.generateBackupCodes(8);
   const expectUser = process.env.ADMIN_USERNAME || 'admin';
   const otpauthUri = auth2FA.getOtpauthUri(secret, expectUser, 'StreamXvault');
@@ -696,7 +759,7 @@ app.post('/api/admin/2fa/setup/start', requireAdmin, (req, res) => {
   });
 });
 
-app.post('/api/admin/2fa/setup/confirm', requireAdmin, (req, res) => {
+app.post('/api/admin/2fa/setup/confirm', requireAdmin, async (req, res) => {
   const adminToken = parseCookies(req).sxv_admin || '';
   const pending = pending2FASetups.get(adminToken);
   if (!pending) {
@@ -723,6 +786,15 @@ app.post('/api/admin/2fa/setup/confirm', requireAdmin, (req, res) => {
     return res.status(500).json({ error: 'Failed to save 2FA configuration.' });
   }
 
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try {
+      await storage.upload(AUTH_2FA_KEY, Buffer.from(JSON.stringify(cfg, null, 2)), 'application/json');
+      console.log('🔒 2FA setup confirmed and backed up to Cloudflare R2');
+    } catch (e) {
+      console.error('⚠️ Failed to backup 2FA to R2 during confirmation:', e.message);
+    }
+  }
+
   pending2FASetups.delete(adminToken);
   res.json({
     ok: true,
@@ -730,7 +802,7 @@ app.post('/api/admin/2fa/setup/confirm', requireAdmin, (req, res) => {
   });
 });
 
-app.post('/api/admin/2fa/disable', requireAdmin, (req, res) => {
+app.post('/api/admin/2fa/disable', requireAdmin, async (req, res) => {
   const pass = String((req.body && req.body.password) || '');
   const code = String((req.body && req.body.code) || '');
   const expectPass = process.env.ADMIN_PASSWORD || '';
@@ -752,11 +824,19 @@ app.post('/api/admin/2fa/disable', requireAdmin, (req, res) => {
   cfg.backupCodes = [];
   cfg.configuredAt = null;
   auth2FA.save2FAConfig(cfg);
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try {
+      await storage.upload(AUTH_2FA_KEY, Buffer.from(JSON.stringify(cfg, null, 2)), 'application/json');
+      console.log('🔒 2FA disabled and updated in Cloudflare R2');
+    } catch (e) {
+      console.error('⚠️ Failed to update disabled 2FA in R2:', e.message);
+    }
+  }
 
   res.json({ ok: true, message: 'Two-Factor Authentication has been disabled.' });
 });
 
-app.post('/api/admin/2fa/backup-codes/regenerate', requireAdmin, (req, res) => {
+app.post('/api/admin/2fa/backup-codes/regenerate', requireAdmin, async (req, res) => {
   const code = String((req.body && req.body.code) || '');
   const cfg = auth2FA.load2FAConfig();
 
@@ -773,6 +853,14 @@ app.post('/api/admin/2fa/backup-codes/regenerate', requireAdmin, (req, res) => {
   const newCodes = auth2FA.generateBackupCodes(8);
   cfg.backupCodes = newCodes.map(c => ({ code: c, used: false, usedAt: null }));
   auth2FA.save2FAConfig(cfg);
+  if (storage && storage.mode === 'r2' && typeof storage.upload === 'function') {
+    try {
+      await storage.upload(AUTH_2FA_KEY, Buffer.from(JSON.stringify(cfg, null, 2)), 'application/json');
+      console.log('🔒 New backup codes saved to Cloudflare R2');
+    } catch (e) {
+      console.error('⚠️ Failed to update backup codes in R2:', e.message);
+    }
+  }
 
   res.json({ ok: true, backupCodes: newCodes });
 });
@@ -2391,7 +2479,7 @@ app.use((req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('StreamXvault listening on ' + PORT);
-  syncVideosFromR2();
+  if (!r2SyncPromise) r2SyncPromise = syncVideosFromR2();
 });
 
 

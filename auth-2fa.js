@@ -164,6 +164,11 @@ function load2FAConfig() {
   return defaults;
 }
 
+let onSaveHook = null;
+function setOnSaveHook(fn) {
+  onSaveHook = fn;
+}
+
 /**
  * Save 2FA Configuration securely to data/auth_2fa.json
  */
@@ -172,6 +177,9 @@ function save2FAConfig(config) {
     const dir = path.dirname(CONFIG_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+    if (typeof onSaveHook === 'function') {
+      try { onSaveHook(config); } catch (e) { console.error('[2FA] onSaveHook error:', e.message); }
+    }
     return true;
   } catch (err) {
     console.error('[2FA] Error writing 2FA config:', err.message);
@@ -305,5 +313,6 @@ module.exports = {
   checkRateLimit,
   recordFailedLogin,
   resetLoginRateLimit,
+  setOnSaveHook,
   CONFIG_FILE
 };
