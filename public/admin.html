@@ -617,25 +617,30 @@
                   </p>
                   <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
                     <button type="button" class="btn btn-primary btn-lg" onclick="start2FASetupWizard(false)">
-                      🛡️ Generate New 2FA Key
+                      🛡️ Generate New 2FA Key (Recommended)
                     </button>
                     <button type="button" class="btn btn-secondary btn-lg" onclick="showLinkExistingKeyForm()">
-                      🔗 Link Existing Key from Phone
+                      🔗 Enter Secret Key Manually
                     </button>
                   </div>
 
                   <!-- Link Existing Key Sub-box -->
                   <div id="twofa-link-existing-box" style="display: none; margin-top: 1.5rem; text-align: left; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; padding: 1.25rem;">
                     <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: #38bdf8;">
-                      Already have StreamXvault in your Authenticator app? Enter that Secret Key:
+                      Enter your saved 16–32 character Secret Key (Base32):
                     </label>
                     <div style="display: flex; gap: 0.5rem;">
                       <input type="text" id="twofa-custom-secret-input" placeholder="e.g. JBSWY3DPEHPK3PXP..." style="flex: 1; font-family: monospace; letter-spacing: 1px; text-transform: uppercase;">
                       <button type="button" class="btn btn-primary" onclick="start2FASetupWizard(true)">Continue</button>
                     </div>
+                    <div id="twofa-custom-secret-error" style="color: #ef4444; font-size: 0.82rem; margin-top: 0.5rem; display: none; line-height: 1.5; padding: 0.5rem 0.75rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px;"></div>
                     <small style="color: var(--text-muted); font-size: 0.78rem; display: block; margin-top: 0.4rem;">
-                      If you saved your secret previously, paste it here so you do not need to reconfigure your phone app.
+                      If you saved your 32-letter secret key when previously configuring, paste it here to link it.
                     </small>
+                    <div style="margin-top: 0.85rem; padding: 0.75rem 1rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; font-size: 0.82rem; color: #fbbf24; line-height: 1.5;">
+                      ℹ️ <strong>Only have the 6-digit rolling code on your phone?</strong><br>
+                      Authenticator apps (Google Authenticator, Microsoft Authenticator) only display 6-digit codes and hide the raw secret key for security. If you did not write down your 32-letter secret key, simply click <strong>"🛡️ Generate New 2FA Key"</strong> above, scan the QR code with your phone, and delete the old unused entry from your Authenticator app.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -902,7 +907,20 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=59"></script>
+  <script src="/js/admin.js?v=63"></script>
+<script>
+function showLinkExistingKeyForm() {
+  var box = document.getElementById('twofa-link-existing-box');
+  if (box) {
+    var isHidden = (box.style.display === 'none' || !box.style.display);
+    box.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      var inp = document.getElementById('twofa-custom-secret-input');
+      if (inp) inp.focus();
+    }
+  }
+}
+</script>
 </body>
 </html>
 

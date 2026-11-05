@@ -1946,13 +1946,42 @@ async function start2FASetupWizard(isCustom = false) {
     let body = {};
     if (isCustom) {
       const customInput = document.getElementById('twofa-custom-secret-input');
-      const val = (customInput ? customInput.value : '').trim().replace(/\s+/g, '').toUpperCase();
+      const errorEl = document.getElementById('twofa-custom-secret-error');
+      const rawVal = (customInput ? customInput.value : '').trim();
+      const val = rawVal.replace(/[\s-]+/g, '').replace(/=+$/, '').toUpperCase();
+
+      if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+      }
+
       if (!val) {
-        showToast('Please enter your existing Base32 secret key', 'error');
+        const msg = 'Please enter your 16–32 character Secret Key.';
+        showToast(msg, 'error');
+        if (errorEl) {
+          errorEl.textContent = msg;
+          errorEl.style.display = 'block';
+        }
         return;
       }
+
+      if (/^\d{6}$/.test(val)) {
+        const msg = 'That is a 6-digit rolling code, not a Secret Key! Authenticator apps hide the raw secret key for security. To connect your phone, please click "🛡️ Generate New 2FA Key" above and scan the new QR code.';
+        showToast(msg, 'warning');
+        if (errorEl) {
+          errorEl.innerHTML = '⚠️ <strong>That is a 6-digit rolling code, not a Secret Key!</strong><br>Google Authenticator hides the raw 32-letter secret key for safety.<br>👉 <strong>Solution:</strong> Click <strong>"🛡️ Generate New 2FA Key"</strong> above, scan the new QR code in your Authenticator app, and enter the code to activate!';
+          errorEl.style.display = 'block';
+        }
+        return;
+      }
+
       if (val.length < 16) {
-        showToast('Secret key is too short. Minimum 16 characters required.', 'error');
+        const msg = 'Secret key is too short. Minimum 16 characters required (A-Z, 2-7). If you do not have the 32-letter secret, click "Generate New 2FA Key" to scan a fresh QR code.';
+        showToast(msg, 'error');
+        if (errorEl) {
+          errorEl.textContent = msg;
+          errorEl.style.display = 'block';
+        }
         return;
       }
       body.customSecret = val;

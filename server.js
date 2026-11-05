@@ -732,9 +732,14 @@ app.get('/api/admin/2fa/status', requireAdmin, async (req, res) => {
 app.post('/api/admin/2fa/setup/start', requireAdmin, (req, res) => {
   const adminToken = parseCookies(req).sxv_admin || '';
   let secret = '';
-  const customSecret = String((req.body && req.body.customSecret) || '').trim().replace(/\s+/g, '').toUpperCase();
+  const customSecret = String((req.body && req.body.customSecret) || '').trim().replace(/[\s-]+/g, '').replace(/=+$/, '').toUpperCase();
   if (customSecret) {
     if (!/^[A-Z2-7]{16,64}$/.test(customSecret)) {
+      if (/^\d{6}$/.test(customSecret)) {
+        return res.status(400).json({
+          error: 'The code you entered is a 6-digit rolling code, not a 32-letter Secret Key. Authenticator apps deliberately hide the secret key. Please click "Generate New 2FA Key" to scan a fresh QR code.'
+        });
+      }
       return res.status(400).json({ error: 'Invalid secret format. Base32 secrets must be 16 to 64 letters (A-Z) and digits (2-7).' });
     }
     secret = customSecret;
