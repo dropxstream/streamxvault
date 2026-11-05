@@ -27,14 +27,16 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
   const qualityIndicator = document.getElementById('quality-indicator');
   const poster = thumbUrl || (video && video.getAttribute('poster')) || '';
 
-  // Background pre-fetch of VAST pre-roll ad
-  let prerollAdPromise = null;
-  try {
-    prerollAdPromise = fetch('/api/vast/preroll', { cache: 'no-store' })
-      .then(res => res.ok ? res.json() : { hasAd: false })
-      .catch(() => ({ hasAd: false }));
-  } catch (err) {
-    prerollAdPromise = Promise.resolve({ hasAd: false });
+  // Background pre-fetch of VAST pre-roll ad (reuses early prefetch if already started in watch.html)
+  let prerollAdPromise = window.__sxvPrerollPromise || null;
+  if (!prerollAdPromise) {
+    try {
+      prerollAdPromise = fetch('/api/vast/preroll', { cache: 'no-store' })
+        .then(res => res.ok ? res.json() : { hasAd: false })
+        .catch(() => ({ hasAd: false }));
+    } catch (err) {
+      prerollAdPromise = Promise.resolve({ hasAd: false });
+    }
   }
   let prerollHandled = false;
   let isPrerollActive = false;
@@ -264,7 +266,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
       try {
         adData = await Promise.race([
           prerollAdPromise,
-          new Promise(r => setTimeout(() => r({ hasAd: false }), 900))
+          new Promise(r => setTimeout(() => r({ hasAd: false }), 4500))
         ]);
       } catch (e) {
         adData = { hasAd: false };
@@ -431,8 +433,9 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     });
 
     adVideo.addEventListener('timeupdate', () => {
-      if (badge && adVideo.duration) {
-        const rem = Math.max(0, Math.ceil(adVideo.duration - adVideo.currentTime));
+      if (badge) {
+        const dur = (adVideo.duration && !isNaN(adVideo.duration)) ? adVideo.duration : (adData.duration || 30);
+        const rem = Math.max(0, Math.ceil(dur - (adVideo.currentTime || 0)));
         badge.textContent = `Ad · ${rem}s`;
       }
     });
@@ -448,7 +451,7 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
         console.warn('[StreamX VAST] Ad video stalled, bypassing to content');
         finishPreroll();
       }
-    }, 4000);
+    }, 8000);
 
     adVideo.src = adData.mediaUrl;
     adVideo.volume = video.volume || 1;
@@ -458,8 +461,10 @@ window.initNetflixPlayer = function(videoSrc, thumbUrl) {
     const playPromise = adVideo.play();
     if (playPromise !== undefined) {
       playPromise.catch(err => {
-        debugLog('Ad play muted fallback: ' + err.name);
+        debugLog('Ad play unmuted blocked (' + err.name + '), falling back to muted');
         adVideo.muted = true;
+        adVideo.setAttribute('muted', '');
+        adVideo.defaultMuted = true;
         updateSoundIcons();
         adVideo.play().catch(finishPreroll);
       });

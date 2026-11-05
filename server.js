@@ -1951,6 +1951,22 @@ app.get('/api/admin/live-traffic', requireAdmin, (req, res) => {
 });
 
 // VAST Pre-roll Resolver for ExoClick & partner exchanges
+function isPublicIp(ip) {
+  if (!ip || typeof ip !== 'string') return false;
+  const clean = ip.replace(/^::ffff:/, '').trim();
+  if (clean === '127.0.0.1' || clean === '::1' || clean === 'localhost') return false;
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(clean)) return false;
+  return true;
+}
+
+function extractVastContent(tagXml) {
+  if (!tagXml) return '';
+  return tagXml
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
 async function resolveVast(tagUrl, clientIp, userAgent, referer) {
   const result = {
     hasAd: false,
@@ -1967,7 +1983,7 @@ async function resolveVast(tagUrl, clientIp, userAgent, referer) {
     'Accept': 'application/xml, text/xml, */*',
     'Referer': referer || 'https://streamxvault.online/'
   };
-  if (clientIp) {
+  if (isPublicIp(clientIp)) {
     headers['X-Forwarded-For'] = clientIp;
     headers['X-Real-IP'] = clientIp;
   }
@@ -1980,7 +1996,7 @@ async function resolveVast(tagUrl, clientIp, userAgent, referer) {
     try {
       const resp = await fetch(currentUrl, {
         headers,
-        timeout: 3500,
+        signal: AbortSignal.timeout(4500),
         redirect: 'follow'
       });
       if (!resp.ok) break;
@@ -1991,23 +2007,24 @@ async function resolveVast(tagUrl, clientIp, userAgent, referer) {
       }
 
       // Collect impressions
-      const impMatches = [...xml.matchAll(/<Impression[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/Impression>/gi)];
-      for (const m of impMatches) {
-        const u = m[1].trim();
+      const impTags = xml.match(/<Impression[^>]*>[\s\S]*?<\/Impression>/gi) || [];
+      for (const t of impTags) {
+        const u = extractVastContent(t);
         if (u && !result.impressions.includes(u)) result.impressions.push(u);
       }
 
       // Collect ClickTracking
-      const ctMatches = [...xml.matchAll(/<ClickTracking[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/ClickTracking>/gi)];
-      for (const m of ctMatches) {
-        const u = m[1].trim();
+      const ctTags = xml.match(/<ClickTracking[^>]*>[\s\S]*?<\/ClickTracking>/gi) || [];
+      for (const t of ctTags) {
+        const u = extractVastContent(t);
         if (u && !result.clickTracking.includes(u)) result.clickTracking.push(u);
       }
 
       // Collect ClickThrough
-      const clickThrough = xml.match(/<ClickThrough[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/ClickThrough>/i);
-      if (clickThrough && clickThrough[1]) {
-        result.clickUrl = clickThrough[1].trim();
+      const clickThroughMatches = xml.match(/<ClickThrough[^>]*>[\s\S]*?<\/ClickThrough>/i);
+      if (clickThroughMatches) {
+        const u = extractVastContent(clickThroughMatches[0]);
+        if (u) result.clickUrl = u;
       }
 
       // Collect skipoffset
@@ -2022,18 +2039,18 @@ async function resolveVast(tagUrl, clientIp, userAgent, referer) {
         }
       }
 
-      // Collect Duration
-      const durMatch = xml.match(/<Duration>(\d{2}:\d{2}:\d{2})<\/Duration>/i);
+      // Collect Duration (handles optional milliseconds like 00:00:20.309)
+      const durMatch = xml.match(/<Duration>(\d{2}:\d{2}:\d{2}(?:\.\d+)?)<\/Duration>/i);
       if (durMatch) {
         const parts = durMatch[1].split(':').map(Number);
-        result.duration = (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        result.duration = Math.round((parts[0] * 3600) + (parts[1] * 60) + parts[2]);
       }
 
       // Collect MediaFile
-      const mediaMatches = [...xml.matchAll(/<MediaFile[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/MediaFile>/gi)];
-      for (const mm of mediaMatches) {
-        const mUrl = mm[1].trim();
-        if (mUrl.endsWith('.mp4') || mUrl.includes('.mp4') || mUrl.includes('video')) {
+      const mediaTags = xml.match(/<MediaFile[^>]*>[\s\S]*?<\/MediaFile>/gi) || [];
+      for (const t of mediaTags) {
+        const mUrl = extractVastContent(t);
+        if (mUrl.startsWith('http') && (mUrl.endsWith('.mp4') || mUrl.includes('.mp4') || mUrl.includes('video') || mUrl.includes('.webm') || mUrl.includes('.m3u8'))) {
           result.mediaUrl = mUrl;
           result.hasAd = true;
           break;
@@ -2044,9 +2061,14 @@ async function resolveVast(tagUrl, clientIp, userAgent, referer) {
       }
 
       // Check wrapper VASTAdTagURI
-      const tagMatch = xml.match(/<VASTAdTagURI[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\]><\s]+)(?:\]\]>)?<\/VASTAdTagURI>/i);
-      if (tagMatch && tagMatch[1]) {
-        currentUrl = tagMatch[1].trim();
+      const wrapperMatch = xml.match(/<VASTAdTagURI[^>]*>[\s\S]*?<\/VASTAdTagURI>/i);
+      if (wrapperMatch) {
+        const nextUrl = extractVastContent(wrapperMatch[0]);
+        if (nextUrl && nextUrl.startsWith('http')) {
+          currentUrl = nextUrl;
+        } else {
+          break;
+        }
       } else {
         break;
       }
@@ -2059,21 +2081,51 @@ async function resolveVast(tagUrl, clientIp, userAgent, referer) {
   return result;
 }
 
+// Warm in-memory VAST cache to provide instant sub-5ms responses and survive ad-network frequency capping
+let vastAdCache = {
+  data: null,
+  timestamp: 0
+};
+const VAST_CACHE_TTL_MS = 45 * 1000; // 45s fresh cache
+const VAST_FALLBACK_TTL_MS = 10 * 60 * 1000; // 10 min fallback for returning visitors
+
 app.get('/api/vast/preroll', async (req, res) => {
   try {
+    const now = Date.now();
+    // Fast path: return fresh cached ad immediately for instant preroll loading
+    if (vastAdCache.data && vastAdCache.data.hasAd && (now - vastAdCache.timestamp) < VAST_CACHE_TTL_MS) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      return res.json(vastAdCache.data);
+    }
+
     const clientIp = req.headers['cf-connecting-ip'] || 
                      req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
                      req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     const referer = req.headers['referer'] || 'https://streamxvault.online/';
-    const sub = Date.now();
-    const vastTagUrl = `https://s.magsrv.com/v1/vast.php?idz=6047230&ex-av=name&sub=${sub}`;
+    const vastTagUrl = 'https://s.magsrv.com/v1/vast.php?idz=6047230&ex-av=name';
 
     const adData = await resolveVast(vastTagUrl, clientIp, userAgent, referer);
+
+    if (adData && adData.hasAd) {
+      vastAdCache = { data: adData, timestamp: now };
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      return res.json(adData);
+    }
+
+    // Fallback: If network returned empty (due to temporary frequency cap), use warm cached ad if available
+    if (vastAdCache.data && vastAdCache.data.hasAd && (now - vastAdCache.timestamp) < VAST_FALLBACK_TTL_MS) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      return res.json(vastAdCache.data);
+    }
+
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.json(adData);
+    res.json({ hasAd: false });
   } catch (err) {
     console.error('[VAST Route Error]:', err.message);
+    if (vastAdCache.data && vastAdCache.data.hasAd) {
+      return res.json(vastAdCache.data);
+    }
     res.json({ hasAd: false });
   }
 });
