@@ -1027,6 +1027,79 @@ app.get('/api/admin/proxy-media', requireAdmin, async (req, res) => {
   }
 });
 
+
+// Server-side video & HLS thumbnail extraction (bypasses browser CORS completely)
+const { execFile } = require('child_process');
+
+app.post('/api/admin/extract-video-thumbnail', requireAdmin, async (req, res) => {
+  const videoUrl = String((req.body && req.body.videoUrl) || '').trim();
+  const seekTime = Number(req.body && req.body.time) || 15;
+
+  if (!videoUrl || !videoUrl.startsWith('http')) {
+    return res.status(400).json({ error: 'Valid videoUrl is required' });
+  }
+
+  try {
+    const extractFrame = (seek) => new Promise((resolve, reject) => {
+      const args = [
+        '-ss', String(seek),
+        '-i', videoUrl,
+        '-vframes', '1',
+        '-f', 'image2',
+        '-q:v', '2',
+        '-vf', 'scale=1280:-1',
+        'pipe:1'
+      ];
+      execFile('ffmpeg', args, { maxBuffer: 10 * 1024 * 1024, encoding: 'buffer', timeout: 18000 }, (err, stdout, stderr) => {
+        if (err) return reject(err);
+        if (!stdout || stdout.length < 100) return reject(new Error('Empty frame output'));
+        resolve(stdout);
+      });
+    });
+
+    let buffer = null;
+    try {
+      buffer = await extractFrame(seekTime);
+    } catch (e1) {
+      if (seekTime > 2) {
+        try {
+          buffer = await extractFrame(2);
+        } catch (e2) {
+          throw new Error('FFmpeg extraction failed: ' + (e2.message || e1.message));
+        }
+      } else {
+        throw e1;
+      }
+    }
+
+    if (!buffer || buffer.length < 100) {
+      return res.status(500).json({ error: 'Failed to extract frame from video stream' });
+    }
+
+    const filename = `thumbnails/auto_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
+    let publicUrl = '';
+    if (storage && typeof storage.upload === 'function') {
+      publicUrl = await storage.upload(filename, buffer, 'image/jpeg');
+    } else {
+      const fallbackPath = path.join(__dirname, 'uploads', filename);
+      const dir = path.dirname(fallbackPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(fallbackPath, buffer);
+      publicUrl = `/uploads/${filename}`;
+    }
+
+    return res.json({
+      success: true,
+      thumbnailUrl: publicUrl,
+      key: filename
+    });
+
+  } catch (err) {
+    console.error('❌ Server-side thumbnail extraction error:', err.message);
+    return res.status(500).json({ error: 'Extraction error: ' + err.message });
+  }
+});
+
 app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   const body = req.body || {};
   const title = String(body.title || '').trim();

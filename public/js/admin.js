@@ -2681,7 +2681,28 @@ async function fetchThumbFromExternalUrl(videoInputId, thumbInputId) {
     return;
   }
 
-  showToast('Fetching thumbnail from video URL... ⏳', 'info');
+  showToast('Fetching thumbnail from video stream... ⏳', 'info');
+
+  // Step 1: Server-side extraction (bypasses all CORS!)
+  try {
+    const serverRes = await fetch('/api/admin/extract-video-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ videoUrl, time: 15 })
+    });
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      if (data && data.thumbnailUrl) {
+        if (thumbUrlInput) thumbUrlInput.value = data.thumbnailUrl;
+        showToast('Thumbnail extracted & uploaded to R2 successfully! ✨', 'success');
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Server-side extraction failed, falling back to client:', e);
+  }
+
+  // Step 2: Client-side fallback
   try {
     const video = document.createElement('video');
     video.crossOrigin = 'anonymous';
@@ -2754,8 +2775,73 @@ async function triggerHlsThumbnailFetch(hlsUrl, force = false) {
   if (loading) loading.style.display = 'flex';
   if (badge) { badge.textContent = '⏳ Fetching HLS...'; badge.style.background = '#64748b'; }
 
-  showToast('Fetching best frame from HLS stream... ⏳', 'info');
+  showToast('Fetching best thumbnail from HLS stream... ⏳', 'info');
 
+  // Step 1: Call server-side extraction first (Bypasses all browser CORS restrictions!)
+  try {
+    const serverRes = await fetch('/api/admin/extract-video-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ videoUrl: cleanUrl, time: 15 })
+    });
+
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      if (data && data.thumbnailUrl) {
+        hlsAutoThumbBlob = true;
+        if (img) img.src = data.thumbnailUrl;
+        if (loading) loading.style.display = 'none';
+        if (badge) { badge.textContent = '✨ Best Frame Auto-Fetched'; badge.style.background = 'rgba(16, 185, 129, 0.95)'; }
+        if (timeEl) timeEl.textContent = 'Best Moment Captured (15s)';
+        if (thumbInput) thumbInput.value = data.thumbnailUrl;
+        showToast('HLS thumbnail automatically captured and saved to R2! 🎬', 'success');
+
+        // Render candidate timestamps (10s, 30s, 60s, 120s)
+        if (candidatesBox) {
+          const moments = [
+            { label: '5s', time: 5 },
+            { label: '15s ⭐', time: 15 },
+            { label: '45s', time: 45 },
+            { label: '90s', time: 90 }
+          ];
+          candidatesBox.innerHTML = '';
+          moments.forEach(m => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-secondary btn-sm';
+            btn.style.padding = '0.25rem 0.55rem';
+            btn.style.fontSize = '0.75rem';
+            btn.textContent = m.label;
+            btn.onclick = async () => {
+              if (loading) loading.style.display = 'flex';
+              try {
+                const subRes = await fetch('/api/admin/extract-video-thumbnail', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                  body: JSON.stringify({ videoUrl: cleanUrl, time: m.time })
+                });
+                if (subRes.ok) {
+                  const subData = await subRes.json();
+                  if (subData && subData.thumbnailUrl) {
+                    if (img) img.src = subData.thumbnailUrl;
+                    if (thumbInput) thumbInput.value = subData.thumbnailUrl;
+                    if (timeEl) timeEl.textContent = m.label + ' Moment';
+                  }
+                }
+              } catch (e) {}
+              if (loading) loading.style.display = 'none';
+            };
+            candidatesBox.appendChild(btn);
+          });
+        }
+        return;
+      }
+    }
+  } catch (serverErr) {
+    console.warn('Server-side extraction failed, trying client-side fallback:', serverErr);
+  }
+
+  // Step 2: Client-side HLS fallback
   try {
     const frameResult = await extractFrameFromHlsUrl(cleanUrl, 0.25);
     if (!frameResult || !frameResult.blob) {
@@ -2768,46 +2854,12 @@ async function triggerHlsThumbnailFetch(hlsUrl, force = false) {
     if (badge) { badge.textContent = '✨ Best Frame Auto-Fetched'; badge.style.background = 'rgba(16, 185, 129, 0.95)'; }
     if (timeEl) timeEl.textContent = '25% Best Moment';
 
-    // Upload directly to Cloudflare R2
     const safeBase = 'hls_' + Date.now();
     const thumbFile = new File([frameResult.blob], `${safeBase}.jpg`, { type: 'image/jpeg' });
     const uploadRes = await uploadFileDirectly(thumbFile, 'thumbnail');
     if (uploadRes && uploadRes.publicUrl) {
       if (thumbInput) thumbInput.value = uploadRes.publicUrl;
       showToast('HLS thumbnail automatically uploaded to R2! 🎬', 'success');
-    }
-
-    // Render candidate moments (10%, 25%, 50%, 75%)
-    if (candidatesBox && frameResult.duration) {
-      const pcts = [
-        { label: '10%', pct: 0.10 },
-        { label: '25% ⭐', pct: 0.25 },
-        { label: '50%', pct: 0.50 },
-        { label: '75%', pct: 0.75 }
-      ];
-      candidatesBox.innerHTML = '';
-      pcts.forEach(p => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-secondary btn-sm';
-        btn.style.padding = '0.25rem 0.55rem';
-        btn.style.fontSize = '0.75rem';
-        btn.textContent = p.label;
-        btn.onclick = async () => {
-          if (loading) loading.style.display = 'flex';
-          const newFrame = await extractFrameFromHlsUrl(cleanUrl, p.pct);
-          if (loading) loading.style.display = 'none';
-          if (newFrame && newFrame.blob) {
-            hlsAutoThumbBlob = newFrame.blob;
-            if (img) img.src = newFrame.url;
-            if (timeEl) timeEl.textContent = p.label + ' Moment';
-            const f = new File([newFrame.blob], `${safeBase}_${Math.round(p.pct * 100)}.jpg`, { type: 'image/jpeg' });
-            const u = await uploadFileDirectly(f, 'thumbnail');
-            if (u && u.publicUrl && thumbInput) thumbInput.value = u.publicUrl;
-          }
-        };
-        candidatesBox.appendChild(btn);
-      });
     }
 
   } catch (err) {
@@ -2819,6 +2871,20 @@ async function triggerHlsThumbnailFetch(hlsUrl, force = false) {
 }
 
 async function autoExtractAndUploadHlsThumbnail(hlsUrl) {
+  // Try server extraction first
+  try {
+    const res = await fetch('/api/admin/extract-video-thumbnail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ videoUrl: hlsUrl, time: 15 })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.thumbnailUrl) return data.thumbnailUrl;
+    }
+  } catch (e) {}
+
+  // Fallback to client extraction
   try {
     const frameResult = await extractFrameFromHlsUrl(hlsUrl, 0.25);
     if (!frameResult || !frameResult.blob) return null;

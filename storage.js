@@ -30,6 +30,8 @@ class LocalStorage {
 
   async upload(filename, buffer, mimetype) {
     const filepath = path.join(this.uploadDir, filename);
+    const dir = path.dirname(filepath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(filepath, buffer);
     return `/uploads/${filename}`;
   }
