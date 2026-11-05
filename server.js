@@ -1005,6 +1005,28 @@ function parseTags(input) {
   return out;
 }
 
+// Media proxy endpoint for CORS-free thumbnail extraction and HLS inspection
+app.get('/api/admin/proxy-media', requireAdmin, async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl || !targetUrl.startsWith('http')) {
+    return res.status(400).send('Invalid URL');
+  }
+  try {
+    const fetch = require('node-fetch');
+    const upstream = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': '*/*'
+      }
+    });
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
+    upstream.body.pipe(res);
+  } catch (err) {
+    res.status(502).send('Proxy error: ' + err.message);
+  }
+});
+
 app.post('/api/admin/videos/external', requireAdmin, (req, res) => {
   const body = req.body || {};
   const title = String(body.title || '').trim();

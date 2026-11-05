@@ -334,6 +334,7 @@ videoDropArea.addEventListener('drop', (e) => {
   if (files.length > 0) {
     videoFileInput.files = files;
     updateFileLabel('video');
+    extractThumbnailsFromVideo(files[0]);
   }
 });
 
@@ -358,8 +359,33 @@ thumbDropArea.addEventListener('drop', (e) => {
 });
 
 // File selection change
-videoFileInput.addEventListener('change', () => updateFileLabel('video'));
-thumbFileInput.addEventListener('change', () => updateFileLabel('thumb'));
+videoFileInput.addEventListener('change', () => {
+  updateFileLabel('video');
+  const file = videoFileInput.files[0];
+  if (file) {
+    extractThumbnailsFromVideo(file);
+  } else {
+    resetAutoThumbUI();
+  }
+});
+thumbFileInput.addEventListener('change', () => {
+  updateFileLabel('thumb');
+  const file = thumbFileInput.files[0];
+  if (file) {
+    isCustomThumbSelected = true;
+    const previewImg = document.getElementById('auto-thumb-preview');
+    if (previewImg) previewImg.src = URL.createObjectURL(file);
+    const badge = document.getElementById('auto-thumb-badge');
+    if (badge) {
+      badge.textContent = '📁 Custom File';
+      badge.style.background = '#0284c7';
+    }
+    const revertBtn = document.getElementById('btn-revert-auto-thumb');
+    if (revertBtn) revertBtn.style.display = 'inline-block';
+    const timeDisplay = document.getElementById('auto-thumb-time-display');
+    if (timeDisplay) timeDisplay.textContent = 'Custom Uploaded Image';
+  }
+});
 
 function updateFileLabel(type) {
   if (type === 'video') {
@@ -644,7 +670,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
   // Handle Cloudflare R2 HLS Submission
   if (currentUploadSource === 'r2hls') {
     const inputVal = document.getElementById('r2-video-url').value.trim();
-    const r2ThumbUrl = document.getElementById('r2-thumb-url').value.trim();
+    let r2ThumbUrl = document.getElementById('r2-thumb-url').value.trim();
     const dl480 = document.getElementById('dl-480').value.trim(); const dl720 = document.getElementById('dl-720').value.trim(); const dl1080 = document.getElementById('dl-1080').value.trim(); const dl4k = document.getElementById('dl-4k').value.trim();
 
     if (!inputVal) {
@@ -653,29 +679,44 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     }
 
     const isHls = inputVal.startsWith('http') || inputVal.includes('.m3u8');
-
     const submitBtn = document.getElementById('upload-submit-btn');
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Linking HLS Stream...';
 
     try {
+      // If user did not provide a thumbnail, automatically extract best frame from HLS!
+      if (!r2ThumbUrl && isHls) {
+        submitBtn.textContent = '📸 Auto-fetching HLS thumbnail...';
+        showToast('Extracting best thumbnail from HLS stream... ⏳', 'info');
+        try {
+          r2ThumbUrl = await autoExtractAndUploadHlsThumbnail(inputVal);
+          if (r2ThumbUrl) {
+            document.getElementById('r2-thumb-url').value = r2ThumbUrl;
+            showToast('HLS thumbnail automatically captured & saved! ✨', 'success');
+          }
+        } catch (e) {
+          console.warn('Auto HLS thumb error during submit:', e);
+        }
+      }
+
+      submitBtn.textContent = '⏳ Linking HLS Stream...';
       const res = await fetch('/api/admin/videos/external', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ 
           title, genre, modelName, tags, description, 
           videoUrl: isHls ? inputVal : '',
-          thumbnailUrl: r2ThumbUrl,
+          thumbnailUrl: r2ThumbUrl || '',
           dl480, dl720, dl1080, dl4k, displayViews
         })
       });
 
       if (!res.ok) { const data = await res.json().catch(()=>({})); throw new Error(data.error || 'Failed to link stream'); }
       
-      showToast(`"${title}" linked successfully! ☁️`, 'success');
+      showToast(`"${title}" linked successfully with auto-thumbnail! 🎬`, 'success');
       document.getElementById('upload-form').reset();
       updateFileLabel('video');
       updateFileLabel('thumb');
+      resetAutoThumbUI();
       loadDashboard();
       switchTab('manage', document.querySelector('[data-tab=manage]'));
     } catch (err) {
@@ -694,7 +735,14 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     return;
   }
 
-  const thumbFile = thumbFileInput.files[0];
+  let thumbFile = thumbFileInput.files[0];
+  // If user did not upload a custom image file, automatically use the extracted video frame!
+  if (!thumbFile && autoExtractedThumbBlob) {
+    const rawName = (videoFile.name || 'video').replace(/\.[^/.]+$/, '');
+    const cleanName = rawName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    thumbFile = new File([autoExtractedThumbBlob], `${cleanName}_thumb.jpg`, { type: 'image/jpeg' });
+    console.log('✨ Automatically uploading video-extracted thumbnail:', thumbFile.name, thumbFile.size, 'bytes');
+  }
   // Show progress
   const progressEl = document.getElementById('upload-progress');
   const progressBar = document.getElementById('progress-bar');
@@ -771,6 +819,7 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
     document.getElementById('upload-form').reset();
     updateFileLabel('video');
     updateFileLabel('thumb');
+    resetAutoThumbUI();
     progressBar.style.width = '0%';
     progressEl.classList.remove('active');
 
@@ -2357,7 +2406,520 @@ window.copyBackupCodes = copyBackupCodes;
 window.downloadBackupCodes = downloadBackupCodes;
 window.showDisable2FAModal = showDisable2FAModal;
 window.closeDisable2FAModal = closeDisable2FAModal;
+
+// ==================== Auto-Thumbnail Generation from Video ====================
+let autoExtractedThumbBlob = null;
+let autoExtractedVideoElement = null;
+let autoExtractedThumbUrl = null;
+let candidateFrames = [];
+let isCustomThumbSelected = false;
+
+async function extractThumbnailsFromVideo(file) {
+  if (!file || !file.type.startsWith('video/')) return;
+
+  const container = document.getElementById('auto-thumb-container');
+  const previewImg = document.getElementById('auto-thumb-preview');
+  const timeDisplay = document.getElementById('auto-thumb-time-display');
+  const slider = document.getElementById('auto-thumb-slider');
+  const sliderVal = document.getElementById('auto-thumb-slider-val');
+  const badge = document.getElementById('auto-thumb-badge');
+  const loadingEl = document.getElementById('auto-thumb-loading');
+  const thumbLabel = document.getElementById('thumb-file-label');
+
+  if (container) container.style.display = 'block';
+  if (loadingEl) loadingEl.style.display = 'flex';
+  if (badge) {
+    badge.textContent = '⏳ Extracting...';
+    badge.style.background = '#64748b';
+  }
+
+  // Release old object URL if any
+  if (autoExtractedThumbUrl) {
+    try { URL.revokeObjectURL(autoExtractedThumbUrl); } catch (e) {}
+  }
+
+  const videoUrl = URL.createObjectURL(file);
+  autoExtractedThumbUrl = videoUrl;
+
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = videoUrl;
+  autoExtractedVideoElement = video;
+
+  await new Promise((resolve) => {
+    video.onloadedmetadata = () => resolve();
+    video.onerror = () => resolve();
+    setTimeout(resolve, 3500); // fallback timeout
+  });
+
+  const duration = (video.duration && !isNaN(video.duration) && video.duration > 0) ? video.duration : 10;
+
+  // 4 candidate moments: 10%, 25% (Best), 50%, 75%
+  const targets = [
+    { label: '10%', pct: 10, time: Math.max(0.5, duration * 0.10) },
+    { label: '25% ⭐', pct: 25, time: Math.max(1, duration * 0.25), isBest: true },
+    { label: '50%', pct: 50, time: Math.max(2, duration * 0.50) },
+    { label: '75%', pct: 75, time: Math.max(3, duration * 0.75) }
+  ];
+
+  candidateFrames = [];
+  let bestCandidate = null;
+
+  for (const t of targets) {
+    try {
+      const snap = await captureFrameAt(video, t.time);
+      if (snap) {
+        const item = { ...t, ...snap };
+        candidateFrames.push(item);
+        if (t.isBest || !bestCandidate) {
+          bestCandidate = item;
+        }
+      }
+    } catch (e) {
+      console.warn('Frame capture error at', t.time, e);
+    }
+  }
+
+  if (loadingEl) loadingEl.style.display = 'none';
+
+  if (candidateFrames.length === 0) {
+    if (container) container.style.display = 'none';
+    if (thumbLabel) thumbLabel.textContent = 'Could not auto-extract frame. Click to upload thumbnail image.';
+    return;
+  }
+
+  // Select 25% best frame
+  const chosen = candidateFrames.find(c => c.isBest) || candidateFrames[0];
+  selectCandidateThumbnail(chosen);
+  renderCandidateButtons();
+
+  // Setup slider listener once
+  if (slider && !slider.dataset.listening) {
+    slider.dataset.listening = 'true';
+    slider.addEventListener('input', (e) => {
+      if (sliderVal) sliderVal.textContent = e.target.value + '%';
+    });
+    slider.addEventListener('change', async (e) => {
+      if (!autoExtractedVideoElement) return;
+      if (loadingEl) loadingEl.style.display = 'flex';
+      const pct = Number(e.target.value) / 100;
+      const dur = autoExtractedVideoElement.duration || 10;
+      const seekTime = Math.max(0.5, dur * pct);
+      const snap = await captureFrameAt(autoExtractedVideoElement, seekTime);
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (snap) {
+        selectCandidateThumbnail({
+          label: `${e.target.value}%`,
+          pct: Number(e.target.value),
+          time: seekTime,
+          ...snap
+        });
+      }
+    });
+  }
+}
+
+function captureFrameAt(video, targetTime) {
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = (res) => {
+      if (!finished) {
+        finished = true;
+        resolve(res);
+      }
+    };
+
+    const timeout = setTimeout(() => finish(null), 4000);
+
+    const onSeeked = () => {
+      clearTimeout(timeout);
+      video.removeEventListener('seeked', onSeeked);
+      try {
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+
+        let w = 1280;
+        let h = Math.round((vh / vw) * w);
+        if (h % 2 !== 0) h++;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, w, h);
+
+        let brightness = 50;
+        try {
+          const sampleW = Math.min(w, 160);
+          const sampleH = Math.min(h, 90);
+          const imgData = ctx.getImageData(0, 0, sampleW, sampleH);
+          let sum = 0, count = 0;
+          for (let i = 0; i < imgData.data.length; i += 16) {
+            sum += (imgData.data[i] * 0.299 + imgData.data[i + 1] * 0.587 + imgData.data[i + 2] * 0.114);
+            count++;
+          }
+          brightness = count > 0 ? (sum / count) : 50;
+        } catch (e) {}
+
+        canvas.toBlob((blob) => {
+          if (!blob) { finish(null); return; }
+          const url = URL.createObjectURL(blob);
+          finish({ blob, url, brightness, width: w, height: h });
+        }, 'image/jpeg', 0.88);
+      } catch (err) {
+        finish(null);
+      }
+    };
+
+    video.addEventListener('seeked', onSeeked, { once: true });
+    video.currentTime = Math.min(targetTime, Math.max(0, (video.duration || targetTime) - 0.2));
+  });
+}
+
+function selectCandidateThumbnail(cand) {
+  if (!cand || !cand.blob) return;
+  autoExtractedThumbBlob = cand.blob;
+  isCustomThumbSelected = false;
+
+  const previewImg = document.getElementById('auto-thumb-preview');
+  if (previewImg) previewImg.src = cand.url;
+
+  const timeDisplay = document.getElementById('auto-thumb-time-display');
+  if (timeDisplay) {
+    const mins = Math.floor(cand.time / 60);
+    const secs = Math.floor(cand.time % 60);
+    timeDisplay.textContent = `${cand.label || ''} (${mins}:${secs < 10 ? '0' : ''}${secs})`;
+  }
+
+  const badge = document.getElementById('auto-thumb-badge');
+  if (badge) {
+    badge.textContent = '✨ Auto Selected';
+    badge.style.background = 'rgba(16, 185, 129, 0.95)';
+  }
+
+  const slider = document.getElementById('auto-thumb-slider');
+  const sliderVal = document.getElementById('auto-thumb-slider-val');
+  if (slider && cand.pct !== undefined) {
+    slider.value = cand.pct;
+    if (sliderVal) sliderVal.textContent = cand.pct + '%';
+  }
+
+  const thumbLabel = document.getElementById('thumb-file-label');
+  if (thumbLabel) {
+    thumbLabel.innerHTML = `✅ Auto-thumbnail ready: <strong>${cand.label || Math.round(cand.time) + 's frame'}</strong> (Leave as-is or click here to upload a custom image file)`;
+  }
+
+  const revertBtn = document.getElementById('btn-revert-auto-thumb');
+  if (revertBtn) revertBtn.style.display = 'none';
+
+  // Highlight active candidate button
+  document.querySelectorAll('.auto-thumb-cand-btn').forEach(btn => {
+    const isCurrent = Math.abs(Number(btn.dataset.time) - cand.time) < 0.1;
+    btn.style.borderColor = isCurrent ? '#38bdf8' : 'rgba(255,255,255,0.15)';
+    btn.style.background = isCurrent ? 'rgba(56, 189, 248, 0.25)' : 'rgba(0,0,0,0.4)';
+  });
+}
+
+function renderCandidateButtons() {
+  const box = document.getElementById('auto-thumb-candidates');
+  if (!box) return;
+  box.innerHTML = '';
+  candidateFrames.forEach((c) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-secondary btn-sm auto-thumb-cand-btn';
+    btn.dataset.time = c.time;
+    btn.style.padding = '0.3rem 0.6rem';
+    btn.style.fontSize = '0.78rem';
+    btn.style.display = 'inline-flex';
+    btn.style.alignItems = 'center';
+    btn.style.gap = '0.4rem';
+    btn.style.borderRadius = '4px';
+    btn.innerHTML = `<img src="${c.url}" style="width:28px;height:16px;object-fit:cover;border-radius:2px;"> <span>${c.label}</span>`;
+    btn.onclick = () => selectCandidateThumbnail(c);
+    box.appendChild(btn);
+  });
+}
+
+function triggerCustomThumbUpload() {
+  const input = document.getElementById('thumb-file');
+  if (input) input.click();
+}
+
+function revertToAutoThumb() {
+  const input = document.getElementById('thumb-file');
+  if (input) input.value = '';
+  isCustomThumbSelected = false;
+  updateFileLabel('thumb');
+  const revertBtn = document.getElementById('btn-revert-auto-thumb');
+  if (revertBtn) revertBtn.style.display = 'none';
+  if (candidateFrames.length > 0) {
+    selectCandidateThumbnail(candidateFrames.find(c => c.isBest) || candidateFrames[0]);
+  }
+}
+
+function resetAutoThumbUI() {
+  autoExtractedThumbBlob = null;
+  candidateFrames = [];
+  isCustomThumbSelected = false;
+  const container = document.getElementById('auto-thumb-container');
+  if (container) container.style.display = 'none';
+  const previewImg = document.getElementById('auto-thumb-preview');
+  if (previewImg) previewImg.src = '';
+  const revertBtn = document.getElementById('btn-revert-auto-thumb');
+  if (revertBtn) revertBtn.style.display = 'none';
+}
+
+async function fetchThumbFromExternalUrl(videoInputId, thumbInputId) {
+  const videoUrlInput = document.getElementById(videoInputId);
+  const thumbUrlInput = document.getElementById(thumbInputId);
+  const videoUrl = (videoUrlInput ? videoUrlInput.value : '').trim();
+  if (!videoUrl) {
+    showToast('Please enter a video URL first', 'error');
+    return;
+  }
+
+  showToast('Fetching thumbnail from video URL... ⏳', 'info');
+  try {
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.src = videoUrl;
+
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error('Could not load video'));
+      setTimeout(() => reject(new Error('Timeout loading video')), 8000);
+    });
+
+    const targetTime = Math.max(1, (video.duration || 10) * 0.25);
+    const snap = await captureFrameAt(video, targetTime);
+    if (!snap || !snap.blob) throw new Error('Could not extract frame from video stream');
+
+    // Upload directly to Cloudflare R2
+    const thumbFile = new File([snap.blob], `external_thumb_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const thumbResult = await uploadFileDirectly(thumbFile, 'thumbnail');
+    if (thumbResult && thumbResult.publicUrl) {
+      if (thumbUrlInput) thumbUrlInput.value = thumbResult.publicUrl;
+      showToast('Thumbnail extracted & uploaded to R2 successfully! ✨', 'success');
+    } else {
+      showToast('Frame extracted, but upload to storage failed', 'error');
+    }
+  } catch (err) {
+    console.warn('Auto-fetch external thumb error:', err);
+    showToast('Could not auto-fetch from external host (CORS restriction). Please paste thumbnail URL directly.', 'warning');
+  }
+}
+
 window.confirmDisable2FA = confirmDisable2FA;
+window.triggerCustomThumbUpload = triggerCustomThumbUpload;
+window.revertToAutoThumb = revertToAutoThumb;
+
+// ==================== HLS Stream Auto-Thumbnail Extraction ====================
+let hlsAutoThumbBlob = null;
+let lastHlsUrlFetched = '';
+let hlsDebounceTimer = null;
+
+function onHlsInputDebounced(val) {
+  clearTimeout(hlsDebounceTimer);
+  const cleanVal = String(val || '').trim();
+  if (!cleanVal || !cleanVal.includes('.m3u8') || cleanVal === lastHlsUrlFetched) return;
+  hlsDebounceTimer = setTimeout(() => {
+    triggerHlsThumbnailFetch(cleanVal);
+  }, 600);
+}
+
+async function triggerHlsThumbnailFetch(hlsUrl, force = false) {
+  const cleanUrl = String(hlsUrl || '').trim();
+  if (!cleanUrl) {
+    showToast('Please enter an HLS .m3u8 URL first', 'error');
+    return;
+  }
+  if (!force && cleanUrl === lastHlsUrlFetched && hlsAutoThumbBlob) return;
+  lastHlsUrlFetched = cleanUrl;
+
+  const box = document.getElementById('r2-hls-thumb-preview-box');
+  const img = document.getElementById('r2-hls-thumb-img');
+  const loading = document.getElementById('r2-hls-thumb-loading');
+  const badge = document.getElementById('r2-hls-thumb-badge');
+  const timeEl = document.getElementById('r2-hls-thumb-time');
+  const candidatesBox = document.getElementById('r2-hls-thumb-candidates');
+  const thumbInput = document.getElementById('r2-thumb-url');
+
+  if (box) box.style.display = 'block';
+  if (loading) loading.style.display = 'flex';
+  if (badge) { badge.textContent = '⏳ Fetching HLS...'; badge.style.background = '#64748b'; }
+
+  showToast('Fetching best frame from HLS stream... ⏳', 'info');
+
+  try {
+    const frameResult = await extractFrameFromHlsUrl(cleanUrl, 0.25);
+    if (!frameResult || !frameResult.blob) {
+      throw new Error('Could not extract frame from HLS stream');
+    }
+
+    hlsAutoThumbBlob = frameResult.blob;
+    if (img) img.src = frameResult.url;
+    if (loading) loading.style.display = 'none';
+    if (badge) { badge.textContent = '✨ Best Frame Auto-Fetched'; badge.style.background = 'rgba(16, 185, 129, 0.95)'; }
+    if (timeEl) timeEl.textContent = '25% Best Moment';
+
+    // Upload directly to Cloudflare R2
+    const safeBase = 'hls_' + Date.now();
+    const thumbFile = new File([frameResult.blob], `${safeBase}.jpg`, { type: 'image/jpeg' });
+    const uploadRes = await uploadFileDirectly(thumbFile, 'thumbnail');
+    if (uploadRes && uploadRes.publicUrl) {
+      if (thumbInput) thumbInput.value = uploadRes.publicUrl;
+      showToast('HLS thumbnail automatically uploaded to R2! 🎬', 'success');
+    }
+
+    // Render candidate moments (10%, 25%, 50%, 75%)
+    if (candidatesBox && frameResult.duration) {
+      const pcts = [
+        { label: '10%', pct: 0.10 },
+        { label: '25% ⭐', pct: 0.25 },
+        { label: '50%', pct: 0.50 },
+        { label: '75%', pct: 0.75 }
+      ];
+      candidatesBox.innerHTML = '';
+      pcts.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-secondary btn-sm';
+        btn.style.padding = '0.25rem 0.55rem';
+        btn.style.fontSize = '0.75rem';
+        btn.textContent = p.label;
+        btn.onclick = async () => {
+          if (loading) loading.style.display = 'flex';
+          const newFrame = await extractFrameFromHlsUrl(cleanUrl, p.pct);
+          if (loading) loading.style.display = 'none';
+          if (newFrame && newFrame.blob) {
+            hlsAutoThumbBlob = newFrame.blob;
+            if (img) img.src = newFrame.url;
+            if (timeEl) timeEl.textContent = p.label + ' Moment';
+            const f = new File([newFrame.blob], `${safeBase}_${Math.round(p.pct * 100)}.jpg`, { type: 'image/jpeg' });
+            const u = await uploadFileDirectly(f, 'thumbnail');
+            if (u && u.publicUrl && thumbInput) thumbInput.value = u.publicUrl;
+          }
+        };
+        candidatesBox.appendChild(btn);
+      });
+    }
+
+  } catch (err) {
+    console.warn('HLS auto-fetch failed:', err);
+    if (loading) loading.style.display = 'none';
+    if (badge) { badge.textContent = '⚠️ Auto-fetch CORS restricted'; badge.style.background = '#f59e0b'; }
+    showToast('HLS stream host requires direct thumbnail URL, or upload video file for 100% automatic extraction.', 'warning');
+  }
+}
+
+async function autoExtractAndUploadHlsThumbnail(hlsUrl) {
+  try {
+    const frameResult = await extractFrameFromHlsUrl(hlsUrl, 0.25);
+    if (!frameResult || !frameResult.blob) return null;
+    const thumbFile = new File([frameResult.blob], `hls_thumb_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const uploadRes = await uploadFileDirectly(thumbFile, 'thumbnail');
+    return (uploadRes && uploadRes.publicUrl) ? uploadRes.publicUrl : null;
+  } catch (err) {
+    console.warn('autoExtractAndUploadHlsThumbnail error:', err);
+    return null;
+  }
+}
+
+function extractFrameFromHlsUrl(hlsUrl, targetPct = 0.25) {
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = (res) => {
+      if (!finished) {
+        finished = true;
+        try {
+          if (hlsInstance) hlsInstance.destroy();
+          video.remove();
+        } catch (e) {}
+        resolve(res);
+      }
+    };
+
+    const timeout = setTimeout(() => finish(null), 12000);
+
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.playsInline = true;
+    video.style.display = 'none';
+    document.body.appendChild(video);
+
+    let hlsInstance = null;
+
+    const onSeeked = () => {
+      clearTimeout(timeout);
+      try {
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+        let w = 1280;
+        let h = Math.round((vh / vw) * w);
+        if (h % 2 !== 0) h++;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, w, h);
+
+        canvas.toBlob((blob) => {
+          if (!blob) { finish(null); return; }
+          const url = URL.createObjectURL(blob);
+          finish({ blob, url, width: w, height: h, time: video.currentTime, duration: video.duration });
+        }, 'image/jpeg', 0.88);
+      } catch (err) {
+        console.warn('HLS Canvas capture error:', err);
+        finish(null);
+      }
+    };
+
+    const startSeeking = () => {
+      const dur = (video.duration && !isNaN(video.duration) && video.duration > 0) ? video.duration : 60;
+      const seekTime = Math.max(1, dur * targetPct);
+      video.addEventListener('seeked', onSeeked, { once: true });
+      video.currentTime = seekTime;
+    };
+
+    if (typeof Hls !== 'undefined' && Hls.isSupported() && hlsUrl.includes('.m3u8')) {
+      hlsInstance = new Hls({ enableWorker: false, autoStartLoad: true });
+      hlsInstance.loadSource(hlsUrl);
+      hlsInstance.attachMedia(video);
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().then(() => {
+          setTimeout(startSeeking, 350);
+        }).catch(() => {
+          startSeeking();
+        });
+      });
+      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          console.warn('Hls fatal error:', data);
+          finish(null);
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl') || !hlsUrl.includes('.m3u8')) {
+      video.src = hlsUrl;
+      video.onloadedmetadata = () => startSeeking();
+      video.onerror = () => finish(null);
+    } else {
+      finish(null);
+    }
+  });
+}
+
+window.fetchThumbFromExternalUrl = fetchThumbFromExternalUrl;
+window.onHlsInputDebounced = onHlsInputDebounced;
+window.triggerHlsThumbnailFetch = triggerHlsThumbnailFetch;
+window.autoExtractAndUploadHlsThumbnail = autoExtractAndUploadHlsThumbnail;
 window.toggleActiveSecretVisibility = toggleActiveSecretVisibility;
 window.copyActive2FASecret = copyActive2FASecret;
 window.showLinkExistingKeyForm = showLinkExistingKeyForm;

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/css/style.css?v=54">
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="/js/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
   <!-- Navbar -->
@@ -239,12 +240,76 @@
                 <div class="progress-text" id="progress-text">Uploading... 0%</div>
               </div>
               
-              <!-- Thumbnail File -->
-              <div class="form-group">
-                <label>Thumbnail (optional)</label>
-                <div class="upload-area" id="thumb-drop-area" style="padding: 1.5rem;" onclick="document.getElementById('thumb-file').click()">
+              <!-- Thumbnail File & Auto-Extraction Preview -->
+              <div class="form-group" style="margin-top: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <label style="margin: 0; font-weight: 600;">Video Thumbnail</label>
+                  <span id="auto-thumb-status-badge" style="font-size: 0.78rem; color: #38bdf8; display: flex; align-items: center; gap: 4px;">
+                    ✨ Auto-extracts best frame from video
+                  </span>
+                </div>
+
+                <!-- Auto-Thumbnail Preview Container (revealed when video is chosen) -->
+                <div id="auto-thumb-container" style="display: none; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; margin-bottom: 0.75rem;">
+                  <div style="display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap;">
+                    <!-- Main Active Preview Image -->
+                    <div style="position: relative; width: 240px; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.4); box-shadow: 0 4px 16px rgba(0,0,0,0.6); flex-shrink: 0;">
+                      <img id="auto-thumb-preview" src="" alt="Thumbnail Preview" style="width: 100%; height: 100%; object-fit: cover;">
+                      <div id="auto-thumb-loading" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; font-size: 0.85rem; color: #fff;">
+                        ⏳ Extracting frame...
+                      </div>
+                      <span id="auto-thumb-badge" style="position: absolute; bottom: 6px; left: 6px; background: rgba(16, 185, 129, 0.95); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.4);">
+                        ✨ Auto Selected
+                      </span>
+                    </div>
+
+                    <!-- Details and Candidate Pickers -->
+                    <div style="flex: 1; min-width: 260px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <span style="font-size: 0.9rem; font-weight: 600; color: #f1f5f9;">
+                          Selected Frame: <strong id="auto-thumb-time-display" style="color: #38bdf8;">25%</strong>
+                        </span>
+                        <span style="font-size: 0.75rem; color: #10b981; font-weight: 600;">
+                          ✓ Ready for auto-upload
+                        </span>
+                      </div>
+                      <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.75rem; line-height: 1.4;">
+                        No external thumbnail image needed! This frame will automatically be saved and used as your video poster. Pick another frame below if you prefer a different moment:
+                      </p>
+
+                      <!-- Quick Snapshot Options -->
+                      <div style="margin-bottom: 0.75rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Choose a key moment:</span>
+                        <div id="auto-thumb-candidates" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                          <!-- Populated via JS with 4 snapshot buttons -->
+                        </div>
+                      </div>
+
+                      <!-- Custom Slider to scrub any second -->
+                      <div style="background: rgba(255,255,255,0.03); padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                          <label for="auto-thumb-slider" style="font-size: 0.75rem; color: #94a3b8;">Scrub video to any second:</label>
+                          <span id="auto-thumb-slider-val" style="font-size: 0.75rem; color: #38bdf8; font-weight: 600;">25%</span>
+                        </div>
+                        <input type="range" id="auto-thumb-slider" min="1" max="99" value="25" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+                      </div>
+
+                      <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="triggerCustomThumbUpload()">
+                          📁 Upload Custom Image Instead
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-revert-auto-thumb" style="display: none;" onclick="revertToAutoThumb()">
+                          ↩️ Revert to Auto Video Frame
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Custom Thumbnail Drop Area -->
+                <div class="upload-area" id="thumb-drop-area" style="padding: 1.25rem;" onclick="document.getElementById('thumb-file').click()">
                   <div class="upload-icon" style="font-size: 1.5rem;">🖼️</div>
-                  <p id="thumb-file-label">Click to upload thumbnail image</p>
+                  <p id="thumb-file-label">Click or drop custom thumbnail (or leave empty to auto-extract from video)</p>
                   <input type="file" id="thumb-file" accept="image/*" style="display:none">
                 </div>
               </div>
@@ -254,11 +319,14 @@
             <div id="external-link-mode" style="display: none;">
               <div class="form-group">
                 <label for="ext-video-url">Video URL *</label>
-                <input type="url" id="ext-video-url" placeholder="https://example.com/video.mp4">
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="url" id="ext-video-url" placeholder="https://example.com/video.mp4" style="flex: 1;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="fetchThumbFromExternalUrl('ext-video-url', 'ext-thumb-url')" title="Fetch thumbnail automatically from video URL">📸 Auto-Fetch</button>
+                </div>
               </div>
               <div class="form-group">
-                <label for="ext-thumb-url">Thumbnail Image URL * (Optional)</label>
-                <input type="url" id="ext-thumb-url" placeholder="https://example.com/thumb.jpg">
+                <label for="ext-thumb-url">Thumbnail Image URL (Optional — auto-fetched if blank)</label>
+                <input type="url" id="ext-thumb-url" placeholder="Leave blank to auto-generate from video, or paste URL">
               </div>
             </div>
 
@@ -266,12 +334,47 @@
             <div id="r2-link-mode" style="display: none;">
               <div class="form-group">
                 <label for="r2-video-url">Cloudflare R2 HLS URL (.m3u8) *</label>
-                <input type="url" id="r2-video-url" placeholder="e.g. https://pub-your-id.r2.dev/video/master.m3u8">
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Enter public Cloudflare R2 .m3u8 URL</p>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="url" id="r2-video-url" placeholder="e.g. https://pub-your-id.r2.dev/video/master.m3u8" style="flex: 1;" oninput="onHlsInputDebounced(this.value)" onchange="onHlsInputDebounced(this.value)">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="triggerHlsThumbnailFetch(document.getElementById('r2-video-url').value)" title="Fetch thumbnail automatically from HLS stream">📸 Auto-Fetch</button>
+                </div>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Enter public Cloudflare R2 .m3u8 URL — thumbnail will be automatically captured from video</p>
               </div>
+
+              <!-- HLS Live Auto-Thumbnail Preview Box -->
+              <div id="r2-hls-thumb-preview-box" style="display: none; margin-bottom: 1.25rem; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem;">
+                <div style="display: flex; gap: 1.25rem; align-items: flex-start; flex-wrap: wrap;">
+                  <div style="position: relative; width: 220px; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.45); box-shadow: 0 4px 12px rgba(0,0,0,0.6); flex-shrink: 0;">
+                    <img id="r2-hls-thumb-img" src="" alt="HLS Thumbnail Preview" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div id="r2-hls-thumb-loading" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; font-size: 0.8rem; color: #fff;">
+                      ⏳ Extracting HLS frame...
+                    </div>
+                    <span id="r2-hls-thumb-badge" style="position: absolute; bottom: 5px; left: 5px; background: rgba(16, 185, 129, 0.95); color: #fff; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 3px;">
+                      ✨ Best Frame Auto-Fetched
+                    </span>
+                  </div>
+                  <div style="flex: 1; min-width: 220px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+                      <span style="font-size: 0.9rem; font-weight: 600; color: #f1f5f9;">
+                        HLS Frame: <strong id="r2-hls-thumb-time" style="color: #38bdf8;">25% Best Moment</strong>
+                      </span>
+                      <span style="font-size: 0.75rem; color: #10b981; font-weight: 600;">
+                        ✓ Ready
+                      </span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.6rem; line-height: 1.4;">
+                      Automatically fetched from your HLS video stream! No external thumbnail needed. You can leave the Poster URL below blank, or pick another moment:
+                    </p>
+                    <div id="r2-hls-thumb-candidates" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                      <!-- Quick candidate moment buttons -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="form-group">
-                <label for="r2-thumb-url">Poster/Thumbnail URL (Optional)</label>
-                <input type="url" id="r2-thumb-url" placeholder="https://pub-your-id.r2.dev/video/thumb.jpg">
+                <label for="r2-thumb-url">Poster/Thumbnail URL (Optional — auto-fetched from HLS if blank)</label>
+                <input type="url" id="r2-thumb-url" placeholder="Leave empty to auto-use extracted HLS frame, or paste custom URL">
               </div>
             </div>
 
@@ -756,7 +859,10 @@
           </div>
           <div class="form-group">
             <label for="edit-thumb-url">Thumbnail URL (Optional)</label>
-            <input type="url" id="edit-thumb-url" placeholder="https://example.com/thumb.jpg">
+            <div style="display: flex; gap: 0.5rem;">
+              <input type="url" id="edit-thumb-url" placeholder="https://example.com/thumb.jpg" style="flex: 1;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="fetchThumbFromExternalUrl('edit-video-url', 'edit-thumb-url')">📸 Auto-Capture</button>
+            </div>
           </div>
 
           <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
@@ -907,7 +1013,7 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/js/admin.js?v=63"></script>
+  <script src="/js/admin.js?v=65"></script>
 <script>
 function showLinkExistingKeyForm() {
   var box = document.getElementById('twofa-link-existing-box');
